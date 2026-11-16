@@ -30,7 +30,7 @@ notes, a calendar, notifications and a little character that lives in the pill �
 
 ## Contents
 
-- [What's new in 1.7](#whats-new-in-17)
+- [What's new in 1.8](#whats-new-in-18)
 - [Features](#features)
 - [Install (2 minutes, no admin rights)](#install)
 - [How to use it](#how-to-use-it)
@@ -43,7 +43,20 @@ notes, a calendar, notifications and a little character that lives in the pill �
 
 ---
 
-## What's new in 1.7
+## What's new in 1.8
+
+- ↔️ **Resize the island by pulling its edge**, and **arrange it your way**: drag tabs and Home buttons into your order, hide what you don't use, choose what the idle pill shows.
+- 🎚️ **App volume**: a slider for every program that makes sound.
+- 👋 **Welcome steps** on the first start, and a **Check** page in settings that says what works, what doesn't and why — with a fix button.
+- 🔊 **Volume and brightness** beside the island while they change.
+- 📦 **Long jobs** (copying, unpacking, encoding) show in the pill with a ring.
+- 💬 **Messages even without the Windows notification center** ("new message", from the messenger's unread counter).
+- 📅 **Join a call** from a calendar notice in one click.
+- 🫧 **Glass keeps working** while the island is visible to screenshots and screen recording.
+- 🎨 **Your own theme**, shared as one line of text.
+- 🖥️ **Follows the mouse to another monitor** (optional).
+
+### Earlier, in 1.7
 
 - 🫧 **1.7.1 — Liquid glass**: clear frosted glass that bends what's behind it at the edges, with a thin colour fringe; no grey flash when the island opens.
 - 🌸☀️🍂❄️ **Season themes**: animated spring, summer, autumn and winter scenes inside the island.
@@ -93,7 +106,7 @@ notes, a calendar, notifications and a little character that lives in the pill �
 
 The full list is in **[CHANGELOG.md](CHANGELOG.md)**. Highlights:
 
-- 🧸 **15 characters** live in the pill *and* in the open menu, and react to what you do. **Click one** and it shows one of **7 emotions**.
+- 🧸 **37 characters** live in the pill *and* in the open menu, and react to what you do. **Click one** and it shows one of **7 emotions**.
 - ✏️ **Hand-drawn mode**: characters animate frame by frame (12 fps) with a trembling ink outline.
 - 🟠 **Claude** and **Claude Code** characters. Claude Code turns sideways, opens a laptop and types along when you write to the AI.
 - 💧 **The island reaches for the cursor** with its whole body, opens with a soft blur and a tiny colour split, and lands with a little spring.
@@ -215,7 +228,7 @@ In the screenshot editor: `Ctrl+Z` undo, `Ctrl+C` copy, `Ctrl+S` save, `Esc` clo
 
 ## Characters
 
-<p align="center"><img src="docs/screenshots/characters.png" width="80%" alt="All 15 characters"></p>
+<p align="center"><img src="docs/screenshots/characters.png" width="80%" alt="The first 15 characters"></p>
 
 Pick one in **Settings → Character**. It lives in the collapsed pill and in the header of the open menu, and it:
 

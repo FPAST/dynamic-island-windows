@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Media;
@@ -25,6 +25,9 @@ public partial class MainWindow
     private int _unread;
     private int _slowCount;
     private bool _focusByPomodoro;
+    private bool _downloadsBusy, _callProbeBusy;
+    private int _callMisses;
+    private readonly AudioService _audioProbe = new();   // used on background threads only
     private bool _statsBusy;
 
     private void InitExtras()
@@ -41,9 +44,18 @@ public partial class MainWindow
             ShowToast("", title, text, () => OpenTab(TabTimer), (Brush)FindResource("Accent"), ms: 6000);
             RenderTimer();
         };
-        _downloads.Completed += path => ShowToast("", L.T("Загрузка завершена"), Path.GetFileName(path),
+        _downloads.Completed += path => Dispatcher.BeginInvoke(() => ShowToast("", L.T("Загрузка завершена"), Path.GetFileName(path),
             () => Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{path}\"") { UseShellExecute = true }),
-            (Brush)FindResource("AccentBlue"), ms: 5000);
+            (Brush)FindResource("AccentBlue"), ms: 5000));
+
+        _progress.Finished += app =>
+        {
+            if (_settings.ShowProgress && !FocusMode.IsOn)
+                ShowToast("\uE73E", L.T("Готово"), ProgressWatcher.Friendly(app), null, (Brush)FindResource("Accent"), ms: 4000);
+        };
+        InitShellHook();
+        InitSelfCheck();
+        InitWelcome();
 
         InitTimerPage();
         IcsBox.Text = _settings.CalendarIcs;
@@ -64,6 +76,7 @@ public partial class MainWindow
     private void UpdateLive()
     {
         WatchTyping();
+        UpdateIdleDim();
         _timer.Tick();
         UpdateEyesVisibility();
 
@@ -90,7 +103,7 @@ public partial class MainWindow
                 lives.Add(("focus", "\uE708", L.F("Не беспокоить · {0}:{1:00}", (int)left.TotalMinutes, left.Seconds), -1,
                            new SolidColorBrush(Color.FromRgb(0x5E, 0x5C, 0xE6))));
             }
-            if (_discordInCall && !DiscordBeside)
+            if (_discordInCall && _settings.ShowDiscordCall && !DiscordBeside)
                 lives.Add(("discord", "\uE7F6",
                            _audio.MicMuted == true ? L.T("Discord · микрофон выкл") : _discordSpeaking ? L.T("Discord · говорят") : L.T("Discord · в канале"),
                            _discordSpeaking ? 1 : 0, new SolidColorBrush(Color.FromRgb(0x58, 0x65, 0xF2))));
@@ -98,6 +111,9 @@ public partial class MainWindow
                 lives.Add(("download", "\uE896",
                            L.F("{0} · {1}/с", Shorten(d.Name, 22), DownloadWatcher.FormatBytes(d.BytesPerSecond)) + (d.Count > 1 ? L.F(" · ещё {0}", d.Count - 1) : ""),
                            (_tickCount % 8) / 8.0, (Brush)FindResource("AccentBlue")));
+            if (_settings.ShowProgress && _progress.Current is { } job)
+                lives.Add(("progress", job.App.Equals("explorer", StringComparison.OrdinalIgnoreCase) ? "\uE8C8" : "\uE895",
+                           $"{ProgressWatcher.Friendly(job.App)} · {job.Percent}%", Math.Max(0.02, job.Percent / 100.0), (Brush)FindResource("AccentBlue")));
             if (_soonEvent is { } ev)
             {
                 var mins = (int)Math.Ceiling((ev.Start - DateTime.Now).TotalMinutes);
@@ -105,7 +121,7 @@ public partial class MainWindow
             }
             if (_lastMedia?.IsPlaying == true)
             {
-                string? karaoke = _settings.Karaoke && _currentLyrics?.Synced == true && LyricCur.Text is { Length: > 0 } line && line != "♪" ? Shorten(line, 44) : null;
+                string? karaoke = _settings.Karaoke && _currentLyrics?.Synced == true && LyricCur.Text is { Length: > 0 } line && line != "♪" ? line : null;   // the whole line: the island grows to fit it
                 lives.Add(("music", null, karaoke, -1, ringBrush));   // the cover, the equaliser and the eyes
             }
         }
@@ -124,7 +140,16 @@ public partial class MainWindow
             LiveRing.Data = ring > 0 ? RingGeometry(22, 2.5, ring) : null;
             Eyes.Visibility = MiniArt.Visibility = Visibility.Collapsed;
         }
-        if (text != null)
+        // karaoke has its own view (light running over the words, lines springing in); anything else is plain text
+        bool kara = pick.Id == "music" && text != null && _mode == Mode.Compact;
+        if (kara != (Karaoke.Visibility == Visibility.Visible))
+        {
+            Karaoke.Visibility = kara ? Visibility.Visible : Visibility.Collapsed;
+            CompactTime.Visibility = kara ? Visibility.Collapsed : Visibility.Visible;
+            if (!kara) { _w.Stiffness = 340; _w.Damping = 31; }   // back to the island's usual, calmer width spring
+        }
+        if (kara) Karaoke.Tint = _albumColor;
+        else if (text != null)
         {
             CompactTime.Text = text;
             CompactTime.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "Fg");
@@ -135,7 +160,11 @@ public partial class MainWindow
         CamDot.Visibility = _privacy.Camera.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         UnreadBadge.Visibility = _unread > 0 ? Visibility.Visible : Visibility.Collapsed;
         UnreadText.Text = _unread > 99 ? "99+" : _unread.ToString();
-        if (text != null && text.Length > 18) CompactWeather.Visibility = Visibility.Collapsed; // keep the pill compact
+        if (text != null && text.Length > 18)   // keep the pill compact
+        {
+            CompactWeather.Visibility = Visibility.Collapsed;
+            if (_pillBattery != null) _pillBattery.Visibility = Visibility.Collapsed;
+        }
 
         if (_mode == Mode.Compact && !_hidden)
         {
@@ -197,7 +226,17 @@ public partial class MainWindow
     {
         _slowCount++;
         FocusMode.Tick();
-        _downloads.Poll();
+        UiStep("slow tick");
+        // the Downloads folder can sit on a sleeping or network drive: never wait for it on the UI thread
+        if (!_downloadsBusy)
+        {
+            _downloadsBusy = true;
+            _ = Task.Run(() => { try { _downloads.Poll(); } catch { } }).ContinueWith(_ => _downloadsBusy = false);
+        }
+        if (_settings.ShowProgress && !_gameMode && _demoMedia == null) _progress.Poll();
+        if (_slowCount % 4 == 1) WatchVolumeDevice();
+        WatchMonitor();
+        if (_slowCount % 2 == 1) WatchMessengerTitles();
         if (_slowCount % 2 == 0 || _demoMedia != null)
             _privacy = _demoMedia != null ? new([], []) : PrivacyMonitor.Read(); // demo shows nothing real
 
@@ -206,10 +245,32 @@ public partial class MainWindow
 
         // Discord call: Discord has a live microphone stream open (not just an old Windows record)
         // listing every process is not free: look for Discord every 3 s
-        if (_slowCount % 3 == 0 || _discordInCall)
-            _discordInCall = _audio.AppsRecording().Any(a => a.Contains("discord", StringComparison.OrdinalIgnoreCase)) &&
+        // asked on a background thread (Windows audio can take its time, and the island must not freeze for it)
+        if ((_slowCount % 3 == 0 || _discordInCall) && !_callProbeBusy && !_liveDemo)
+        {
+            _callProbeBusy = true;
+            _ = Task.Run(() =>
+            {
+                bool inCall = false, speaking = false;
+                try
+                {
+                    inCall = _audioProbe.AppsRecording().Any(a => a.Contains("discord", StringComparison.OrdinalIgnoreCase)) &&
                              Process.GetProcessesByName("Discord").Length > 0;
-        _discordSpeaking = _discordInCall && _audio.AppState("discord").Peak > 0.03;
+                    speaking = inCall && _audioProbe.AppState("discord").Peak > 0.03;
+                }
+                catch { }
+                return (inCall, speaking);
+            }).ContinueWith(t =>
+            {
+                _callProbeBusy = false;
+                if (_liveDemo || t.IsFaulted) return;
+                var (inCall, speaking) = t.Result;
+                // one missed reading is not the end of a call (the microphone stream blinks when devices switch)
+                if (inCall) { _discordInCall = true; _callMisses = 0; }
+                else if (++_callMisses >= 2) _discordInCall = false;
+                _discordSpeaking = _discordInCall && speaking;
+            }, TaskScheduler.FromCurrentSynchronizationContext());
+        }
         if (_liveDemo) _discordInCall = _discordSpeaking = _demoDiscord;
 
         CheckCalendar();
@@ -270,13 +331,17 @@ public partial class MainWindow
         {
             var key = e.Title + e.Start.Ticks;
             var left = e.Start - now;
+            // an event with a call link: one click on the notice joins the call
+            string? link = e.Link;
+            Action open = link != null ? () => SafeShell.OpenUrl(link) : () => OpenTab(TabCalendar);
+            string sub = link != null ? e.Title + " · " + L.T("нажмите, чтобы войти") : e.Title;
             if (!e.IsReminder && left <= TimeSpan.FromMinutes(10) && left > TimeSpan.Zero && _eventNotified.Add(key + "10"))
-                ShowToast("", L.F("Через {0} мин", (int)Math.Ceiling(left.TotalMinutes)), e.Title, () => OpenTab(TabCalendar), ms: 6000);
+                ShowToast(link != null ? "\uE714" : "", L.F("Через {0} мин", (int)Math.Ceiling(left.TotalMinutes)), sub, open, ms: link != null ? 9000 : 6000);
             if (left <= TimeSpan.Zero && left > TimeSpan.FromMinutes(-2) && _eventNotified.Add(key + "0"))
             {
                 PlayChime();
-                ShowToast(e.IsReminder ? "" : "", e.IsReminder ? L.T("Напоминание") : L.T("Начинается"), e.Title,
-                    () => OpenTab(TabCalendar), (Brush)FindResource("Warm"), ms: 8000);
+                ShowToast(e.IsReminder ? "" : link != null ? "\uE714" : "", e.IsReminder ? L.T("Напоминание") : L.T("Начинается"), sub,
+                    open, (Brush)FindResource("Warm"), ms: link != null ? 12000 : 8000);
             }
         }
 
@@ -288,6 +353,7 @@ public partial class MainWindow
 
     private static void PlayChime()
     {
+        if (!Settings.Current.Sounds) return;
         try
         {
             var wav = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Media", "Windows Notify Calendar.wav");
@@ -322,6 +388,7 @@ public partial class MainWindow
             RamBar.ScaleX = s.Ram / 100;
         }
 
+        RefreshMixer();
         DiscordStatus.Text = _discordInCall ? (_discordSpeaking ? L.T("В канале · кто-то говорит") : L.T("В голосовом канале")) : L.T("Не в голосовом канале");
         DiscordBadge.Opacity = _discordInCall ? 1 : 0.5;
         var mic = _audio.MicMuted;

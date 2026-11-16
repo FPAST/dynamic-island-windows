@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -89,27 +89,8 @@ public partial class MainWindow
             SwatchPanel.Children.Add(b);
         }
 
-        foreach (var (id, _, label) in AllActions)
-        {
-            var chip = new CheckBox { Style = (Style)FindResource("ChipToggle"), Content = label, Tag = id };
-            chip.Click += (_, _) =>
-            {
-                if (chip.IsChecked == true)
-                {
-                    if (!_settings.Actions.Contains(id))
-                    {
-                        // keep the original order
-                        var order = AllActions.Select(a => a.Id).ToList();
-                        _settings.Actions.Add(id);
-                        _settings.Actions.Sort((a, b) => order.IndexOf(a).CompareTo(order.IndexOf(b)));
-                    }
-                }
-                else _settings.Actions.Remove(id);
-                _settings.Save();
-                BuildHome();
-            };
-            ActionChips.Children.Add(chip);
-        }
+        BuildLayoutPage();
+        ApplyTabLayout();
         BuildCharacterGallery();
         BuildSettingsNav();
         BuildAuraChips();
@@ -120,7 +101,7 @@ public partial class MainWindow
     {
         foreach (var (id, name) in Views.CharacterView.All)
         {
-            var preview = new Views.CharacterView { Kind = id, LayoutTransform = new ScaleTransform(1.5, 1.5), HorizontalAlignment = HorizontalAlignment.Center };
+            var preview = new Views.CharacterView { Placeholder = true, Kind = id, LayoutTransform = new ScaleTransform(1.5, 1.5), HorizontalAlignment = HorizontalAlignment.Center };
             _previewCharacters.Add(preview);
             var stack = new StackPanel();
             stack.Children.Add(new Border { Height = 40, Child = preview });
@@ -196,7 +177,17 @@ public partial class MainWindow
         FillHideAppPicker();
         CapsSwitch.IsChecked = _settings.ShowCapsLock;
         LayoutSwitch.IsChecked = _settings.ShowKeyboardLayout;
+        LevelsSwitch.IsChecked = _settings.ShowLevels;
+        ProgressSwitch.IsChecked = _settings.ShowProgress;
+        MonitorSwitch.IsChecked = _settings.FollowMonitor;
+        BuildThemeEditor();
+        if (CheckHost.IsVisible) _ = RunSelfCheckAsync();
         DiscordSideSwitch.IsChecked = _settings.DiscordSidePill;
+        DiscordShowSwitch.IsChecked = _settings.ShowDiscordCall;
+        GeminiVoiceApiKeyBox.Password = _settings.GeminiVoiceApiKey;
+        VoiceVolumeSlider.Value = Math.Clamp(_settings.GeminiVoiceVolume, 0, 100);
+        VoiceVolumeValue.Text = $"{_settings.GeminiVoiceVolume}%";
+        DiscordSideSwitch.IsEnabled = _settings.ShowDiscordCall;
         CaptureSwitch.IsChecked = HideFromCapture;
         ScaleSlider.Value = Math.Clamp(_settings.IslandScale, 80, 130);
         ScaleValue.Text = $"{_settings.IslandScale}%";
@@ -219,8 +210,6 @@ public partial class MainWindow
         HomeMusicChip.IsChecked = _settings.HomeMusic;
         HomeWeatherChip.IsChecked = _settings.HomeWeather;
         HomeAppsChip.IsChecked = _settings.HomeApps;
-        foreach (CheckBox chip in ActionChips.Children)
-            chip.IsChecked = _settings.Actions.Contains((string)chip.Tag);
         HoverSwitch.IsChecked = _settings.ExpandOnHover;
         FullscreenSwitch.IsChecked = _settings.HideInFullscreen;
         AutostartSwitch.IsChecked = Autostart.IsEnabled;
@@ -310,7 +299,12 @@ public partial class MainWindow
         _settings.SmartIsland = SmartSwitch.IsChecked == true;
         _settings.ShowCapsLock = CapsSwitch.IsChecked == true;
         _settings.ShowKeyboardLayout = LayoutSwitch.IsChecked == true;
+        _settings.ShowLevels = LevelsSwitch.IsChecked == true;
+        _settings.ShowProgress = ProgressSwitch.IsChecked == true;
+        _settings.FollowMonitor = MonitorSwitch.IsChecked == true;
         _settings.DiscordSidePill = DiscordSideSwitch.IsChecked == true;
+        _settings.ShowDiscordCall = DiscordShowSwitch.IsChecked == true;
+        DiscordSideSwitch.IsEnabled = _settings.ShowDiscordCall;
         if (HideFromCapture != (CaptureSwitch.IsChecked == true))
         {
             _settings.CaptureHidden = CaptureSwitch.IsChecked == true;
@@ -332,9 +326,9 @@ public partial class MainWindow
         if (_settings.MirrorNotifications)
         {
             if (NotificationMirror.CenterDisabled())
-                hint = L.T("Центр уведомлений Windows отключён (обычно это делают программы-«твикеры»), поэтому Windows не хранит уведомления и Atoll их не видит. Включите его обратно в той же программе.");
+                hint = L.T("Центр уведомлений Windows отключён (обычно это делают программы-«твикеры»), поэтому Windows не хранит уведомления и Atoll не видит их текст. Остров всё равно скажет «новое сообщение» — по счётчику непрочитанных в окне мессенджера. Чтобы видеть и текст, включите центр уведомлений обратно в той же программе.");
             else if (!_notifications.Available)
-                hint = L.T("Windows не дал доступ к уведомлениям: «Параметры → Конфиденциальность → Уведомления» — разрешите приложениям доступ.");
+                hint = L.T("Windows не дал доступ к уведомлениям, поэтому остров показывает только «новое сообщение» без текста. Чтобы видеть текст: «Параметры → Конфиденциальность → Уведомления» — разрешите приложениям доступ.");
             else
                 hint = L.T("В Telegram Desktop включите «Настройки → Уведомления → Системные уведомления», иначе Telegram показывает свои окна, которые Windows не видит.");
         }
@@ -414,6 +408,14 @@ public partial class MainWindow
     {
         _settings.RecordSystemAudio = RecSysSwitch.IsChecked == true;
         _settings.RecordMicrophone = RecMicSwitch.IsChecked == true;
+        _settings.Save();
+    }
+
+    private void GeminiVoiceApiKeyBox_LostFocus(object sender, RoutedEventArgs e)
+    {
+        if (_settingsLoading) return;
+        _settings.GeminiVoiceApiKey = GeminiVoiceApiKeyBox.Password.Trim();
+        GeminiVoiceApiKeyBox.Password = _settings.GeminiVoiceApiKey;
         _settings.Save();
     }
 }

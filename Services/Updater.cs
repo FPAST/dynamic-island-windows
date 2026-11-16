@@ -77,6 +77,10 @@ public static class Updater
             uri.Scheme != Uri.UriSchemeHttps || !uri.Host.Equals("github.com", StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("No installer in this release");
 
+        // no published digest = nothing to check the file against: never run an installer we can't verify
+        if (string.IsNullOrWhiteSpace(info.Sha256) || info.Sha256.Length != 64)
+            throw new InvalidOperationException("This release has no checksum to verify the installer with");
+
         var path = Path.Combine(Path.GetTempPath(), $"Atoll-{info.Version}-setup.exe");
         using (var resp = await Http.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, ct))
         {
@@ -96,7 +100,6 @@ public static class Updater
         }
 
         // the file must be exactly what GitHub says it published
-        if (info.Sha256 != null)
         {
             await using var f = File.OpenRead(path);
             var hash = Convert.ToHexString(await SHA256.HashDataAsync(f, ct));

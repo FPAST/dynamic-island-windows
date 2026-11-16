@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -141,9 +141,19 @@ public partial class MainWindow
     /// <summary>Test: a made-up backdrop instead of the real screen (see --run liquidtest).</summary>
     private Func<int, int, byte[]>? _frostTestBackdrop;
 
+    /// <summary>Live demo: a still picture of the desktop (taken with the island hidden from it) stands in for the screen.</summary>
+    private Drawing.Bitmap? _demoPlate;
+    private Drawing.Point _demoPlateAt;
+    /// <summary>
+    /// The glass needs a picture of the screen without the island. Either the island is hidden from all
+    /// capture (then a plain grab does), or — when it must stay visible to screenshots and recorders —
+    /// the Magnification API leaves just our window out (where this Windows supports it).
+    /// </summary>
+    private bool FrostCanGrab => _excluded == true || _demoPlate != null || MagCapture.Works != false;
+
     private void CaptureFrost()
     {
-        if (!_settings.Glass || Lite || _excluded != true || _hidden || _fullscreenHidden || !IsLoaded || !Island.IsVisible) { if (Lite || _excluded != true) FrostHost.Opacity = 0; SetFrostCovers(false); return; }
+        if (!_settings.Glass || Lite || !FrostCanGrab || _hidden || _fullscreenHidden || !IsLoaded || !Island.IsVisible) { if (Lite || !FrostCanGrab) FrostHost.Opacity = 0; SetFrostCovers(false); return; }
         if (_dragging || _posActive) { FrostHost.Opacity = 0; SetFrostCovers(false); return; }
         // grabbing the screen makes Windows finish composing first: never while the size is changing
         if (_rendering && !(_w.IsSettled && _h.IsSettled)) return;
@@ -159,7 +169,7 @@ public partial class MainWindow
     /// </summary>
     private bool PrecaptureFrost(Size coming)
     {
-        if (!_settings.Glass || Lite || _excluded != true || _hidden || _fullscreenHidden || !IsLoaded || !Island.IsVisible || _dragging || _posActive) return false;
+        if (!_settings.Glass || Lite || !FrostCanGrab || _hidden || _fullscreenHidden || !IsLoaded || !Island.IsVisible || _dragging || _posActive) return false;
         double iw = Math.Max(coming.Width, Island.ActualWidth), ih = Math.Max(coming.Height, Island.ActualHeight);
         if (_frostCovers && iw / 2 + FrostMargin <= _frostHalf + 0.5 && ih + FrostMargin <= _frostHeight + 0.5) return true;   // already big enough
         return GrabFrost(iw, ih);
@@ -168,6 +178,7 @@ public partial class MainWindow
     /// <summary>Grab and show the backdrop for an island of this size (centred where the island is).</summary>
     private bool GrabFrost(double islandW, double islandH)
     {
+        UiStep("glass");
         try
         {
             // only the island and a thin margin, at a quarter of the resolution (it is blurred anyway),
@@ -180,7 +191,10 @@ public partial class MainWindow
             // liquid glass bends the picture at the edge: it needs a sharper grab than plain frost
             int div = LiquidGlass ? 2 : 4;
             int w = Math.Max(1, rect.Width / div), h = Math.Max(1, rect.Height / div);
-            var px = _frostTestBackdrop != null ? _frostTestBackdrop(w, h) : CaptureService.CaptureSmall(rect, w, h, _frostPixels);
+            var px = _frostTestBackdrop != null ? _frostTestBackdrop(w, h)
+                   : _demoPlate != null ? CaptureService.CropSmall(_demoPlate, _demoPlateAt, rect, w, h, _frostPixels)
+                   : _excluded == true ? CaptureService.CaptureSmall(rect, w, h, _frostPixels)
+                   : _shutDown ? null : MagCapture.Capture(_hwnd, rect, w, h, _frostPixels);
             if (px == null) return false;
             _frostPixels = px;
 
@@ -204,7 +218,7 @@ public partial class MainWindow
             if (LiquidGlass)
             {
                 double sb = w / (half * 2);   // DIP → grab pixels
-                shown = Refract(px, w, h, (half - islandW / 2) * sb, islandW * sb, islandH * sb, Math.Min(islandH / 2, 28) * sb);
+                shown = Refract(px, w, h, (half - islandW / 2) * sb, islandW * sb, islandH * sb, Radius(islandH) * sb);
             }
             _frostBmp!.WritePixels(new Int32Rect(0, 0, w, h), shown, w * 4, 0);
             _frostHalf = half;
@@ -233,6 +247,8 @@ public partial class MainWindow
         FrostHost.Clip = g;
         PhotoHost.Clip = g;
         Season.Clip = g;
+        Season.Outline = g;
+        if (Season.Kind == "liquid" && Season.IsVisible) Season.InvalidateVisual();   // its rim light is drawn along this outline
         Season.Width = Math.Max(1, width);
         Season.Height = Math.Max(1, Island.Height);
         PhotoImage.Width = Math.Max(1, width);
@@ -340,7 +356,6 @@ public partial class MainWindow
 
     // ================================================================ header: page dots
 
-    private RadioButton[] PageTabs => [TabHome, TabMusic, TabWeather, TabChat, TabTimer, TabClip, TabNotes, TabCalendar, TabSystem];
     private bool _iconsShown;
 
     private void UpdatePageDots()

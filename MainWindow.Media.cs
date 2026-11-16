@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
@@ -241,9 +241,24 @@ public partial class MainWindow
             index = Math.Clamp((int)(frac * lines.Count), 0, lines.Count - 1);
         }
 
+        if (lyrics.Synced) Karaoke.Sync(m.CurrentPosition, m.IsPlaying);
         if (index == _lyricIndex) return;
         bool forward = index > _lyricIndex && _lyricIndex != int.MinValue;
         _lyricIndex = index;
+
+        // the folded island: the new line springs in, and the island springs to its width at that very moment
+        if (lyrics.Synced && index >= 0 && lines[index].Text.Length > 0)
+        {
+            var next = index + 1 < lines.Count ? lines[index + 1].Time : lines[index].Time + TimeSpan.FromSeconds(4);
+            Karaoke.SetLine(lines[index].Text, lines[index].Time, next);
+            if (Karaoke.IsVisible && _mode == Mode.Compact && !_hidden && !_editMode)
+            {
+                CompactView.InvalidateMeasure();   // the line's new width counts now, not after the next layout pass
+                MorphTo(new Size(CompactWidth, CompactHeight));
+                _w.Stiffness = 230; _w.Damping = 19;   // livelier than usual: a little past the size and back
+                Kick(0.7);
+            }
+        }
 
         string Line(int i) => i >= 0 && i < lines.Count ? (lines[i].Text.Length > 0 ? lines[i].Text : "♪") : "";
 

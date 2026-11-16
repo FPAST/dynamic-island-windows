@@ -41,7 +41,16 @@ public sealed class FpsMeter : IDisposable
             new Thread(() =>
             {
                 try { session.Source.Process(); }
-                catch (Exception e) { Log.Write("fps: " + e.Message); }
+                catch (Exception e)
+                {
+                    // stopping the session (the game lost the front) ends the reading with an error: that one is expected
+                    if (ReferenceEquals(_session, session))
+                    {
+                        Log.Write("fps: " + e.Message);
+                        _session = null;   // it died by itself: say "not running", so the helper's numbers are used
+                        try { session.Dispose(); } catch { }
+                    }
+                }
             }) { IsBackground = true, Name = "FPS" }.Start();
             return true;
         }
@@ -122,6 +131,7 @@ public sealed class FpsMeter : IDisposable
             {
                 var json = System.Text.Json.JsonSerializer.Serialize(meter.All().ToDictionary(k => k.Key.ToString(), k => k.Value));
                 var tmp = HelperFile + ".tmp";
+                if (IsLink(tmp) || IsLink(HelperFile) || IsLink(Path.GetDirectoryName(HelperFile)!)) { Log.Write("fps helper: a link in the way, stopping"); return; }
                 File.WriteAllText(tmp, json);
                 File.Move(tmp, HelperFile, true);
             }
@@ -129,6 +139,12 @@ public sealed class FpsMeter : IDisposable
             Thread.Sleep(500);
         }
         try { File.Delete(HelperFile); } catch { }
+    }
+
+    private static bool IsLink(string path)
+    {
+        try { return (File.Exists(path) || Directory.Exists(path)) && File.GetAttributes(path).HasFlag(FileAttributes.ReparsePoint); }
+        catch { return true; }
     }
 
     /// <summary>FPS of a process from the helper's file, when the helper is running.</summary>
@@ -164,11 +180,14 @@ public sealed class FpsMeter : IDisposable
         catch { return false; }   // the user said no
     }
 
+    /// <summary>Windows' own PowerShell, by its full path (what runs as administrator must not depend on the search order).</summary>
+    private static string SystemPowerShell => Path.Combine(Environment.SystemDirectory, "WindowsPowerShell", "v1.0", "powershell.exe");
+
     private static void AddToGroup()
     {
         var user = $"{Environment.UserDomainName}\\{Environment.UserName}";
         var script = $"Add-LocalGroupMember -SID 'S-1-5-32-559' -Member '{user.Replace("'", "''")}' -ErrorAction SilentlyContinue";
-        using var p = Process.Start(new ProcessStartInfo("powershell.exe", $"-NoProfile -WindowStyle Hidden -Command \"{script}\"")
+        using var p = Process.Start(new ProcessStartInfo(SystemPowerShell, $"-NoProfile -WindowStyle Hidden -Command \"{script}\"")
         { UseShellExecute = false, CreateNoWindow = true });
         p?.WaitForExit(30000);
     }
@@ -184,7 +203,7 @@ public sealed class FpsMeter : IDisposable
         {
             var user = $"{Environment.UserDomainName}\\{Environment.UserName}";
             var script = $"Add-LocalGroupMember -SID 'S-1-5-32-559' -Member '{user.Replace("'", "''")}' -ErrorAction SilentlyContinue";
-            using var p = Process.Start(new ProcessStartInfo("powershell.exe", $"-NoProfile -WindowStyle Hidden -Command \"{script}\"")
+            using var p = Process.Start(new ProcessStartInfo(SystemPowerShell, $"-NoProfile -WindowStyle Hidden -Command \"{script}\"")
             {
                 UseShellExecute = true, Verb = "runas", WindowStyle = ProcessWindowStyle.Hidden,
             });

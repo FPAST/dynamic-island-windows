@@ -10,8 +10,22 @@ public sealed class Reminder
     public bool Notified { get; set; }
 }
 
+public sealed class CustomTheme
+{
+    public string Id { get; set; } = "";
+    public string Name { get; set; } = "";
+    public bool Dark { get; set; } = true;
+    public string Island { get; set; } = "#000000";
+    public string Accent { get; set; } = "#30D158";
+    public string Aura { get; set; } = "none";
+    public string Scene { get; set; } = "";
+}
+
 public sealed class Settings
 {
+    /// <summary>No settings file yet: the very first start on this computer.</summary>
+    public static bool FirstRun { get; private set; }
+
     public static Settings Current { get; } = Load();
 
     // weather
@@ -49,10 +63,48 @@ public sealed class Settings
     /// <summary>Frosted glass: the desktop behind the island, blurred, under a tint.</summary>
     public bool Glass { get; set; } = true;
     public bool ShowCapsLock { get; set; } = true;
+    /// <summary>Volume and screen brightness: a level beside the island while they change.</summary>
+    public bool ShowLevels { get; set; } = true;
+    /// <summary>Copying, unpacking, rendering… (programs that show a percentage in their window title) as a live activity.</summary>
+    public bool ShowProgress { get; set; } = true;
+    /// <summary>The island moves to the monitor the mouse is on.</summary>
+    public bool FollowMonitor { get; set; }
+    /// <summary>Extra width of the folded pill (pulled by its edge), in pixels; negative makes it narrower.</summary>
+    public int PillExtra { get; set; }
+    /// <summary>The middle of the idle pill: "time", "timedate" or "date".</summary>
+    public string PillClock { get; set; } = "time";
+    /// <summary>The right side of the idle pill: "weather", "battery" or "none".</summary>
+    public string PillRight { get; set; } = "weather";
+    /// <summary>The user's order of the page tabs (names), and the ones switched off.</summary>
+    public List<string> TabOrder { get; set; } = [];
+    public List<string> HiddenTabs { get; set; } = [];
+    /// <summary>How round the corners are, 0 (nearly square) … 100 (a pill).</summary>
+    public int Roundness { get; set; } = 100;
+    /// <summary>How solid the folded island is while the cursor is away, 30 … 100 percent.</summary>
+    public int IdleOpacity { get; set; } = 100;
+    /// <summary>The shadow under the island.</summary>
+    public bool ShowShadow { get; set; } = true;
+    /// <summary>Font family for the whole island ("" = the system one).</summary>
+    public string Font { get; set; } = "";
+    /// <summary>The clock: 12-hour, with seconds.</summary>
+    public bool Clock12 { get; set; }
+    public bool ClockSeconds { get; set; }
+    /// <summary>How long the cursor rests on the pill before it opens, in milliseconds.</summary>
+    public int HoverDelay { get; set; } = 100;
+    /// <summary>The chime of a finished timer, a reminder, an event.</summary>
+    public bool Sounds { get; set; } = true;
+    /// <summary>The welcome steps have been shown.</summary>
+    public bool Onboarded { get; set; }
+    /// <summary>The version whose "what's new" the user has seen.</summary>
+    public string SeenVersion { get; set; } = "";
+    /// <summary>Themes the user made: id, name, colours, aura, scene.</summary>
+    public List<CustomTheme> CustomThemes { get; set; } = [];
     /// <summary>The chat page in its large size (sign-in pages and captchas fit).</summary>
     public bool ChatLarge { get; set; }
     /// <summary>A Discord call as a little island to the right of the main one (instead of inside the pill).</summary>
     public bool DiscordSidePill { get; set; } = true;
+    /// <summary>Off: a Discord call shows nowhere on the island (neither beside it nor inside the pill).</summary>
+    public bool ShowDiscordCall { get; set; } = true;
     /// <summary>The smart island: opens on what matters now, learns your habits, keeps quiet while you type.</summary>
     public bool SmartIsland { get; set; } = true;
     /// <summary>How often each tab was used, per hour of the day (24 counts per tab). Stays on this PC.</summary>
@@ -136,6 +188,9 @@ public sealed class Settings
 
     // chat
     public string ChatProvider { get; set; } = "gemini";
+    public string GeminiVoiceApiKey { get; set; } = "";
+    public string GeminiVoice { get; set; } = "Kore";
+    public int GeminiVoiceVolume { get; set; } = 100;
 
     private static string FilePath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
@@ -146,6 +201,8 @@ public sealed class Settings
     private static Settings Load()
     {
         Settings s;
+        bool existed = File.Exists(FilePath);
+        FirstRun = !existed;
         try
         {
             s = File.Exists(FilePath)
@@ -154,6 +211,7 @@ public sealed class Settings
         }
         catch { s = new Settings(); } // corrupted file: start fresh
 
+        if (existed) s.Onboarded = true;   // people who already use it never get the welcome steps
         if (s.Version < CurrentVersion)
         {
             // v3: glass was unreadable and the waves too much → solid & calm

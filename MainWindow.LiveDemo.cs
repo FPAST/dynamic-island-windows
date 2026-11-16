@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Windows;
 using System.Windows.Media;
 using DynamicIsland.Services;
@@ -243,6 +243,79 @@ public partial class MainWindow
                 break;
             case "vpnapp":  // the VPN tile without a Windows VPN profile: opens your VPN app
                 ShowToast("", L.F("Открываю {0}", arg), null, null, new SolidColorBrush(Color.FromRgb(0x30, 0xD1, 0x58)), ms: 2200);
+                break;
+            case "theme":   // theme liquid · theme midnight: a built-in theme (nothing is saved in a demo)
+            {
+                var t = Array.Find(BuiltInThemes, x => x.Id == arg);
+                if (t != null) ApplyThemePreset(t);
+                break;
+            }
+            case "plate":   // a still picture of the desktop for the glass to bend (taken with the island hidden from it)
+            {
+                Native.SetWindowDisplayAffinity(_hwnd, Native.WDA_EXCLUDEFROMCAPTURE);
+                await Task.Delay(250);
+                var vs = System.Windows.Forms.SystemInformation.VirtualScreen;
+                var bmp = new System.Drawing.Bitmap(vs.Width, vs.Height, System.Drawing.Imaging.PixelFormat.Format32bppRgb);
+                using (var g = System.Drawing.Graphics.FromImage(bmp)) g.CopyFromScreen(vs.Left, vs.Top, 0, 0, bmp.Size);
+                Native.SetWindowDisplayAffinity(_hwnd, 0);
+                _demoPlate?.Dispose();
+                _demoPlate = bmp;
+                _demoPlateAt = new System.Drawing.Point(vs.Left, vs.Top);
+                break;
+            }
+            case "hideisland":
+                HideIsland(animate: true);
+                break;
+            case "showisland":
+                ShowIsland();
+                break;
+            case "appearance":   // Settings > Appearance, at the top (the themes)
+                _pinnedOpen = true;
+                TabSettings.IsChecked = true;
+                Expand();
+                ((System.Windows.Controls.RadioButton)SettingsNav.Children[0]).IsChecked = true;
+                break;
+            case "clipseg":   // clipseg history|text|shelf: the clipboard tab, that section
+                _pinnedOpen = true;
+                TabClip.IsChecked = true;
+                (arg == "text" ? ClipSegText : arg == "shelf" ? ClipSegShelf : ClipSegHistory).IsChecked = true;
+                Expand();
+                RenderClipSection();
+                break;
+            case "textfix":   // textfix <text>: put text into the text tools (never reads the real clipboard)
+                TextToolsBox.Text = arg;
+                break;
+            case "textswap":  // the "layout" button: ghbdtn -> privet
+                ApplyTextTool(TextTools.SwapLayout);
+                break;
+            case "textop":    // textop sentence|upper|lower|swap: one of the text tools
+                ApplyTextTool(arg switch { "sentence" => TextTools.Sentence, "upper" => TextTools.Upper, "lower" => TextTools.Lower, _ => TextTools.SwapLayout });
+                break;
+            case "dragover":  // a file dragged over the island
+                if (_mode != Mode.Compact) { _pinnedOpen = false; SetMode(Mode.Compact); await Task.Delay(350); }
+                ShowDropTarget();
+                break;
+            case "drop":      // drop <path>: the file lands on the island
+                if (_mode != Mode.Drop) { ShowDropTarget(); await Task.Delay(250); }
+                ShowDropped([arg]);
+                break;
+            case "dropact":   // what the buttons say when pressed (without touching the real clipboard or files)
+                if (arg == "copy") Done(L.T("Файлы в буфере"), L.T("Вставьте в Telegram, чат или папку: Ctrl+V"));
+                else if (arg == "shelf") { var f = _dropped; AddToShelf(f); Done(L.T("На полке"), L.F("{0} файл(ов) ждут во вкладке «Буфер → Полка»", _settings.Shelf.Count)); }
+                break;
+            case "editsize":  // editsize on|off: the grips on the folded pill
+                if (arg == "off") ExitEditMode(); else EnterEditMode();
+                break;
+            case "pillextra": // pillextra 120: as if the right grip were pulled
+                _settings.PillExtra = int.Parse(arg);
+                if (_mode == Mode.Compact) MorphTo(new Size(CompactWidth, CompactHeight));
+                break;
+            case "layoutpage":    // Settings > Layout
+                _pinnedOpen = true;
+                TabSettings.IsChecked = true;
+                Expand();
+                foreach (System.Windows.Controls.RadioButton nav in SettingsNav.Children)
+                    if (ReferenceEquals(((FrameworkElement)LayoutHost.Parent), SettingsSections.Children[SettingsNav.Children.IndexOf(nav)])) nav.IsChecked = true;
                 break;
             case "quit":
                 Application.Current.Shutdown();

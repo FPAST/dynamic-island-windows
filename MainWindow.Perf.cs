@@ -13,6 +13,39 @@ namespace DynamicIsland;
 /// </summary>
 public partial class MainWindow
 {
+    // ------------------------------------------------------------------ "the island froze": what was it doing?
+
+    private long _uiBeat = Environment.TickCount64;
+    private volatile string _uiStep = "start";
+    private System.Threading.Timer? _stallTimer;
+    private bool _stallLogged;
+
+    /// <summary>Called on the UI thread at the start of anything that could take long: a heartbeat with a name.</summary>
+    private void UiStep(string what)
+    {
+        _uiStep = what;
+        Interlocked.Exchange(ref _uiBeat, Environment.TickCount64);
+    }
+
+    /// <summary>
+    /// A background timer watches the heartbeat. If the UI thread stops answering for a few seconds, the log
+    /// gets one line saying so and what it was doing — so a "the island hung" report can be acted on.
+    /// </summary>
+    private void InitStallWatch()
+    {
+        _stallTimer = new System.Threading.Timer(_ =>
+        {
+            long late = Environment.TickCount64 - Interlocked.Read(ref _uiBeat);
+            if (late is > 4000 and < 120000)   // longer than that is the computer waking from sleep, not a hang
+            {
+                if (_stallLogged) return;
+                _stallLogged = true;
+                Log.Write($"ui thread not answering for {late / 1000} s, last step: {_uiStep}");
+            }
+            else _stallLogged = false;
+        }, null, 3000, 1000);
+    }
+
     // ------------------------------------------------------------------ no power throttling
 
     [StructLayout(LayoutKind.Sequential)]

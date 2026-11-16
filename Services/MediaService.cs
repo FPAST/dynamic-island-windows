@@ -91,6 +91,9 @@ public sealed class MediaService
         }
     }
 
+    /// <summary>Windows gave us its media sessions (false: the media API is not available on this system).</summary>
+    public bool Ready => _manager != null;
+
     public async Task InitAsync()
     {
         _manager = await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();

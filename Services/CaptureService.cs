@@ -73,6 +73,23 @@ public static class CaptureService
     /// it's blurred anyway, so a quarter of the resolution looks the same and costs a fraction.
     /// Plain StretchBlt leaves layered windows (the island itself) out of the picture.
     /// </summary>
+    /// <summary>Like CaptureSmall, but from a picture of the desktop taken earlier (whose top-left is at screen point at).</summary>
+    public static byte[]? CropSmall(Drawing.Bitmap plate, Drawing.Point at, Drawing.Rectangle r, int w, int h, byte[]? buffer)
+    {
+        if (w < 1 || h < 1 || r.Width < 1 || r.Height < 1) return null;
+        using var small = new Drawing.Bitmap(w, h, Drawing.Imaging.PixelFormat.Format32bppRgb);
+        using (var g = Drawing.Graphics.FromImage(small))
+        {
+            g.InterpolationMode = Drawing.Drawing2D.InterpolationMode.HighQualityBilinear;
+            g.DrawImage(plate, new Drawing.Rectangle(0, 0, w, h), new Drawing.Rectangle(r.Left - at.X, r.Top - at.Y, r.Width, r.Height), Drawing.GraphicsUnit.Pixel);
+        }
+        if (buffer == null || buffer.Length != w * h * 4) buffer = new byte[w * h * 4];
+        var data = small.LockBits(new Drawing.Rectangle(0, 0, w, h), Drawing.Imaging.ImageLockMode.ReadOnly, Drawing.Imaging.PixelFormat.Format32bppRgb);
+        try { for (int y = 0; y < h; y++) Marshal.Copy(data.Scan0 + y * data.Stride, buffer, y * w * 4, w * 4); }
+        finally { small.UnlockBits(data); }
+        return buffer;
+    }
+
     public static byte[]? CaptureSmall(Drawing.Rectangle r, int w, int h, byte[]? buffer)
     {
         if (w < 1 || h < 1 || r.Width < 1 || r.Height < 1) return null;

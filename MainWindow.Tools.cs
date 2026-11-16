@@ -153,6 +153,7 @@ public partial class MainWindow
 
     private async void OnClipboardChanged()
     {
+        UiStep("clipboard");
         if (IsPrivateClip()) return;
         _copiedAt = DateTime.Now;   // the smart island opens on the clipboard right after you copy
         ClipItem? item = null;
@@ -415,6 +416,12 @@ public partial class MainWindow
         e.Handled = true;
         if (_mode == Mode.Expanded && HomeApps.IsVisible) { e.Effects = DragDropEffects.Link; return; }   // pin to the apps row
         if (_mode == Mode.Drop && DropActions.Visibility == Visibility.Visible) return;
+        ShowDropTarget();
+    }
+
+    /// <summary>A file is being dragged over the island: "drop it here".</summary>
+    private void ShowDropTarget()
+    {
         _dropped = [];
         DropIcon.Text = "";
         DropTitle.Text = L.T("Отпустите файл на острове");
@@ -441,6 +448,11 @@ public partial class MainWindow
             if (OverApps(e)) { AddApps(files); return; }
             SetMode(Mode.Drop);   // dropped elsewhere on Home: the usual file actions
         }
+        ShowDropped(files);
+    }
+
+    private void ShowDropped(string[] files)
+    {
         _dropped = files;
 
         long size = files.Where(File.Exists).Sum(f => new FileInfo(f).Length);

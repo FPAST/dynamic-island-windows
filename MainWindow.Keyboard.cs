@@ -55,13 +55,16 @@ public partial class MainWindow
     private Border? _keyPill;
     private TextBlock? _keyIcon, _keyTitle, _keySub;
     private Border? _keyBadge;
+    private Grid? _keyBar;
+    private Border? _keyBarFill;
+    private string _keyKind = "";
     private readonly System.Windows.Threading.DispatcherTimer _keyTimer = new() { Interval = TimeSpan.FromMilliseconds(1300) };
 
     /// <summary>
     /// Caps Lock / layout: a small pill next to the island (below it when the island is open) instead of
     /// a notice on the island itself, so whatever the island shows keeps working and nothing folds.
     /// </summary>
-    private void ShowKeyPill(string glyph, string title, string? sub, Color? accent)
+    private void ShowKeyPill(string glyph, string title, string? sub, Color? accent, double? level = null, string kind = "")
     {
         if (_hidden || _fullscreenHidden || !IsLoaded) return;
         if (_keyLayer == null)
@@ -76,7 +79,14 @@ public partial class MainWindow
             _keySub.SetResourceReference(TextBlock.ForegroundProperty, "Fg");
             _keyIcon.SetResourceReference(TextBlock.ForegroundProperty, "Fg");
             var row = new StackPanel { Orientation = Orientation.Horizontal };
-            row.Children.Add(_keyBadge); row.Children.Add(_keyTitle); row.Children.Add(_keySub);
+            // a level (volume, brightness): a thin bar between the name and the number
+            _keyBarFill = new Border { Height = 4, CornerRadius = new CornerRadius(2), HorizontalAlignment = HorizontalAlignment.Left };
+            _keyBarFill.SetResourceReference(Border.BackgroundProperty, "Fg");
+            var track = new Border { Height = 4, CornerRadius = new CornerRadius(2), Opacity = 0.22 };
+            track.SetResourceReference(Border.BackgroundProperty, "Fg");
+            _keyBar = new Grid { Width = 78, Height = 4, Margin = new Thickness(9, 1, 2, 0), VerticalAlignment = VerticalAlignment.Center, Visibility = Visibility.Collapsed };
+            _keyBar.Children.Add(track); _keyBar.Children.Add(_keyBarFill);
+            row.Children.Add(_keyBadge); row.Children.Add(_keyTitle); row.Children.Add(_keyBar); row.Children.Add(_keySub);
             _keyPill = new Border { CornerRadius = new CornerRadius(18), Padding = new Thickness(5, 5, 14, 5), Child = row, Opacity = 0,
                                     RenderTransformOrigin = new Point(0.5, 0.5), RenderTransform = new ScaleTransform(0.8, 0.8) };
             _keyPill.SetResourceReference(Border.BackgroundProperty, "IslandBg");
@@ -94,6 +104,12 @@ public partial class MainWindow
         _keyTitle!.Text = title;
         _keySub!.Text = sub ?? "";
         _keySub.Visibility = string.IsNullOrEmpty(sub) ? Visibility.Collapsed : Visibility.Visible;
+        _keySub.MinWidth = level != null ? 34 : 0;   // the number changes while the key is held: the pill must not jitter
+        _keyBar!.Visibility = level != null ? Visibility.Visible : Visibility.Collapsed;
+        if (level is double lv) _keyBarFill!.Width = 78 * Math.Clamp(lv, 0, 1);
+        // the same kind of notice again while it is still up (a held volume key): just update it, no new pop
+        bool again = kind.Length > 0 && kind == _keyKind && _keyTimer.IsEnabled;
+        _keyKind = kind;
         if (accent is Color a) { _keyBadge!.Background = new SolidColorBrush(a); _keyBadge.Background.Freeze(); }
         else _keyBadge!.SetResourceReference(Border.BackgroundProperty, "ChipBg");
 
@@ -110,6 +126,9 @@ public partial class MainWindow
         Canvas.SetLeft(_keyPill, Math.Max(0, x));
         Canvas.SetTop(_keyPill, y);
 
+        _keyTimer.Stop();
+        _keyTimer.Start();
+        if (again) { _keyPill.BeginAnimation(OpacityProperty, null); _keyPill.Opacity = 1; return; }
         _keyPill.BeginAnimation(OpacityProperty, new DoubleAnimation(1, TimeSpan.FromMilliseconds(140)));
         var pop = new DoubleAnimation(0.85, 1, TimeSpan.FromMilliseconds(260)) { EasingFunction = new BackEase { Amplitude = 0.4, EasingMode = EasingMode.EaseOut } };
         ((ScaleTransform)_keyPill.RenderTransform).BeginAnimation(ScaleTransform.ScaleXProperty, pop);

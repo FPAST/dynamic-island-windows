@@ -58,6 +58,7 @@
         <ContextMenu x:Name="IslandMenu">
           <MenuItem Header="Спрятать (смахнуть вверх)" Click="HideIsland_Click"/>
           <MenuItem Header="Выровнять по центру" Click="ResetPosition_Click"/>
+          <MenuItem Header="Изменить размер…" Click="EditSize_Click"/>
           <MenuItem Header="Сменить тему" InputGestureText="Ctrl+Alt+T" Click="ToggleTheme_Click"/>
           <MenuItem Header="Настройки" Click="OpenSettings_Click"/>
           <Separator/>
@@ -134,6 +135,8 @@
           <TextBlock x:Name="CompactTime" Grid.Column="1" Text="00:00" FontSize="13" FontWeight="SemiBold"
                      HorizontalAlignment="Center" VerticalAlignment="Center"
                      MaxWidth="300" TextTrimming="CharacterEllipsis"/>
+          <!-- karaoke: the line being sung, whole (the island sizes itself to it) -->
+          <v:KaraokeView x:Name="Karaoke" Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed"/>
 
           <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,0,0">
             <!-- who uses the mic / camera right now (like the iOS dots) -->
@@ -635,6 +638,13 @@
                   </ComboBox.ItemTemplate>
                 </ComboBox>
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                  <Button x:Name="VoiceNameButton" Style="{StaticResource GhostPill}" Padding="10,5" Margin="0,0,6,0"
+                          ToolTip="Голос Gemini" Click="VoiceName_Click"/>
+                  <TextBlock x:Name="VoiceStatusText" Style="{StaticResource Muted}" MaxWidth="100" Margin="0,0,6,0"
+                             VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Visibility="Collapsed"/>
+                  <Button x:Name="VoiceAssistantButton" Style="{StaticResource GhostPill}" Content="Голос"
+                          Padding="10,5" Margin="0,0,6,0" ToolTip="Голосовой диалог Gemini Live"
+                          Click="VoiceAssistant_Click"/>
                   <Button x:Name="ChatSizeButton" Style="{StaticResource IconButton}" Width="30" Height="30" FontSize="12" Content="&#xE740;" ToolTip="Больше места (для входа и капчи)" Click="ChatSize_Click"/>
                   <Button Style="{StaticResource IconButton}" Width="30" Height="30" FontSize="12" Content="&#xE72C;" ToolTip="Обновить" Click="ChatReload_Click"/>
                   <Button Style="{StaticResource IconButton}" Width="30" Height="30" FontSize="12" Content="&#xE8A7;" ToolTip="Открыть в браузере" Click="ChatOpenExternal_Click"/>
@@ -803,6 +813,12 @@
                   <WrapPanel x:Name="PowerButtons" Margin="0,10,0,0"/>
                 </StackPanel>
               </Border>
+              <Border x:Name="MixerTile" Style="{StaticResource Tile}" Margin="0,0,0,10" Visibility="Collapsed">
+                <StackPanel>
+                  <TextBlock Style="{StaticResource Caption}" Text="ГРОМКОСТЬ ПРОГРАММ"/>
+                  <StackPanel x:Name="MixerRows" Margin="0,8,0,0"/>
+                </StackPanel>
+              </Border>
               <UniformGrid Columns="3">
                 <Border Style="{StaticResource Tile}" Margin="0,0,5,0">
                   <StackPanel>
@@ -941,6 +957,7 @@
                     </WrapPanel>
                     <TextBlock x:Name="ThemeStoreStatus" Style="{StaticResource Muted}" TextWrapping="Wrap"/>
                     <WrapPanel x:Name="ThemeStore" Margin="0,8,0,0"/>
+                    <StackPanel x:Name="ThemeEditorHost" Margin="0,6,0,0"/>
                   </StackPanel>
                 </Border>
                 <Border Style="{StaticResource Tile}" Margin="0,0,0,10">
@@ -1084,8 +1101,6 @@
                       <CheckBox x:Name="HomeWeatherChip" Style="{StaticResource ChipToggle}" Content="Погода" Click="HomeLayout_Click"/>
                       <CheckBox x:Name="HomeAppsChip" Style="{StaticResource ChipToggle}" Content="Приложения" Click="HomeLayout_Click"/>
                     </WrapPanel>
-                    <TextBlock Text="Кнопки действий" Style="{StaticResource Muted}" Margin="0,6,0,8"/>
-                    <WrapPanel x:Name="ActionChips"/>
                   </StackPanel>
                 </Border>
                   </StackPanel>
@@ -1117,6 +1132,8 @@
                               Visibility="Collapsed" Click="UpdateNow_Click"/>
                       <Button DockPanel.Dock="Right" Style="{StaticResource GhostPill}" Margin="0,0,8,0" Padding="12,7"
                               Click="CheckUpdates_Click" Content="Проверить сейчас"/>
+                      <Button DockPanel.Dock="Right" Style="{StaticResource GhostPill}" Margin="0,0,8,0" Padding="12,7"
+                              Click="WhatsNew_Click" Content="Что нового"/>
                       <StackPanel VerticalAlignment="Center">
                         <TextBlock Text="Обновления" FontSize="13"/>
                         <TextBlock x:Name="UpdateStatus" Style="{StaticResource Muted}" Margin="0,2,0,0" TextWrapping="Wrap"/>
@@ -1144,10 +1161,14 @@
                     <CheckBox x:Name="LockSwitch" Style="{StaticResource Switch}" Click="Behavior_Click" Content="Закрепить на месте (не перетаскивать)"/>
                     <CheckBox x:Name="CapsSwitch" Style="{StaticResource Switch}" Click="Behavior_Click" Content="Показывать Caps Lock"/>
                     <CheckBox x:Name="LayoutSwitch" Style="{StaticResource Switch}" Click="Behavior_Click" Content="Показывать смену раскладки"/>
+                    <CheckBox x:Name="LevelsSwitch" Style="{StaticResource Switch}" Click="Behavior_Click" Content="Показывать громкость и яркость рядом с островом"/>
+                    <CheckBox x:Name="ProgressSwitch" Style="{StaticResource Switch}" Click="Behavior_Click" Content="Копирование, распаковка и другие долгие задачи — на острове"/>
+                    <CheckBox x:Name="MonitorSwitch" Style="{StaticResource Switch}" Click="Behavior_Click" Content="Переходить на монитор, где сейчас курсор"/>
+                    <CheckBox x:Name="DiscordShowSwitch" Style="{StaticResource Switch}" Click="Behavior_Click" Content="Показывать звонок Discord на острове"/>
                     <CheckBox x:Name="DiscordSideSwitch" Style="{StaticResource Switch}" Click="Behavior_Click" Content="Звонок Discord — отдельным островком справа"/>
                     <CheckBox x:Name="CaptureSwitch" Style="{StaticResource Switch}" Click="Behavior_Click" Content="Скрывать остров на скриншотах и демонстрации экрана"/>
                     <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,-4,0,8"
-                               Text="Если выключить, остров будет виден на скриншотах, записи и в Zoom/Discord, но эффект стекла станет сплошным. Пока работает запись NVIDIA, остров сам остаётся видимым — иначе она не пишет рабочий стол"/>
+                               Text="Если выключить, остров будет виден на скриншотах, записи и в Zoom/Discord — стекло при этом продолжает работать. Пока работает запись NVIDIA, остров сам остаётся видимым — иначе она не пишет рабочий стол"/>
                     <CheckBox x:Name="FullscreenSwitch" Style="{StaticResource Switch}" Click="Behavior_Click" Content="Прятать в играх и полноэкранном режиме"/>
                     <DockPanel Margin="0,0,0,10">
                       <ComboBox x:Name="OpenHotkeyBox" DockPanel.Dock="Right" Style="{StaticResource SoftCombo}" Width="200"
@@ -1215,6 +1236,25 @@
                   <StackPanel Tag="ИИ-агенты|&#xE8BD;" Visibility="Collapsed">
                 <Border Style="{StaticResource Tile}" Margin="0,0,0,10">
                   <StackPanel>
+                    <TextBlock Style="{StaticResource Caption}" Text="ГОЛОСОВОЙ АССИСТЕНТ · GEMINI LIVE"/>
+                    <TextBlock Text="API-ключ Gemini" Margin="0,8,0,4"/>
+                    <PasswordBox x:Name="GeminiVoiceApiKeyBox" Style="{StaticResource SoftPasswordBox}" Height="30"
+                                 LostFocus="GeminiVoiceApiKeyBox_LostFocus"/>
+                    <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" FontSize="11" Margin="0,5,0,0"
+                               Text="Если поле пустое, используется GEMINI_API_KEY."/>
+                    <StackPanel Margin="0,10,0,0">
+                      <DockPanel Margin="0,0,0,4">
+                        <TextBlock Text="Громкость ИИ-ассистента" FontSize="13" VerticalAlignment="Center"/>
+                        <TextBlock x:Name="VoiceVolumeValue" DockPanel.Dock="Right" Style="{StaticResource Muted}"
+                                   MinWidth="40" TextAlignment="Right" VerticalAlignment="Center"/>
+                      </DockPanel>
+                      <Slider x:Name="VoiceVolumeSlider" Style="{StaticResource SoftSlider}" Minimum="0" Maximum="100"
+                              TickFrequency="1" VerticalAlignment="Center" ValueChanged="VoiceVolumeSlider_ValueChanged"/>
+                    </StackPanel>
+                  </StackPanel>
+                </Border>
+                <Border Style="{StaticResource Tile}" Margin="0,0,0,10">
+                  <StackPanel>
                     <DockPanel>
                       <TextBlock Text="✳" FontSize="16" Foreground="{DynamicResource ClaudeOrange}" VerticalAlignment="Center"/>
                       <TextBlock Style="{StaticResource Caption}" Text="CLAUDE CODE" VerticalAlignment="Center" Margin="8,0,0,0"/>
@@ -1235,6 +1275,12 @@
                     <TextBlock x:Name="CodexHooksStatus" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,8,0,0"/>
                   </StackPanel>
                 </Border>
+                  </StackPanel>
+                  <StackPanel Tag="Раскладка|&#xE8A9;" Visibility="Collapsed">
+                    <StackPanel x:Name="LayoutHost"/>
+                  </StackPanel>
+                  <StackPanel Tag="Проверка|&#xE9D9;" Visibility="Collapsed">
+                    <StackPanel x:Name="CheckHost"/>
                   </StackPanel>
                 </Grid>
               </ScrollViewer>

@@ -109,7 +109,7 @@ internal static class Native
     }
 
     [DllImport("user32.dll")]
-    private static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int cx, int cy, uint flags);
+    public static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int cx, int cy, uint flags);
 
     /// <summary>Move a window in one step (x and y together, in physical pixels): setting WPF's Left
     /// and then Top moves it twice per frame, which shows up as a judder while dragging.</summary>

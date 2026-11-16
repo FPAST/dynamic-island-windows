@@ -64,7 +64,7 @@ public partial class MainWindow
     {
         foreach (var ch in new[] { Character, MenuBuddy, ChatBuddy })
         {
-            if (!ch.IsVisible) continue;
+            if (!ch.IsVisible || ch.Kind == "none") continue;
             var p = e.GetPosition(ch);
             if (p.X < -4 || p.Y < -4 || p.X > ch.ActualWidth + 4 || p.Y > ch.ActualHeight + 4) continue;
             ch.Emote();

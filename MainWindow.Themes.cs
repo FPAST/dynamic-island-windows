@@ -49,6 +49,7 @@ public partial class MainWindow
     {
         ThemeGallery.Children.Clear();
         foreach (var t in BuiltInThemes) ThemeGallery.Children.Add(ThemeCard(t, L.T(t.Name)));
+        AddOwnThemeCards();
         PhotoRemoveButton.Visibility = _settings.IslandPhoto ? Visibility.Visible : Visibility.Collapsed;
     }
 

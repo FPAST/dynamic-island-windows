@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Media;
 
 namespace DynamicIsland.Views;
@@ -22,6 +22,9 @@ public sealed class SeasonView : FrameworkElement
 
     /// <summary>The island is folded: a quieter scene (no flowers or umbrella over the pill's text).</summary>
     public bool Compact { get; set; }
+
+    /// <summary>The island's real outline right now (it bulges towards the cursor, grows ears when docked): the glass's rim light follows it.</summary>
+    public Geometry? Outline { get; set; }
 
     private sealed class Bit
     {
@@ -479,9 +482,17 @@ public sealed class SeasonView : FrameworkElement
                 new GradientStop(Color.FromArgb(0x50, 0xFF, 0xFF, 0xFF), 1),
             },
         };
+        var sheen = new LinearGradientBrush(Color.FromArgb(0x1C, 0xFF, 0xFF, 0xFF), Color.FromArgb(0x00, 0xFF, 0xFF, 0xFF), 90);
+        if (Outline != null)
+        {
+            // along the outline itself (the view is clipped to it, so the inner half of the line shows):
+            // when the island stretches towards the cursor or its corners are made squarer, the rim goes with it
+            dc.DrawGeometry(Compact ? sheen : null, new Pen(top, 2.4), Outline);
+            if (!Compact) dc.DrawRectangle(sheen, null, new Rect(0, 0, w, Math.Min(h, 60)));   // open: the sheen stays near the top
+            return;
+        }
         dc.DrawRoundedRectangle(null, new Pen(top, 1.2), new Rect(0.8, 0.8, w - 1.6, h - 1.6), radius - 0.8, radius - 0.8);
         // a soft sheen on the upper part of the glass
-        var sheen = new LinearGradientBrush(Color.FromArgb(0x1C, 0xFF, 0xFF, 0xFF), Color.FromArgb(0x00, 0xFF, 0xFF, 0xFF), 90);
         dc.DrawRoundedRectangle(sheen, null, new Rect(0, 0, w, Math.Min(h, Compact ? h : 60)), radius, radius);
     }
 }

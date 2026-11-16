@@ -2,6 +2,61 @@
 
 All notable changes to Atoll (formerly "Dynamic Island for Windows"). Русская версия каждого пункта — ниже английской.
 
+## 1.8.0 — 2026-11-16
+
+- **Resize the island by hand**: right-click the island → Resize… (or Settings → Layout). Pull the folded pill's right edge to make it wider, its bottom edge to make it bigger; Reset puts it back.
+- **Your layout**: Settings → Layout — drag the tabs and the Home buttons into your own order, click one to hide it or bring it back; choose what the idle pill shows in the middle (time, time and date, date) and on the right (weather, battery, nothing).
+- **App volume**: the System tab now has a slider and a mute button for every program that makes sound.
+- **Welcome steps**: on the very first start, three short steps — pick a look, choose what the island shows, see how to use it. People who already use Atoll never get them.
+- **Check page**: Settings → Check says in plain words what works, what doesn't and why (messages, music, weather, FPS, glass, start with Windows, updates, calendar), with a button that fixes it where a fix exists, and "Copy report" for asking for help.
+- **Messages without the notification center**: where Windows keeps no notifications (the center is switched off, or access was refused), the island still says "new message" — from the unread counter in the messenger's window title. Without the text; the text needs the notification center.
+- **Volume and brightness**: while either changes, a small level shows beside the island (brightness on laptops). Switch: Settings → Behavior.
+- **Long jobs of other programs**: copying in Explorer, unpacking in 7-Zip or WinRAR, encoders and other programs that show a percentage in their window title appear in the pill with a ring, and "Done" when they finish.
+- **Join a call from the calendar**: an event with a Zoom, Meet, Teams, Telemost… link shows it 10 minutes before and at the start — one click on the notice opens the call.
+- **Glass while visible to recording**: frosted and liquid glass now also work when the island is not hidden from screenshots and screen recording (including while NVIDIA's recorder runs).
+- **Your own theme**: Settings → Appearance → Your own theme — island colour, accent, scene; saved next to the built-in ones. A theme travels as one line of text: right-click yours to copy its code, paste a code to add one.
+- **Follow the mouse to another monitor** (off by default): Settings → Behavior. Not yet tried on mixed-scaling setups.
+- **What's new**: after an update, a notice opens the list of changes of that version, with the Telegram channel one click away. Also a button next to "Updates".
+- **Voice assistant (Gemini Live)**: a live voice conversation from the Chat tab ("Voice" button; the voice is picked from the menu beside it). It can open websites, YouTube, Google, Steam, Roblox, Spotify, Telegram and Discord by voice. Needs your own Gemini API key: Settings → AI agents (or the GEMINI_API_KEY variable); its loudness is set there too.
+- **Karaoke, redone**: the line being sung is shown whole and the island springs to its width the moment it changes (before, the line was cut to fit the island). Light runs across the words as they are sung, with the album's colour on its leading edge; a new line springs up from below while the old one lifts off.
+- **More to make your own** (Settings → Layout): corner rounding from a pill to nearly square, see-through when idle (the folded island fades while the cursor is away and comes back as it comes near), the shadow on or off, a choice of font, a 12-hour clock and seconds, the delay before the island opens on hover, and the timer / reminder sound on or off.
+- **22 new characters**: puppy, fox, panda, bear, frog, penguin, chick, piggy, koala, mouse, bee, octopus, mushroom, cactus, alien, bat, moon, sun, flame, droplet, heart and pumpkin — each watches the cursor, dances to the music and falls asleep like the first ones. And **"No character"**: the pill is just the clock.
+- **A Discord call can be hidden**: Settings → Behavior → "Show a Discord call on the island". Off: it shows neither beside the island nor inside the pill.
+- **A softer pull towards the cursor**: the point of the island nearest to the cursor reaches out first, and the rest of the island follows it a moment later, content and edges included. Before, the top and the far side stayed nailed in place, and with the liquid glass theme the rim stayed a plain pill while the body moved.
+- **Fixed: FPS and load in games never appeared.** Since 1.6 the "FPS and load in games" switch turned off "hide in full screen", and the game was then never noticed. Now either switch notices a game.
+- **Fixed: the Discord call island blinked** while the main island opened on a wide page (Settings). It now stays, or hides once when there is no room and comes back when the island folds.
+- **Fixed: no more "fps: Value does not fall within the expected range" in the log** every time a game lost the front; if the FPS reading really stops, the helper's numbers are used.
+- **Less to freeze on**: the Downloads folder and the Discord call check are read in the background, never on the interface thread. If the interface still stops answering for a few seconds, the log now says what it was doing.
+- **Safer FPS helper**: the administrator helper refuses to write through a link placed in its folder.
+- **Security hardening**: the updater refuses an installer that has no published checksum (before, it skipped the check); steps that run as administrator start Windows' own PowerShell by its full path; uninstalling leaves folders in place if their path could be misread by the command line.
+
+### По-русски
+- Голосовой ассистент (Gemini Live): живой голосовой диалог с вкладки «Чат» (кнопка «Голос»; голос выбирается в меню рядом). По голосу открывает сайты, YouTube, Google, Steam, Roblox, Spotify, Telegram и Discord. Нужен свой API-ключ Gemini: Настройки → ИИ-агенты (или переменная GEMINI_API_KEY); там же громкость.
+- Караоке заново: строка показывается целиком, а остров пружиной подстраивается под её ширину в момент смены (раньше строка обрезалась под остров). По словам бежит свет в такт пению, с цветом обложки на переднем крае; новая строка выпрыгивает снизу, старая уходит вверх.
+- Больше настроек под себя (Настройки → Раскладка): скругление углов от пилюли до почти квадрата, прозрачность в покое (свёрнутый остров бледнеет, пока курсор далеко, и возвращается, когда он рядом), тень вкл/выкл, выбор шрифта, 12-часовой формат и секунды, задержка раскрытия при наведении, звук таймера и напоминаний вкл/выкл.
+- 22 новых персонажа: пёсик, лиса, панда, мишка, лягушка, пингвин, цыплёнок, хрюша, коала, мышка, пчёлка, осьминог, грибочек, кактус, пришелец, летучая мышь, луна, солнышко, огонёк, капелька, сердечко и тыква — каждый следит за курсором, танцует под музыку и засыпает, как первые. И «Без персонажа»: в пилюле остаются только часы.
+- Звонок Discord можно скрыть: Настройки → Поведение → «Показывать звонок Discord на острове». Если выключить, звонок не показывается ни рядом с островом, ни в пилюле.
+- Мягче тянется к курсору: ближайшая к курсору точка острова тянется первой, а остальной остров идёт за ней чуть позже — вместе с содержимым и краями. Раньше верх и дальний бок стояли на месте, а в теме «Жидкое стекло» кромка оставалась ровной пилюлей, пока тело двигалось.
+- Исправлено: FPS и нагрузка в играх не показывались. С версии 1.6 переключатель «FPS и нагрузка в играх» выключал «прятать в полноэкранном режиме», и игра после этого не замечалась. Теперь игру замечает любой из двух переключателей.
+- Исправлено: островок звонка Discord мигал, пока основной остров раскрывался на широкой странице (Настройки). Теперь он остаётся на месте либо один раз прячется, если места нет, и возвращается, когда остров сворачивается.
+- Исправлено: в журнале больше нет «fps: Value does not fall within the expected range» при каждом выходе из игры; если счётчик FPS действительно остановился, берутся числа помощника.
+- Меньше поводов зависнуть: папка «Загрузки» и проверка звонка Discord читаются в фоне, а не в потоке интерфейса. Если интерфейс всё же перестанет отвечать на несколько секунд, в журнале будет записано, чем он был занят.
+- Безопаснее помощник FPS: помощник с правами администратора отказывается писать через ссылку, подложенную в его папку.
+- Безопасность: обновление отказывается запускать установщик без опубликованной контрольной суммы (раньше проверка пропускалась); шаги с правами администратора запускают системный PowerShell по полному пути; удаление не трогает папки, если их путь может быть неверно прочитан командной строкой.
+- Размер острова руками: правый клик по острову → «Изменить размер…» (или Настройки → Раскладка). Тяните свёрнутый остров за правый край — шире, за нижний — крупнее; «Сбросить» возвращает как было.
+- Своя раскладка: Настройки → Раскладка — перетащите вкладки и кнопки Главной в свой порядок, нажмите, чтобы скрыть или вернуть; выберите, что пилюля показывает в центре (время, время и дата, дата) и справа (погода, батарея, ничего).
+- Громкость программ: на вкладке «Система» — ползунок и кнопка «без звука» для каждой программы, которая издаёт звук.
+- Первый запуск: три коротких шага — выбрать вид, что показывать на острове, как им пользоваться. Тем, кто уже пользуется Atoll, они не показываются.
+- Страница «Проверка»: Настройки → Проверка простыми словами говорит, что работает, что нет и почему (сообщения, музыка, погода, FPS, стекло, автозапуск, обновления, календарь), с кнопкой «исправить» там, где это возможно, и «Скопировать отчёт», если нужна помощь.
+- Сообщения без центра уведомлений: если Windows не хранит уведомления (центр отключён или нет доступа), остров всё равно скажет «новое сообщение» — по счётчику непрочитанных в заголовке окна мессенджера. Без текста: для текста нужен центр уведомлений.
+- Громкость и яркость: пока они меняются, рядом с островом показывается уровень (яркость — на ноутбуках). Переключатель: Настройки → Поведение.
+- Долгие задачи других программ: копирование в Проводнике, распаковка в 7-Zip и WinRAR, кодировщики и другие программы, которые пишут проценты в заголовке окна, видны в пилюле с кольцом, а по завершении — «Готово».
+- Звонок из календаря: событие со ссылкой Zoom, Meet, Teams, Телемост… показывает её за 10 минут и в начале — один клик по уведомлению открывает звонок.
+- Стекло при записи экрана: матовое и жидкое стекло теперь работают и тогда, когда остров не скрыт от скриншотов и записи (в том числе пока работает запись NVIDIA).
+- Своя тема: Настройки → Внешний вид → Своя тема — цвет острова, акцент, сцена; сохраняется рядом со встроенными. Тема передаётся одной строкой текста: правый клик по своей теме — скопировать код, вставьте код — добавится тема.
+- Переход на монитор, где курсор (по умолчанию выключено): Настройки → Поведение. На экранах с разным масштабом пока не проверено.
+- Что нового: после обновления уведомление открывает список изменений этой версии, рядом кнопка Telegram-канала. Кнопка есть и возле «Обновлений».
+
 ## 1.7.1 — 2026-11-15
 
 - **Liquid glass theme** (Settings → Appearance → Themes, first in the list): the island is clear frosted glass over what's really behind it, and near its edge the glass works like a lens — the picture under it curls over the rounded rim, with a thin colour fringe (red bends a little more than blue) and a light rim on top. Glass tiles inside. Choosing the theme turns frosted glass on.

@@ -15,7 +15,7 @@ public enum Emotion { None, Love, Angry, Surprised, Sad, Dizzy, Laugh, Cool }
 /// it watches the cursor, dances to the music, cheers when something finishes, thinks while an AI agent
 /// waits for you and falls asleep when you are away.
 /// </summary>
-public sealed class CharacterView : FrameworkElement
+public sealed partial class CharacterView : FrameworkElement
 {
     public static readonly (string Id, string Name)[] All =
     [
@@ -23,9 +23,33 @@ public sealed class CharacterView : FrameworkElement
         ("fish", L.T("Рыбка")), ("planet", L.T("Планета")), ("slime", L.T("Слайм")), ("pulse", L.T("Пульс")),
         ("bunny", L.T("Зайчик")), ("owl", L.T("Сова")), ("dino", L.T("Дино")), ("star", L.T("Звёздочка")),
         ("cloud", L.T("Облачко")), ("claude", "Claude"), ("clawd", "Claude Code"),
+        // 1.8
+        ("dog", L.T("Пёсик")), ("fox", L.T("Лиса")), ("panda", L.T("Панда")), ("bear", L.T("Мишка")),
+        ("frog", L.T("Лягушка")), ("penguin", L.T("Пингвин")), ("chick", L.T("Цыплёнок")), ("pig", L.T("Хрюша")),
+        ("koala", L.T("Коала")), ("mouse", L.T("Мышка")), ("bee", L.T("Пчёлка")), ("octopus", L.T("Осьминог")),
+        ("mushroom", L.T("Грибочек")), ("cactus", L.T("Кактус")), ("alien", L.T("Пришелец")), ("bat", L.T("Летучая мышь")),
+        ("moon", L.T("Луна")), ("sun", L.T("Солнышко")), ("flame", L.T("Огонёк")), ("drop", L.T("Капелька")),
+        ("heart", L.T("Сердечко")), ("pumpkin", L.T("Тыква")),
+        // nobody at all: the pill is just the clock (and the gap closes)
+        ("none", L.T("Без персонажа")),
     ];
 
-    public string Kind { get; set; } = "eyes";
+    private string _kind = "eyes";
+
+    /// <summary>Which character. "none" takes no room at all (unless it is a gallery card, see Placeholder).</summary>
+    public string Kind
+    {
+        get => _kind;
+        set
+        {
+            _kind = value;
+            Width = value == "none" && !Placeholder ? 0 : 30;
+            InvalidateVisual();
+        }
+    }
+
+    /// <summary>A gallery card: "none" keeps its size and draws an empty spot to click.</summary>
+    public bool Placeholder { get; set; }
     public CharacterMood Mood { get; set; } = CharacterMood.Idle;
     /// <summary>Where it looks: -1..1 on both axes.</summary>
     public double LookX { get; set; }
@@ -199,6 +223,7 @@ public sealed class CharacterView : FrameworkElement
             case "claude": DrawClaude(dc, cx, cy, mood); break;
             case "clawd": DrawClawd(dc, cx, cy, mood); break;
             default:
+                if (DrawMore(dc, cx, cy, y, mood)) break;   // the newer ones, see CharacterView.More.cs
                 // big round eyes
                 Eye(dc, cx - 6.4, y - 0.5, 5.9, 6.5, mood, _fg, _dark);
                 Eye(dc, cx + 6.4, y - 0.5, 5.9, 6.5, mood, _fg, _dark);
@@ -208,10 +233,11 @@ public sealed class CharacterView : FrameworkElement
         if (boil) dc.Pop();
         if (_emoNow != Emotion.None)
         {
-            if (_emoNow == Emotion.Cool && Kind != "clawd") Shades(dc, cx, y - 0.5, et);
+            if (_emoNow == Emotion.Cool && Kind is not ("clawd" or "none")) Shades(dc, cx, y - 0.5, et);
             dc.Pop();
-            DrawEmotion(dc, w, h, cx, cy, et);
+            if (Kind != "none") DrawEmotion(dc, w, h, cx, cy, et);
         }
+        if (Kind == "none") return;
         if (mood == CharacterMood.Sleep) DrawZ(dc, w - 5, 5);
         if (mood == CharacterMood.Think) DrawDots(dc, w - 8, 3);
     }

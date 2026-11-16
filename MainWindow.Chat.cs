@@ -63,6 +63,8 @@ public partial class MainWindow
         new("qwen", "Qwen", "Alibaba", "https://chat.qwen.ai/"),
     ];
 
+    private static readonly string[] GeminiVoices = ["Kore", "Puck", "Charon", "Fenrir", "Aoede"];
+
     private static ChatProvider ProviderOf(string id) => ChatProviders.FirstOrDefault(p => p.Id == id) ?? ChatProviders[2];
     private static string ChatUrl(string provider) => ProviderOf(provider).Url;
 
@@ -83,8 +85,33 @@ public partial class MainWindow
         foreach (var p in ChatProviders) ChatProviderBox.Items.Add(p);
         ChatProviderBox.SelectedItem = ProviderOf(_settings.ChatProvider);
         _chatProvidersLoading = false;
+
+        if (!GeminiVoices.Contains(_settings.GeminiVoice)) _settings.GeminiVoice = GeminiVoices[0];
+        VoiceNameButton.Content = _settings.GeminiVoice + "  \u25BE";
     }
     private bool _chatProvidersLoading;
+
+    /// <summary>The voices, in a menu of its own (a separate pop-up: nothing in the chat header can cut it off).</summary>
+    private void VoiceName_Click(object sender, RoutedEventArgs e)
+    {
+        var menu = new System.Windows.Controls.ContextMenu
+        {
+            PlacementTarget = VoiceNameButton,
+            Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom,
+        };
+        foreach (var voice in GeminiVoices)
+        {
+            var item = new System.Windows.Controls.MenuItem { Header = voice, IsCheckable = true, IsChecked = voice == _settings.GeminiVoice };
+            item.Click += (_, _) =>
+            {
+                _settings.GeminiVoice = voice;
+                _settings.Save();
+                VoiceNameButton.Content = voice + "  \u25BE";
+            };
+            menu.Items.Add(item);
+        }
+        menu.IsOpen = true;
+    }
 
     private async Task EnsureChatAsync()
     {

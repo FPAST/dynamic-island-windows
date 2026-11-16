@@ -48,6 +48,8 @@ public static class Uninstaller
         if (data) { targets.Add(AppDataFolder); targets.Add(LocalDataFolder); }
         if (appFolder && !IsDevBuild) targets.Add(AppContext.BaseDirectory.TrimEnd('\\'));
         if (targets.Count == 0) return;
+        // the paths go into a cmd line: one with % (expanded by cmd) or a quote could point rmdir somewhere else
+        if (targets.Any(t => t.Contains('%') || t.Contains('"') || t.Contains('^') || t.Trim().Length < 4)) { Log.Write("uninstall: unusual path, folders left in place"); return; }
         var script = "timeout /t 3 /nobreak >nul & " + string.Join(" & ", targets.Select(t => $"rmdir /s /q \"{t}\""));
         Process.Start(new ProcessStartInfo("cmd.exe", "/c " + script)
         {

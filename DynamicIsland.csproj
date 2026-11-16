@@ -12,7 +12,7 @@
     <AssemblyName>DynamicIsland</AssemblyName>
     <ApplicationIcon>Assets\icon.ico</ApplicationIcon>
 
-    <Version>1.7.1</Version>
+    <Version>1.8.0</Version>
     <Product>Atoll</Product>
     <AssemblyTitle>Atoll</AssemblyTitle>
     <Description>Atoll, a Dynamic Island-style island for Windows: music, lyrics, weather, timers, screenshots, chat and more at the top of the screen.</Description>
@@ -36,6 +36,7 @@
     <PackageReference Include="Microsoft.Diagnostics.Tracing.TraceEvent" Version="4.0.0" />
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4314.35" />
     <PackageReference Include="NAudio.Wasapi" Version="3.3.0" />
+    <PackageReference Include="NAudio.WinMM" Version="3.3.0" />
     <PackageReference Include="ScreenRecorderLib" Version="7.0.1" />
     <PackageReference Include="ZXing.Net" Version="0.16.11" />
   </ItemGroup>
@@ -44,6 +45,7 @@
     <None Update="Assets\claude-hook.ps1" CopyToOutputDirectory="PreserveNewest" />
     <Resource Include="Assets\icon.ico" />
     <EmbeddedResource Include="Assets\lang\*.json" />
+    <EmbeddedResource Include="CHANGELOG.md" LogicalName="DynamicIsland.CHANGELOG.md" />
   </ItemGroup>
 
 </Project>

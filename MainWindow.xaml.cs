@@ -108,6 +108,7 @@ public partial class MainWindow : Window
         InitApps();
         ApplyPhoto();
         ApplyScene();
+        ApplyLook();
         ApplyIslandScale();
         InitClaude();
         InitRecording();
@@ -247,6 +248,391 @@ public partial class MainWindow : Window
                         double sum = 0; for (int i = 0; i < px.Length; i += 4) sum += px[i] + px[i + 1] + px[i + 2];
                         Log.Write($"capturetest: pulse flush={flush}: mean brightness {sum / (px.Length / 4 * 3):0}, {sw.Elapsed.TotalMilliseconds:0.0} ms");
                         await Task.Delay(500);
+                    }
+                    Application.Current.Shutdown();
+                    return;
+                }
+                if (action == "newui")   // pictures of the 1.8 additions (with --cover): level pill, progress, theme editor, self-check, welcome, what's new
+                {
+                    var dir = args.ElementAtOrDefault(r + 2) ?? System.IO.Path.GetTempPath();
+                    Island.IsHitTestVisible = false; _settings.ExpandOnHover = false;
+                    await Task.Delay(5000);
+                    void Shot(string name, FrameworkElement? what = null)
+                    {
+                        what ??= Root;
+                        var rtb = new RenderTargetBitmap((int)Math.Ceiling(what.ActualWidth * 2), (int)Math.Ceiling(what.ActualHeight * 2), 192, 192, PixelFormats.Pbgra32);
+                        rtb.Render(what);
+                        CaptureService.SavePng(rtb, System.IO.Path.Combine(dir, name + ".png"));
+                    }
+                    SetMode(Mode.Compact); await Task.Delay(1200);
+                    ShowLevel("", L.T("Громкость"), 0.46, "volume");
+                    await Task.Delay(500); Shot("1-volume");
+                    ShowLevel("", L.T("Яркость"), 0.8, "brightness");
+                    await Task.Delay(500); Shot("2-brightness");
+                    await Task.Delay(1800);
+                    _progress.Demo("explorer", 62); UpdateLive();
+                    await Task.Delay(1500); Shot("3-progress");
+                    _progress.Demo(null, 0);
+                    _pinnedOpen = true; TabSettings.IsChecked = true; Expand();
+                    ((System.Windows.Controls.RadioButton)SettingsNav.Children[0]).IsChecked = true;
+                    await Task.Delay(1500); RefreshSettingsPage(); await Task.Delay(300);
+                    ThemeEditorHost.BringIntoView(new Rect(0, -40, 10, 330));
+                    await Task.Delay(700); Shot("4-theme-editor");
+                    ((System.Windows.Controls.RadioButton)SettingsNav.Children[SettingsNav.Children.Count - 1]).IsChecked = true;
+                    await Task.Delay(3500); Shot("5-self-check");
+                    SetMode(Mode.Compact); _pinnedOpen = false; await Task.Delay(1000);
+                    for (int step = 0; step < 3; step++)
+                    {
+                        ShowWelcome(step); await Task.Delay(900);
+                        Shot("6-welcome-" + (step + 1), (FrameworkElement)_card!.Content);
+                    }
+                    ShowWhatsNew(args.ElementAtOrDefault(r + 3) ?? Updater.Current.ToString(3)); await Task.Delay(900);
+                    Shot("7-whats-new", (FrameworkElement)_card!.Content);
+                    Application.Current.Shutdown();
+                    return;
+                }
+                if (action == "activitytest")   // test: a job in another window's title, a blinking taskbar button, glass while visible to capture, the volume notice
+                {
+                    Settings.ReadOnly = true;
+                    _settings.ShowProgress = true; _settings.MirrorNotifications = true; _settings.MirrorAllApps = true; _settings.ShowLevels = true;
+                    _settings.Glass = true; _settings.CaptureHidden = false; ApplyCaptureExclusion(); ApplyGlass();
+                    _progress.Finished += app => Log.Write($"activitytest: finished: {app}");
+                    _titleTestProcess = "powershell";
+                    await Task.Delay(2500);
+                    CaptureFrost();
+                    Log.Write($"activitytest: glass while visible to capture: mag works={MagCapture.Works}, frost covers={_frostCovers}, frost opacity={FrostHost.Opacity:0.0}");
+                    Log.Write($"activitytest: flash fallback={FlashFallback}, shell hook={_shellHookMsg != 0}, volume device={(_volumeDeviceId.Length > 0)}");
+                    if (_volumeDevice != null)
+                    {
+                        // a nudge of one step and straight back: does the notice come up?
+                        var v = _volumeDevice.AudioEndpointVolume;
+                        float was = v.MasterVolumeLevelScalar;
+                        v.MasterVolumeLevelScalar = was > 0.02f ? was - 0.01f : was + 0.01f;
+                        await Task.Delay(350);
+                        Log.Write($"activitytest: volume notice shown={_keyKind == "volume" && _keyTimer.IsEnabled}");
+                        v.MasterVolumeLevelScalar = was;
+                    }
+                    for (int i = 0; i < 18; i++)
+                    {
+                        await Task.Delay(1000);
+                        Log.Write($"activitytest: job={(_progress.Current is { } j ? $"{j.App} {j.Percent}%" : "none")}, pill='{CompactTime.Text}', unread={_unread}, mode={_mode}");
+                    }
+                    Application.Current.Shutdown();
+                    return;
+                }
+                if (action == "customize")   // pictures of the hand-made layout (with --cover): size grips, the Layout page, reordered tabs, the mixer
+                {
+                    var dir = args.ElementAtOrDefault(r + 2) ?? System.IO.Path.GetTempPath();
+                    Island.IsHitTestVisible = false; _settings.ExpandOnHover = false;
+                    await Task.Delay(5000);
+                    void Shot(string name)
+                    {
+                        var rtb = new RenderTargetBitmap((int)Math.Ceiling(Root.ActualWidth * 2), (int)Math.Ceiling(Root.ActualHeight * 2), 192, 192, PixelFormats.Pbgra32);
+                        rtb.Render(Root);
+                        CaptureService.SavePng(rtb, System.IO.Path.Combine(dir, name + ".png"));
+                    }
+                    SetMode(Mode.Compact); await Task.Delay(1000);
+                    EnterEditMode(); await Task.Delay(700); Shot("1-edit");
+                    {
+                        // pull the right grip 40 px and the bottom one 9 px, the way the mouse would
+                        var from = CursorDip();
+                        _testCursor = (from, new Vector(0, 0), DateTime.UtcNow);
+                        _gripRight!.RaiseEvent(new System.Windows.Controls.Primitives.DragStartedEventArgs(0, 0));
+                        _testCursor = (from + new Vector(40, 0), new Vector(0, 0), DateTime.UtcNow);
+                        _gripRight.RaiseEvent(new System.Windows.Controls.Primitives.DragDeltaEventArgs(40, 0));
+                        _testCursor = (from, new Vector(0, 0), DateTime.UtcNow);
+                        _gripBottom!.RaiseEvent(new System.Windows.Controls.Primitives.DragStartedEventArgs(0, 0));
+                        _testCursor = (from + new Vector(0, 9), new Vector(0, 0), DateTime.UtcNow);
+                        _gripBottom.RaiseEvent(new System.Windows.Controls.Primitives.DragDeltaEventArgs(0, 9));
+                        _testCursor = null;
+                        Log.Write($"customize: grips: extra={_settings.PillExtra} (expect 80), scale={_settings.IslandScale} (expect 125)");
+                    }
+                    _settings.PillExtra = 140; _settings.IslandScale = 120; ApplyIslandScale(); MorphTo(new Size(CompactWidth, CompactHeight));
+                    await Task.Delay(1500); Shot("2-edit-bigger");
+                    Log.Write($"customize: edit mode={_editMode}, pill {Island.ActualWidth:0}x{Island.ActualHeight:0} at scale {UiScale}");
+                    ResetPillSize(); ExitEditMode(); await Task.Delay(800);
+                    _settings.PillClock = "timedate"; _settings.PillRight = "battery"; OnTick(); UpdatePillRight();
+                    await Task.Delay(900); Shot("3-pill-date-battery");
+                    _settings.PillClock = "time"; _settings.PillRight = "weather";
+                    await DemoCommand("layoutpage"); await Task.Delay(1800); Shot("4-layout");
+                    _settings.TabOrder = ["TabHome", "TabNotes", "TabMusic", "TabTimer", "TabClip", "TabSystem"]; _settings.HiddenTabs = ["TabChat", "TabCalendar", "TabWeather"];
+                    ApplyTabLayout();
+                    TabSystem.IsChecked = true; await Task.Delay(2500);
+                    ShowTabIcons(true, false); await Task.Delay(600); Shot("5-system-mixer-tabs");
+                    Log.Write($"customize: tabs shown={string.Join(",", PageTabs.Select(t => t.Name))}");
+                    Application.Current.Shutdown();
+                    return;
+                }
+                if (action == "magstress")   // test: many glass grabs through the Magnification API, the size changing every time (it crashed on a resize)
+                {
+                    Settings.ReadOnly = true;
+                    _settings.ExpandOnHover = false; _settings.Glass = false; _settings.CaptureHidden = false; ApplyCaptureExclusion(); ApplyGlass();
+                    await Task.Delay(2000);
+                    var tl = Island.PointToScreen(new Point(0, 0));
+                    int n = secs > 0 ? secs : 1500, ok = 0;
+                    var rnd = new Random(1);
+                    Log.Write($"magstress: start, {n} grabs");
+                    for (int i = 0; i < n; i++)
+                    {
+                        int w = i % 2 == 0 ? 200 + rnd.Next(60) : 700 + rnd.Next(500), h = i % 2 == 0 ? 40 + rnd.Next(20) : 300 + rnd.Next(400);
+                        var rect = new System.Drawing.Rectangle((int)tl.X - w / 2, (int)tl.Y, w, h);
+                        if (MagCapture.Capture(_hwnd, rect, Math.Max(1, w / 2), Math.Max(1, h / 2), null) != null) ok++;
+                        if (i % 5 == 0) await Task.Delay(1);
+                        if (i % 300 == 299 || i < 2) Log.Write($"magstress: {i + 1} done, {ok} ok, asked {w}x{h}, got {MagCapture.LastSize.W}x{MagCapture.LastSize.H}");
+                    }
+                    Log.Write($"magstress: finished without a crash, {ok}/{n} ok, works={MagCapture.Works}");
+                    {
+                        // is it the right piece of the screen? the same area both ways (the island hidden from the plain grab) must match
+                        _settings.CaptureHidden = true; ApplyCaptureExclusion();
+                        await Task.Delay(600);
+                        foreach (var (cw, ch) in new[] { (240, 44), (900, 500) })
+                        {
+                            var rect = new System.Drawing.Rectangle((int)tl.X - cw / 2, (int)tl.Y + 4, cw, ch);
+                            var plain = CaptureService.CaptureSmall(rect, cw / 2, ch / 2, null)!;
+                            var copy = (byte[])plain.Clone();
+                            var mag = MagCapture.Capture(_hwnd, rect, cw / 2, ch / 2, null)!;
+                            double diff = 0; for (int i = 0; i < mag.Length; i += 4) diff += Math.Abs(mag[i] - copy[i]) + Math.Abs(mag[i + 1] - copy[i + 1]) + Math.Abs(mag[i + 2] - copy[i + 2]);
+                            Log.Write($"magstress: same area {cw}x{ch}: mean difference {diff / (mag.Length / 4 * 3):0.0} of 255");
+                        }
+                    }
+                    Application.Current.Shutdown();
+                    return;
+                }
+                if (action == "bugfix")   // test: the game pill with "FPS in games" chosen, the FPS session starting and stopping, the Discord island while the main one opens
+                {
+                    Settings.ReadOnly = true;
+                    _settings.ExpandOnHover = false;
+                    await Task.Delay(2500);
+                    foreach (var (stats, hide, full) in new[] { (true, false, true), (false, true, true), (false, false, true), (true, false, false) })
+                    {
+                        _settings.GameStats = stats; _settings.HideInFullscreen = hide; _testFullscreen = full;
+                        WatchFullscreen();
+                        Log.Write($"bugfix: FPS switch={stats}, hide switch={hide}, full-screen app={full} -> game pill={_gameMode}, hidden={_fullscreenHidden}, fps session running={_fps.Running}, denied={_fps.AccessDenied}");
+                        await Task.Delay(1200);
+                    }
+                    _testFullscreen = null; _settings.GameStats = false; WatchFullscreen();
+                    await Task.Delay(1500);
+
+                    // the Discord island: how many times does it appear / disappear while the main island opens and folds?
+                    _callProbeBusy = true;   // no real probing during the test
+                    _discordInCall = true; _settings.DiscordSidePill = true;
+                    await Task.Delay(1500);
+                    int flips = 0; bool was = _callShown;
+                    async Task Watch(int ms) { for (int i = 0; i < ms / 20; i++) { await Task.Delay(20); UpdateDiscordPill(); if (_callShown != was) { flips++; was = _callShown; if (flips <= 6) Log.Write($"bugfix:   flip -> {_callShown}: mode={_mode}, target w={_w.Target:0.0}, root={Root.ActualWidth:0.0}, pill={_callPill!.DesiredSize.Width:0.0}, scale={UiScale}"); } } }
+                    Log.Write($"bugfix: call island shown while folded={_callShown}");
+                    foreach (var tab in new[] { TabHome, TabSettings, TabSystem })
+                    {
+                        flips = 0;
+                        tab.IsChecked = true; _pinnedOpen = true; Expand();
+                        await Watch(1600);
+                        Log.Write($"bugfix: opening {tab.Name}: call island changed {flips} time(s), shown at the end={_callShown}");
+                        flips = 0;
+                        _pinnedOpen = false; SetMode(Mode.Compact);
+                        await Watch(1400);
+                        Log.Write($"bugfix: folding back: changed {flips} time(s), shown at the end={_callShown}");
+                    }
+                    Application.Current.Shutdown();
+                    return;
+                }
+                if (action == "pulltest")   // pictures and numbers of the island reaching for the cursor (with --cover): the nearest point first, the body after it
+                {
+                    var dir = args.ElementAtOrDefault(r + 2) ?? System.IO.Path.GetTempPath();
+                    Island.IsHitTestVisible = false; _settings.ExpandOnHover = false; _settings.Reactive = true; _settings.LiteGraphics = false;
+                    await Task.Delay(5000);
+                    SetMode(Mode.Compact); await Task.Delay(1200);
+                    void Shot(string name)
+                    {
+                        var rtb = new RenderTargetBitmap((int)Math.Ceiling(Root.ActualWidth * 2), (int)Math.Ceiling(Root.ActualHeight * 2), 192, 192, PixelFormats.Pbgra32);
+                        rtb.Render(Root);
+                        CaptureService.SavePng(rtb, System.IO.Path.Combine(dir, name + ".png"));
+                    }
+                    Shot("0-rest");
+                    // the cursor at a spot given in island coordinates (pixels from its top-left corner)
+                    void CursorAt(double ix, double iy)
+                    {
+                        var p = Island.PointToScreen(new Point(ix - _bodyX.Value, iy - _bodyY.Value));
+                        _fakeCursor = new Native.POINT { X = (int)p.X, Y = (int)p.Y };
+                    }
+                    double w = Island.ActualWidth, h = Island.ActualHeight;
+                    foreach (var (name, ix, iy) in new[] { ("below-right", w * 0.8, h + 34), ("right", w + 40, h / 2), ("below-left", w * 0.15, h + 26), ("above-left", -30.0, -4.0) })
+                    {
+                        CursorAt(ix, iy);
+                        foreach (var ms in new[] { 90, 200, 450, 1300 })
+                        {
+                            await Task.Delay(ms == 90 ? 90 : ms == 200 ? 110 : ms == 450 ? 250 : 850);
+                            CursorAt(ix, iy);
+                            Log.Write($"pulltest: {name} +{ms} ms: lead=({_leadX.Value:0.0},{_leadY.Value:0.0}) body=({_bodyX.Value:0.0},{_bodyY.Value:0.0})");
+                            if (ms is 200 or 1300) Shot($"{name}-{ms}");
+                        }
+                        _fakeCursor = new Native.POINT { X = -20000, Y = -20000 };
+                        await Task.Delay(1500);
+                        Log.Write($"pulltest: {name} released: lead=({_leadX.Value:0.0},{_leadY.Value:0.0}) body=({_bodyX.Value:0.0},{_bodyY.Value:0.0})");
+                    }
+                    Application.Current.Shutdown();
+                    return;
+                }
+                if (action == "charsheet")   // a picture of every character added in 1.8, in three moods (idle, music, asleep)
+                {
+                    var dir = args.ElementAtOrDefault(r + 2) ?? System.IO.Path.GetTempPath();
+                    var ids = Views.CharacterView.All.Select(c => c.Id).SkipWhile(id => id != "dog").ToList();
+                    const double k = 5, cellW = 30 * k + 16, cellH = 22 * k + 34;
+                    var moods = new[] { Views.CharacterMood.Idle, Views.CharacterMood.Music, Views.CharacterMood.Sleep };
+                    int cols = 8, rowsPerMood = (int)Math.Ceiling(ids.Count / (double)cols);
+                    var canvas = new System.Windows.Controls.Canvas { Width = cols * cellW, Height = moods.Length * rowsPerMood * cellH, Background = new SolidColorBrush(Color.FromRgb(0x10, 0x10, 0x14)) };
+                    for (int m = 0; m < moods.Length; m++)
+                        for (int i = 0; i < ids.Count; i++)
+                        {
+                            var ch = new Views.CharacterView { Placeholder = true, Kind = ids[i], Mood = moods[m], Beat = moods[m] == Views.CharacterMood.Music ? 0.6 : 0, LookX = 0.4, LookY = 0.2, LayoutTransform = new ScaleTransform(k, k) };
+                            for (int t = 0; t < 14; t++) ch.Tick(0.05 + m * 0.013);
+                            double x = (i % cols) * cellW + 8, y = (m * rowsPerMood + i / cols) * cellH + 6;
+                            System.Windows.Controls.Canvas.SetLeft(ch, x); System.Windows.Controls.Canvas.SetTop(ch, y);
+                            canvas.Children.Add(ch);
+                            var label = new TextBlock { Text = ids[i] + (m == 1 ? " ♪" : m == 2 ? " z" : ""), Foreground = Brushes.Gray, FontSize = 13 };
+                            System.Windows.Controls.Canvas.SetLeft(label, x); System.Windows.Controls.Canvas.SetTop(label, y + 22 * k + 4);
+                            canvas.Children.Add(label);
+                        }
+                    canvas.Measure(new Size(canvas.Width, canvas.Height));
+                    canvas.Arrange(new Rect(0, 0, canvas.Width, canvas.Height));
+                    canvas.UpdateLayout();
+                    var rtb = new RenderTargetBitmap((int)canvas.Width, (int)canvas.Height, 96, 96, PixelFormats.Pbgra32);
+                    rtb.Render(canvas);
+                    CaptureService.SavePng(rtb, System.IO.Path.Combine(dir, "characters.png"));
+
+                    // "no character": the pill without anyone, and a Discord call that must not show anywhere
+                    Island.IsHitTestVisible = false; _settings.ExpandOnHover = false;
+                    await Task.Delay(4000);
+                    void Pill(string name)
+                    {
+                        var shot = new RenderTargetBitmap((int)Math.Ceiling(Root.ActualWidth * 2), 200, 192, 192, PixelFormats.Pbgra32);
+                        shot.Render(Root);
+                        CaptureService.SavePng(shot, System.IO.Path.Combine(dir, name + ".png"));
+                    }
+                    UseCharacter("fox"); await Task.Delay(900); Pill("pill-fox");
+                    UseCharacter("none"); await Task.Delay(900); Pill("pill-none");
+                    _callProbeBusy = true; _discordInCall = true;
+                    _settings.ShowDiscordCall = false; _settings.DiscordSidePill = true; await Task.Delay(1200);
+                    Log.Write($"charsheet: call hidden, side pill on -> island shown={_callShown}, in the pill={_liveIds.Contains("discord")}");
+                    _settings.DiscordSidePill = false; await Task.Delay(1200);
+                    Log.Write($"charsheet: call hidden, side pill off -> island shown={_callShown}, in the pill={_liveIds.Contains("discord")}");
+                    _settings.ShowDiscordCall = true; await Task.Delay(1200);
+                    Log.Write($"charsheet: call shown, side pill off -> island shown={_callShown}, in the pill={_liveIds.Contains("discord")}");
+                    Application.Current.Shutdown();
+                    return;
+                }
+                if (action == "looktest")   // pictures of the look options (with --cover); without --cover: does the idle transparency come on?
+                {
+                    var dir = args.ElementAtOrDefault(r + 2) ?? System.IO.Path.GetTempPath();
+                    if (_demoMedia == null)
+                    {
+                        Settings.ReadOnly = true;
+                        _settings.IdleOpacity = 50; _settings.ExpandOnHover = false; ApplyLook();
+                        await Task.Delay(3500);
+                        Log.Write($"looktest: idle transparency 50%: dimmed={_idleDim}, island opacity={Island.Opacity:0.00}, hover delay timer={_expandDelay.Interval.TotalMilliseconds:0} ms");
+                        _settings.IdleOpacity = 100; ApplyLook();
+                        await Task.Delay(1500);
+                        Log.Write($"looktest: idle transparency off: dimmed={_idleDim}, island opacity={Island.Opacity:0.00}");
+                        Application.Current.Shutdown();
+                        return;
+                    }
+                    Island.IsHitTestVisible = false; _settings.ExpandOnHover = false;
+                    await Task.Delay(5000);
+                    void Shot(string name)
+                    {
+                        var rtb = new RenderTargetBitmap((int)Math.Ceiling(Root.ActualWidth * 2), (int)Math.Ceiling(Root.ActualHeight * 2), 192, 192, PixelFormats.Pbgra32);
+                        rtb.Render(Root);
+                        CaptureService.SavePng(rtb, System.IO.Path.Combine(dir, name + ".png"));
+                    }
+                    SetMode(Mode.Compact); await Task.Delay(1000);
+                    _settings.Roundness = 0; _settings.ShowShadow = false; _settings.Clock12 = true; _settings.ClockSeconds = true; ApplyLook(); OnTick();
+                    await Task.Delay(1200); Shot("1-square-noshadow-seconds");
+                    _settings.Roundness = 45; _settings.ShowShadow = true; _settings.ClockSeconds = false; _settings.Clock12 = false; _settings.Font = "Georgia"; ApplyLook(); OnTick();
+                    await Task.Delay(1200); Shot("2-round45-georgia");
+                    TabHome.IsChecked = true; _pinnedOpen = true; Expand(); await Task.Delay(1800); Shot("3-open-round45-georgia");
+                    _settings.Roundness = 100; _settings.Font = ""; ApplyLook();
+                    await DemoCommand("layoutpage"); await Task.Delay(1800); Shot("4-layout-top");
+                    SettingsScroll.ScrollToVerticalOffset(330); await Task.Delay(700); Shot("5-layout-look");
+                    Application.Current.Shutdown();
+                    return;
+                }
+                if (action == "karaoketest")   // pictures and widths of the karaoke pill as lines change (with --cover)
+                {
+                    var dir = args.ElementAtOrDefault(r + 2) ?? System.IO.Path.GetTempPath();
+                    Island.IsHitTestVisible = false; _settings.ExpandOnHover = false; _settings.Karaoke = true;
+                    await Task.Delay(4000);
+                    SetMode(Mode.Compact);
+                    await DemoCommand("music");
+                    void Shot(string name)
+                    {
+                        var rtb = new RenderTargetBitmap((int)Math.Ceiling(Root.ActualWidth * 2), 180, 192, 192, PixelFormats.Pbgra32);
+                        rtb.Render(Root);
+                        CaptureService.SavePng(rtb, System.IO.Path.Combine(dir, name + ".png"));
+                    }
+                    string seen = Karaoke.Text; int n = 0;
+                    var sw = System.Diagnostics.Stopwatch.StartNew();
+                    while (n < 4 && sw.Elapsed.TotalSeconds < 40)
+                    {
+                        await Task.Delay(15);
+                        if (Karaoke.Text == seen || !Karaoke.IsVisible) continue;
+                        seen = Karaoke.Text; n++;
+                        var widths = new List<string>();
+                        var t0 = System.Diagnostics.Stopwatch.StartNew();
+                        bool early = false, mid = false;
+                        while (t0.ElapsedMilliseconds < 1700)
+                        {
+                            await Task.Delay(20);
+                            long ms = t0.ElapsedMilliseconds;
+                            if (ms % 100 < 22 && ms < 900) widths.Add($"{ms}:{Island.ActualWidth:0}");
+                            if (!early && ms >= 90) { early = true; Shot($"line{n}-a-090ms"); }
+                            if (!mid && ms >= 700) { mid = true; Shot($"line{n}-b-700ms"); }
+                        }
+                        Shot($"line{n}-c-1700ms");
+                        Log.Write($"karaoketest: line {n} ({seen.Length} chars): target {_w.Target:0}, width over time {string.Join(" ", widths)}");
+                    }
+                    Application.Current.Shutdown();
+                    return;
+                }
+                if (action == "voicemenu")   // test: the voice menu opens whole (5 voices, nothing cut)
+                {
+                    Settings.ReadOnly = true; _settings.ExpandOnHover = false;
+                    await Task.Delay(2500);
+                    TabChat.IsChecked = true; _pinnedOpen = true; Expand();
+                    await Task.Delay(1500);
+                    VoiceName_Click(this, new RoutedEventArgs());
+                    await Task.Delay(700);
+                    var menu = VoiceNameButton.ContextMenu ?? System.Windows.Media.VisualTreeHelper.GetParent(VoiceNameButton) as object as System.Windows.Controls.ContextMenu;
+                    foreach (var w in PresentationSource.CurrentSources.OfType<System.Windows.Interop.HwndSource>())
+                        if (w.RootVisual is FrameworkElement fe && fe.GetType().Name.Contains("Popup"))
+                        {
+                            var items = 0; double h = 0;
+                            void Walk(System.Windows.DependencyObject d) { for (int i = 0; i < System.Windows.Media.VisualTreeHelper.GetChildrenCount(d); i++) { var c = System.Windows.Media.VisualTreeHelper.GetChild(d, i); if (c is System.Windows.Controls.MenuItem mi && mi.IsVisible) { items++; h += mi.ActualHeight; } Walk(c); } }
+                            Walk(fe);
+                            Log.Write($"voicemenu: pop-up {fe.ActualWidth:0}x{fe.ActualHeight:0}, visible items {items}, items height {h:0}");
+                        }
+                    Application.Current.Shutdown();
+                    return;
+                }
+                if (action == "magtest")   // test: does the Magnification API give the screen without the island (which stays visible to capture)?
+                {
+                    Settings.ReadOnly = true;
+                    var dir = args.ElementAtOrDefault(r + 2) ?? System.IO.Path.GetTempPath();
+                    _settings.ExpandOnHover = false; _settings.Glass = false; _settings.CaptureHidden = false; ApplyCaptureExclusion(); ApplyGlass();
+                    TabHome.IsChecked = true; _pinnedOpen = true; Expand();
+                    await Task.Delay(2500);
+                    var tl = Island.PointToScreen(new Point(0, 0));
+                    var br = Island.PointToScreen(new Point(Island.ActualWidth, Island.ActualHeight));
+                    var rect = new System.Drawing.Rectangle((int)tl.X, (int)tl.Y, (int)(br.X - tl.X), (int)(br.Y - tl.Y));
+                    int w = rect.Width / 2, h = rect.Height / 2;
+                    double Mean(byte[] px) { double sum = 0; for (int i = 0; i < px.Length; i += 4) sum += px[i] + px[i + 1] + px[i + 2]; return sum / (px.Length / 4 * 3); }
+                    var plain = CaptureService.CaptureSmall(rect, w, h, null)!;
+                    CaptureService.SavePng(BitmapSource.Create(w, h, 96, 96, PixelFormats.Bgr32, null, plain, w * 4), System.IO.Path.Combine(dir, "mag-plain.png"));
+                    Log.Write($"magtest: plain grab (island in it): mean {Mean(plain):0}");
+                    for (int i = 0; i < 3; i++)
+                    {
+                        var sw = System.Diagnostics.Stopwatch.StartNew();
+                        var mag = MagCapture.Capture(_hwnd, rect, w, h, null);
+                        Log.Write($"magtest: mag grab #{i}: works={MagCapture.Works}, {(mag == null ? "null" : $"mean {Mean(mag):0}")}, {sw.Elapsed.TotalMilliseconds:0.0} ms");
+                        if (mag != null && i == 0) CaptureService.SavePng(BitmapSource.Create(w, h, 96, 96, PixelFormats.Bgr32, null, mag, w * 4), System.IO.Path.Combine(dir, "mag-without.png"));
+                        await Task.Delay(300);
                     }
                     Application.Current.Shutdown();
                     return;
@@ -665,6 +1051,7 @@ public partial class MainWindow : Window
     {
         _hwnd = new WindowInteropHelper(this).Handle;
         DisablePowerThrottling();
+        InitStallWatch();
         Native.SetWindowLong(_hwnd, Native.GWL_EXSTYLE, Native.GetWindowLong(_hwnd, Native.GWL_EXSTYLE) | Native.WS_EX_TOOLWINDOW);
 
         HwndSource.FromHwnd(_hwnd)!.AddHook(WndProc);
@@ -725,6 +1112,11 @@ public partial class MainWindow : Window
         if (msg == Native.WM_CLIPBOARDUPDATE)
         {
             Dispatcher.BeginInvoke(OnClipboardChanged, DispatcherPriority.Background);
+            return IntPtr.Zero;
+        }
+        if (_shellHookMsg != 0 && msg == _shellHookMsg)
+        {
+            if (wParam.ToInt32() == 0x8006) OnWindowFlash(lParam);   // HSHELL_FLASH: a taskbar button started to blink
             return IntPtr.Zero;
         }
         if (msg == Native.WM_HOTKEY)
@@ -854,7 +1246,7 @@ public partial class MainWindow : Window
         _y.Step(dt);
         Island.Width = Math.Max(20, _w.Value);
         Island.Height = Math.Max(8, _h.Value);
-        IslandShift.Y = _y.Value;
+        IslandShift.Y = _y.Value + _bodyY.Value;
 
         bool liquid = StepLiquid(dt);
 
@@ -982,7 +1374,10 @@ public partial class MainWindow : Window
             CompactView.Visibility = Visibility.Visible;
             CompactView.Measure(new Size(double.PositiveInfinity, CompactHeight));
             CompactView.Visibility = vis;
-            return Math.Clamp(CompactView.DesiredSize.Width + 8, 200, 440);
+            // what the content needs, plus what the user pulled the edge out (or in) by
+            // (a sung line may be long: the island goes as wide as it needs, up to what fits beside the screen centre)
+            double max = Karaoke.Visibility == Visibility.Visible ? 760 : 440;
+            return Math.Max(140, Math.Clamp(CompactView.DesiredSize.Width + 8, 200, max) + Math.Clamp(_settings.PillExtra, PillExtraMin, PillExtraMax));
         }
     }
 
@@ -1102,6 +1497,7 @@ public partial class MainWindow : Window
 
     private void Island_MouseEnter(object sender, MouseEventArgs e)
     {
+        if (_editMode) return;   // its size is being changed: it stays folded
         _collapseDelay.Stop();
         _shrinkTimer.Stop();
         GrowWindow();   // room to open, before anything moves (resizing mid-animation would stutter)
@@ -1128,7 +1524,7 @@ public partial class MainWindow : Window
     private void Tab_Checked(object sender, RoutedEventArgs e)
     {
         if (HomePage == null || TabSettings == null) return; // during InitializeComponent
-        int index = Array.IndexOf(Tabs, sender as RadioButton);
+        int index = Array.IndexOf(PageTabs.Append(TabSettings).ToArray(), sender as RadioButton);   // in the order the user sees
         double slide = index > _tabIndex ? 26 : index < _tabIndex ? -26 : 0;
         _tabIndex = Math.Max(0, index);
 
@@ -1335,7 +1731,7 @@ public partial class MainWindow : Window
         // easter egg: poking a character shows one of seven emotions
         if (TryEmote(e)) return;
         // plain click on the compact pill opens it
-        if (_mode == Mode.Compact) OpenSmart();
+        if (_mode == Mode.Compact && !_editMode) OpenSmart();
     }
 
     // ================================================================ hide / show
@@ -1461,6 +1857,7 @@ public partial class MainWindow : Window
     // ================================================================ fullscreen & topmost
 
     private bool _gameMode;
+    private bool? _testFullscreen;   // tests: pretend a full-screen program is (or isn't) in front
 
     private void WatchFullscreen()
     {
@@ -1468,9 +1865,13 @@ public partial class MainWindow : Window
         var fg = Native.GetForegroundWindow();
         if (fg != IntPtr.Zero && fg != _hwnd && !OwnsWindow(fg)) _lastExternalWindow = fg;
 
-        bool fullscreen = _settings.HideInFullscreen && _hwnd != IntPtr.Zero && Native.IsFullscreenAppActive(_hwnd);
+        // a game or a full-screen program is in front. Either switch needs to know it: "hide in full screen",
+        // or "FPS and load in games" (the two exclude each other, so asking only when the first one is on
+        // meant the game pill never appeared for anyone who chose FPS)
+        bool fullscreenApp = (_settings.HideInFullscreen || _settings.GameStats) && _hwnd != IntPtr.Zero && (_testFullscreen ?? Native.IsFullscreenAppActive(_hwnd));
         // game mode: keep a tiny stats pill instead of hiding completely
-        bool game = _demoGame || (fullscreen && _settings.GameStats);
+        bool game = _demoGame || (fullscreenApp && _settings.GameStats);
+        bool fullscreen = fullscreenApp && _settings.HideInFullscreen;
         if (game != _gameMode)
         {
             _gameMode = game;
@@ -1504,7 +1905,8 @@ public partial class MainWindow : Window
     private void OnTick()
     {
         _tickCount++;
-        var now = _demoClock ?? DateTime.Now.ToString("HH:mm");
+        UiStep("tick");
+        var now = _demoClock ?? DateTime.Now.ToString(ClockFormat, System.Globalization.CultureInfo.InvariantCulture);
         ExpandedTime.Text = now;
         if (_recording.IsRecording)
         {
@@ -1514,13 +1916,14 @@ public partial class MainWindow : Window
         }
         else
         {
-            CompactTime.Text = now;
+            CompactTime.Text = PillClockText(now);
             CompactTime.SetResourceReference(TextBlock.ForegroundProperty, "Fg");
         }
 
         UpdateProgress();
         KeepRepeating();
         WatchKeyboard();
+        WatchBrightness();
         UpdateLyricLine();
         UpdateLive();
         if (_tickCount % 4 == 0)
@@ -1539,7 +1942,7 @@ public partial class MainWindow : Window
         MiniArt.Visibility = showArt ? Visibility.Visible : Visibility.Collapsed;
         Eyes.Visibility = !_recording.IsRecording ? Visibility.Visible : Visibility.Collapsed; // the character stays next to the cover
         EqBars.Visibility = playing ? Visibility.Visible : Visibility.Collapsed;
-        CompactWeather.Visibility = playing ? Visibility.Collapsed : Visibility.Visible;
+        UpdatePillRight();
     }
 
     private readonly List<Views.CharacterView> _previewCharacters = [];
@@ -1602,7 +2005,7 @@ public partial class MainWindow : Window
         if (buddy) Drive(ChatBuddy, ChatBuddyMood());
 
         // the same character keeps you company in the open menu (unless it already sits on the chat)
-        bool menu = _mode == Mode.Expanded && !buddy;
+        bool menu = _mode == Mode.Expanded && !buddy && _settings.Character != "none";
         var menuVis = menu ? Visibility.Visible : Visibility.Collapsed;
         if (MenuBuddy.Visibility != menuVis)
         {

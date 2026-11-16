@@ -7,7 +7,32 @@ namespace DynamicIsland.Services;
 /// <summary>Upcoming events: the user's own reminders + any calendar's secret ICS link (Google, Outlook, Яндекс…).</summary>
 public sealed partial class CalendarService
 {
-    public sealed record Event(string Title, DateTime Start, bool AllDay, bool IsReminder);
+    public sealed record Event(string Title, DateTime Start, bool AllDay, bool IsReminder, string? Link = null);
+
+    [GeneratedRegex(@"https://[^\s\\""<>,;]+")]
+    private static partial Regex Url();
+
+    private static readonly string[] CallHosts =
+        ["zoom.us", "meet.google.com", "teams.microsoft.com", "teams.live.com", "telemost.yandex.ru", "webex.com", "meet.jit.si",
+         "discord.gg", "discord.com", "whereby.com", "salutejazz.ru", "jazz.sber.ru", "ktalk.ru", "skype.com", "meet.vk.com"];
+
+    /// <summary>The address of the call an event is about: a known meeting site in its fields, else its own URL.</summary>
+    private static string? CallLink(Dictionary<string, (string Params, string Value)> e)
+    {
+        string? first = null;
+        foreach (var key in new[] { "X-GOOGLE-CONFERENCE", "X-MICROSOFT-SKYPETEAMSMEETINGURL", "URL", "LOCATION", "DESCRIPTION" })
+        {
+            if (!e.TryGetValue(key, out var f)) continue;
+            foreach (Match m in Url().Matches(Unescape(f.Value)))
+            {
+                var link = m.Value.TrimEnd('.', ')', ']');
+                if (!SafeShell.IsWebUrl(link, out var uri)) continue;
+                if (CallHosts.Any(h => uri!.Host == h || uri.Host.EndsWith("." + h))) return link;
+                if (key is "URL" or "X-GOOGLE-CONFERENCE" or "X-MICROSOFT-SKYPETEAMSMEETINGURL") first ??= link;
+            }
+        }
+        return first;
+    }
 
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(20) };
     private List<Event> _ics = [];
@@ -135,10 +160,11 @@ public sealed partial class CalendarService
         if (!e.TryGetValue("DTSTART", out var ds) || !ParseDate(ds.Params, ds.Value, out var start, out bool allDay)) return;
         if (e.TryGetValue("STATUS", out var st) && st.Value == "CANCELLED") return;
         var title = e.TryGetValue("SUMMARY", out var sum) ? Unescape(sum.Value) : L.T("Событие");
+        var link = CallLink(e);
 
         if (!e.TryGetValue("RRULE", out var rr))
         {
-            if (start >= from && start <= to) output.Add(new Event(title, start, allDay, false));
+            if (start >= from && start <= to) output.Add(new Event(title, start, allDay, false, link));
             return;
         }
 
@@ -165,14 +191,14 @@ public sealed partial class CalendarService
                     var o = weekStart.AddDays(((int)d + 6) % 7) + start.TimeOfDay;
                     if (o < start || o > until || (count > 0 && n >= count)) continue;
                     n++;
-                    if (o >= from && o <= to && !exdates.Contains(o)) output.Add(new Event(title, o, allDay, false));
+                    if (o >= from && o <= to && !exdates.Contains(o)) output.Add(new Event(title, o, allDay, false, link));
                 }
                 occ = weekStart.AddDays(7 * interval) + start.TimeOfDay;
                 continue;
             }
 
             n++;
-            if (occ >= from && !exdates.Contains(occ)) output.Add(new Event(title, occ, allDay, false));
+            if (occ >= from && !exdates.Contains(occ)) output.Add(new Event(title, occ, allDay, false, link));
             occ = freq switch
             {
                 "DAILY" => occ.AddDays(interval),

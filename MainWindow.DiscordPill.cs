@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -27,7 +27,7 @@ public partial class MainWindow
     /// <summary>Every 250 ms (from UpdateLive): show, update or hide the call island.</summary>
     private void UpdateDiscordPill()
     {
-        bool want = _discordInCall && DiscordBeside && !_hidden && !_fullscreenHidden && !_recording.IsRecording && IsLoaded;
+        bool want = _discordInCall && _settings.ShowDiscordCall && DiscordBeside && !_hidden && !_fullscreenHidden && !_recording.IsRecording && IsLoaded;
         // the call's length counts from when the call started, not from when the little island last appeared
         if (_discordInCall && !_callWasOn) _callSince = DateTime.Now;
         _callWasOn = _discordInCall;
@@ -107,9 +107,16 @@ public partial class MainWindow
         e.LayoutTransform = Island.LayoutTransform;   // same size setting as the island
         e.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         var size = e.DesiredSize;
+        // a hidden element measures as nothing, "fits", gets shown, measures its real size, doesn't fit, gets
+        // hidden… — that loop was the blinking. Remember the real size and judge by it.
+        if (size.Width < 1 && e.Tag is Size known) size = known; else if (size.Width >= 1) e.Tag = size;
         var tl = Island.TranslatePoint(new Point(0, 0), Root);
-        double iw = Island.ActualWidth * UiScale;
-        double x = tl.X + iw + 10 + skip;
+        // beside where the island WILL be, not where it is this frame: while it opens its width swings past
+        // the final size and back, and a place worked out from that made the little island blink
+        // (the island is centred in its window, and the window's width doesn't change: nothing here moves by a
+        // fraction of a pixel from frame to frame, so "is there room" gets one answer for the whole opening)
+        double final = (_mode == Mode.Compact ? Island.ActualWidth : Math.Max(_w.Target, 1)) * UiScale;
+        double x = Math.Round(Root.ActualWidth / 2 + final / 2) + 10 + skip;
         if (x + size.Width > Root.ActualWidth - 4) return false;
         double pillH = 36 * UiScale;
         Canvas.SetLeft(e, x);

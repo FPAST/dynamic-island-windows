@@ -189,6 +189,82 @@ public sealed class AudioService
         get { try { return Mic?.AudioMeterInformation.MasterPeakValue ?? 0; } catch { return 0; } }
     }
 
+    public sealed record AppSound(string Name, float Volume, bool Muted);
+
+    private IEnumerable<(string Name, AudioSessionControl Session)> LiveSessions()
+    {
+        var device = Device;
+        if (device == null) yield break;
+        SessionCollection sessions;
+        try
+        {
+            var manager = device.AudioSessionManager;
+            manager.RefreshSessions();
+            sessions = manager.Sessions;
+        }
+        catch { yield break; }
+        int self = Environment.ProcessId;
+        for (int i = 0; i < sessions.Count; i++)
+        {
+            AudioSessionControl s;
+            string name;
+            try
+            {
+                s = sessions[i];
+                if (s.IsSystemSoundsSession || s.State == NAudio.CoreAudioApi.Interfaces.AudioSessionState.AudioSessionStateExpired) continue;
+                int pid = (int)s.GetProcessID;
+                if (pid == 0 || pid == self) continue;
+                using var p = Process.GetProcessById(pid);
+                name = p.ProcessName;
+            }
+            catch { continue; }
+            yield return (name, s);
+        }
+    }
+
+    /// <summary>Programs with their own sound right now (one row per program, at most eight).</summary>
+    public List<AppSound> AppSounds()
+    {
+        var result = new List<AppSound>();
+        try
+        {
+            foreach (var (name, s) in LiveSessions())
+            {
+                if (result.Any(r => r.Name.Equals(name, StringComparison.OrdinalIgnoreCase))) continue;
+                result.Add(new AppSound(name, s.SimpleAudioVolume.Volume, s.SimpleAudioVolume.Mute));
+                if (result.Count >= 8) break;
+            }
+        }
+        catch { }
+        return result;
+    }
+
+    public void SetAppVolume(string name, float value)
+    {
+        value = Math.Clamp(value, 0f, 1f);
+        try
+        {
+            foreach (var (n, s) in LiveSessions())
+                if (n.Equals(name, StringComparison.OrdinalIgnoreCase)) s.SimpleAudioVolume.Volume = value;
+        }
+        catch { }
+    }
+
+    public void ToggleAppSoundMute(string name)
+    {
+        try
+        {
+            bool? to = null;
+            foreach (var (n, s) in LiveSessions())
+            {
+                if (!n.Equals(name, StringComparison.OrdinalIgnoreCase)) continue;
+                to ??= !s.SimpleAudioVolume.Mute;
+                s.SimpleAudioVolume.Mute = to.Value;
+            }
+        }
+        catch { }
+    }
+
     public void SetVolume(string appId, float value)
     {
         value = Math.Clamp(value, 0f, 1f);

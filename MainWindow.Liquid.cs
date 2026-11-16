@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
@@ -62,43 +62,72 @@ public partial class MainWindow
 
     // ---- reactive pill: the lower edge reaches for the cursor and breathes with the music ----
     private readonly Spring _reach = new(0) { Stiffness = 210, Damping = 17 };
-    private double _reachX;
     private Color? _albumColor;
 
     private readonly Spring _lean = new(0) { Stiffness = 190, Damping = 16 };
-    private Point _reachCursor;
+
+    // The pull, as two things that move at different speeds:
+    //   "lead"  — the point of the outline nearest to the cursor: quick, a little springy;
+    //   "body"  — the whole island (its content too): slower, goes part of the way.
+    // Every other point of the outline sits between the two, by how far it is from the lead point —
+    // so the nearest point reaches out first and the rest of the island follows it, edges included.
+    private readonly Spring _leadX = new(0) { Stiffness = 240, Damping = 15 }, _leadY = new(0) { Stiffness = 240, Damping = 15 };
+    private readonly Spring _bodyX = new(0) { Stiffness = 85, Damping = 13 }, _bodyY = new(0) { Stiffness = 85, Damping = 13 };
+    private Point _pullPoint;          // the lead point, in island coordinates (smoothed, so it glides along the edge)
+    private bool _pullPointSet;
+
+    private bool PullMoving => !(_leadX.IsSettled && _leadY.IsSettled && _bodyX.IsSettled && _bodyY.IsSettled);
+    private bool PullVisible => Math.Abs(_leadX.Value) + Math.Abs(_leadY.Value) + Math.Abs(_bodyX.Value) + Math.Abs(_bodyY.Value) > 0.2;
 
     /// <summary>
-    /// The pill feels the cursor: from below the lower edge swells towards it like a drop about to fall,
-    /// from the side the whole island leans over a few pixels.
+    /// The pill feels the cursor near it: the nearest point of its edge is drawn to the cursor, and the rest
+    /// of the island comes after it, like something soft picked up by one spot.
     /// </summary>
     private void UpdateReach(Native.POINT cursor)
     {
-        double bump = 0, lean = 0;
-        if (_settings.Reactive && _mode == Mode.Compact && !_dragging && !_hidden && Island.IsVisible)
+        double bump = 0, vx = 0, vy = 0;
+        if (_settings.Reactive && _mode == Mode.Compact && !_dragging && !_hidden && !_editMode && Island.IsVisible)
         {
             Point tl;
             try { tl = Island.PointToScreen(new Point(0, 0)); }
             catch { return; }
-            double x = (cursor.X - tl.X) / Dpi, y = (cursor.Y - tl.Y) / Dpi;
-            double w = Island.ActualWidth, h = Island.ActualHeight;
-            double dx = x < 0 ? x : x > w ? x - w : 0;      // horizontal distance outside the pill
-            double dy = y > h ? y - h : y < 0 ? y : 0;       // vertical distance outside the pill
+            // where the cursor is over the island at rest (without the shift the pull itself gave it —
+            // otherwise the island would chase its own movement)
+            double scale = UiScale;
+            double x = (cursor.X - tl.X) / Dpi / scale + _bodyX.Value, y = (cursor.Y - tl.Y) / Dpi / scale + _bodyY.Value;
+            double w = Island.ActualWidth, h = Island.ActualHeight, r = Radius(h);
+            double dx = x < 0 ? x : x > w ? x - w : 0;      // how far outside the pill
+            double dy = y > h ? y - h : y < 0 ? y : 0;
             double dist = Math.Sqrt(dx * dx + dy * dy);
             const double range = 170;
             if (dist > 0 && dist < range)
             {
                 double k = 1 - dist / range;
                 k = k * k * (3 - 2 * k);                     // smoothstep: soft start, firm end
-                bump = k;                                    // 0…1: how hard the body flows to the cursor
-                if (dx != 0) lean = Math.Sign(dx) * 4 * k;
-                // where the cursor is, in island coordinates (smoothed so the wave glides)
-                _reachCursor = new Point(_reachCursor.X + (x - _reachCursor.X) * 0.35, _reachCursor.Y + (y - _reachCursor.Y) * 0.35);
+                bump = k;
+                // the nearest point of the rounded outline
+                double cx = Math.Clamp(x, r, Math.Max(r, w - r)), cy = Math.Clamp(y, r, Math.Max(r, h - r));
+                double ox = x - cx, oy = y - cy, ol = Math.Sqrt(ox * ox + oy * oy);
+                if (ol > 0.001)
+                {
+                    var near = new Point(cx + ox / ol * r, cy + oy / ol * r);
+                    _pullPoint = _pullPointSet ? new Point(_pullPoint.X + (near.X - _pullPoint.X) * 0.3, _pullPoint.Y + (near.Y - _pullPoint.Y) * 0.3) : near;
+                    _pullPointSet = true;
+                    double gap = Math.Max(0, ol - r);                         // from that point to the cursor
+                    double pull = Math.Min(20 * k, gap * 0.8);                // never past the cursor
+                    vx = ox / ol * pull; vy = oy / ol * pull;
+                }
             }
         }
-        bool changed = Math.Abs(_reach.Target - bump) > 0.05 || Math.Abs(_lean.Target - lean) > 0.05;
+        // the body goes part of the way; attached to the screen edge it stays put, and floating it never
+        // climbs higher than the gap above it
+        double follow = _settings.Docked ? 0 : 0.42;
+        double bx = vx * follow, by = Math.Max(-Math.Max(0, IslandTopMargin - 2), vy * follow);
+        bool changed = Math.Abs(_leadX.Target - vx) + Math.Abs(_leadY.Target - vy) > 0.3 || Math.Abs(_reach.Target - bump) > 0.05;
         _reach.Target = bump;
-        _lean.Target = lean;
+        _leadX.Target = vx; _leadY.Target = vy;
+        _bodyX.Target = bx; _bodyY.Target = by;
+        _lean.Target = 0;
         if (changed) StartRendering();
     }
 
@@ -295,18 +324,23 @@ public partial class MainWindow
 
         _reach.Step(dt);
         _lean.Step(dt);
-        IslandShift.X = _lean.Value;
+        _leadX.Step(dt); _leadY.Step(dt); _bodyX.Step(dt); _bodyY.Step(dt);
+        IslandShift.X = _bodyX.Value;
+        IslandShift.Y = _y.Value + _bodyY.Value;
         bool shapeMoving = Liquid && (_ripple > 0 || playing || _audioLevel > 0);
         bool reactive = _settings.Reactive && !Lite && _mode == Mode.Compact &&
-                        (playing || _audioLevel > 0 || !_reach.IsSettled || _reach.Value > 0.01 || !_lean.IsSettled);
+                        (playing || _audioLevel > 0 || !_reach.IsSettled || _reach.Value > 0.01 || !_lean.IsSettled || PullMoving || PullVisible);
         UpdateShape(shapeMoving);
 
         return shapeMoving || reactive || _posActive || !(_sx.IsSettled && _sy.IsSettled && _skew.IsSettled);
     }
 
-    private double Radius(double h) => _settings.Docked
-        ? Math.Min(h / 2, h <= 60 ? 15 : 28)
-        : Math.Min(h / 2, 30);
+    private double Radius(double h)
+    {
+        double full = _settings.Docked ? Math.Min(h / 2, h <= 60 ? 15 : 28) : Math.Min(h / 2, 30);
+        // the user's choice, from a pill down to nearly square corners
+        return Math.Max(Math.Min(4, h / 2), full * Math.Clamp(_settings.Roundness, 0, 100) / 100.0);
+    }
 
     /// <summary>
     /// Notch shape: flat top flush with the screen edge, small concave "ears" that melt into it,
@@ -340,11 +374,12 @@ public partial class MainWindow
         double bump = 0, bumpX = w / 2;
         if (_settings.Reactive && !Lite && _mode == Mode.Compact)
         {
-            if (_reach.Value > 0.01) bump = -1; // handled by FlowGeometry below
+            if (PullVisible) bump = -1; // handled by FlowGeometry below
             else if (_audioLevel > 0.02) { bump = _audioLevel * 5.5; bumpX = w / 2 + Math.Sin(_dripPhase * 0.6) * w * 0.22; }
         }
 
-        Geometry g = bump < 0 ? FlowGeometry(w, h, r, _settings.Docked, _reachCursor, _reach.Value)
+        // the lead point's own movement, on top of what the whole island already moved by
+        Geometry g = bump < 0 ? FlowGeometry(w, h, r, _settings.Docked, _pullPoint, new Vector(_leadX.Value - _bodyX.Value, _leadY.Value - _bodyY.Value))
                    : liquid && !_settings.Docked ? LiquidGeometry(w, h, r)
                    : PillGeometry(w, h, r, _settings.Docked, bumpX, bump);
         g.Freeze();
@@ -354,29 +389,23 @@ public partial class MainWindow
     }
 
     /// <summary>
-    /// The whole outline flows towards the cursor like a wave: every point of the edge moves
-    /// towards it, the nearer and the more it faces the cursor, the more. The top edge stays put.
+    /// The outline with one point pulled out by "pull": every point moves the same way, less the further
+    /// it is from that point — a soft bell with no edge, so the shape stays one smooth body. (The island as
+    /// a whole has already moved after the pull; this is the extra reach of the part nearest the cursor.)
+    /// Attached to the screen edge, the top stays on the edge.
     /// </summary>
-    private static Geometry FlowGeometry(double w, double h, double r, bool docked, Point cursor, double strength)
+    private static Geometry FlowGeometry(double w, double h, double r, bool docked, Point lead, Vector pull)
     {
         var pts = new List<Point>(220);
-        // one smooth field: the whole body leans towards the cursor, the side facing it swells most
-        var centre = new Point(w / 2, h / 2);
-        double gx = cursor.X - centre.X, gy = cursor.Y - centre.Y;
-        double glen = Math.Max(1, Math.Sqrt(gx * gx + gy * gy));
-        gx /= glen; gy /= glen;
-        double reach = 18 * strength, spread = 60 + w * 0.45;
+        double spread = 22 + h * 0.75;   // how wide the pulled-out part is
 
         void Add(double x, double y, double nx, double ny)
         {
-            double dx = cursor.X - x, dy = cursor.Y - y;
-            double dist = Math.Sqrt(dx * dx + dy * dy);
-            double facing = Math.Max(0, nx * gx + ny * gy);
-            facing = facing * facing * (3 - 2 * facing);                  // smoothstep: no hard edges
-            double hold = Math.Pow(Math.Clamp(y / h, 0, 1), 0.8);        // anchored at the top
-            double near = 1 / (1 + (dist / spread) * (dist / spread));    // gentle bell, no cusp
-            double amount = reach * (0.12 + 0.88 * facing) * near * hold;
-            pts.Add(new Point(x + gx * amount, y + gy * amount));
+            double dx = lead.X - x, dy = lead.Y - y;
+            double d2 = (dx * dx + dy * dy) / (spread * spread);
+            double amount = 1 / (1 + d2 * (1 + 0.6 * d2));                     // 1 at the lead point, fading out smoothly
+            if (docked) amount *= Math.Pow(Math.Clamp(y / h, 0, 1), 0.8);      // the notch hangs from the top edge
+            pts.Add(new Point(x + pull.X * amount, y + pull.Y * amount));
         }
 
         void Arc(double cx, double cy, double fromDeg, double toDeg)
@@ -399,7 +428,7 @@ public partial class MainWindow
         }
         else
         {
-            pts.Add(new Point(r, 0));
+            Add(r, 0, 0, -1);   // the first point moves with the rest (left where it was, it stuck out as a spike)
             Arc(r, r, 270, 180);
             for (double y = r + step; y < h - r; y += step) Add(0, y, -1, 0);
         }

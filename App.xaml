@@ -688,6 +688,36 @@
     </Style>
 
     <!-- drop-down list in the same soft style: rounded field, floating rounded menu with a soft shadow -->
+    <Style x:Key="SoftPasswordBox" TargetType="PasswordBox">
+      <Setter Property="Foreground" Value="{DynamicResource Fg}"/>
+      <Setter Property="FontSize" Value="12.5"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="PasswordBox">
+            <Grid>
+              <Border Background="{DynamicResource ChipBg}" BorderBrush="{DynamicResource TileStroke}" BorderThickness="1" CornerRadius="13"/>
+              <Border x:Name="Focus" BorderBrush="{DynamicResource AccentBlue}" BorderThickness="1.5" CornerRadius="13" Opacity="0"/>
+              <ScrollViewer x:Name="PART_ContentHost" VerticalAlignment="Center" Margin="11,5"/>
+            </Grid>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsKeyboardFocused" Value="True">
+                <Trigger.EnterActions>
+                  <BeginStoryboard>
+                    <Storyboard><DoubleAnimation Storyboard.TargetName="Focus" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.15"/></Storyboard>
+                  </BeginStoryboard>
+                </Trigger.EnterActions>
+                <Trigger.ExitActions>
+                  <BeginStoryboard>
+                    <Storyboard><DoubleAnimation Storyboard.TargetName="Focus" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.2"/></Storyboard>
+                  </BeginStoryboard>
+                </Trigger.ExitActions>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
     <Style x:Key="SoftComboToggle" TargetType="ToggleButton">
       <Setter Property="Focusable" Value="False"/>
       <Setter Property="Cursor" Value="Hand"/>
