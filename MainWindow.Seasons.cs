@@ -30,7 +30,7 @@ public partial class MainWindow
         if (_seasonTimer.Interval == TimeSpan.Zero)
         {
             _seasonTimer.Interval = TimeSpan.FromMilliseconds(33);
-            _seasonTimer.Tick += (_, _) => SeasonTick();
+            _seasonTimer.Tick += (_, _) => Measure("season scene", SeasonTick);
         }
         _seasonLast = DateTime.UtcNow;
         if (kind.Length > 0) _seasonTimer.Start(); else _seasonTimer.Stop();

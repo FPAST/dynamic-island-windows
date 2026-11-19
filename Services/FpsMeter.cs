@@ -108,8 +108,9 @@ public sealed class FpsMeter : IDisposable
     // ------------------------------------------------------------------ the helper: FPS right away, no sign-out
 
     /// <summary>Where the elevated helper writes {pid: fps} twice a second.</summary>
-    public static string HelperFile => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DynamicIsland", "fps-helper.json");
+    // ~\.atoll, not %LOCALAPPDATA%: the elevated helper may run outside the Store package's redirection,
+    // and then both sides must still see the same file
+    public static string HelperFile => Path.Combine(Path.GetDirectoryName(ClaudeBridge.TokenPath)!, "fps-helper.json");
 
     /// <summary>
     /// Started as administrator once (the same UAC prompt as granting access): adds the user to

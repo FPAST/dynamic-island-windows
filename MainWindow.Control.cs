@@ -42,7 +42,7 @@ public partial class MainWindow
         AddPower("", L.T("Перезагрузка"), () => { if (ConfirmPower(L.T("Перезагрузить компьютер?"))) ControlCenter.Restart(); });
         AddPower("", L.T("Выключение"), () => { if (ConfirmPower(L.T("Выключить компьютер?"))) ControlCenter.ShutDown(); });
 
-        _controlTimer.Tick += async (_, _) => await RefreshControlsAsync();
+        _controlTimer.Tick += async (_, _) => await Measure("control", RefreshControlsAsync);
         IsVisibleChanged += (_, _) => UpdateControlTimer();
         SystemPage.IsVisibleChanged += (_, _) => UpdateControlTimer();
 

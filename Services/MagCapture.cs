@@ -1,4 +1,6 @@
-﻿using System.Runtime.InteropServices;
+﻿using System.IO;
+using System.Runtime.InteropServices;
+using System.Windows.Threading;
 
 namespace DynamicIsland.Services;
 
@@ -6,113 +8,221 @@ namespace DynamicIsland.Services;
 /// A picture of the screen WITHOUT one window (the island), taken through the Windows Magnification API:
 /// its filter list leaves chosen windows out of what it draws. Unlike hiding the window from all capture,
 /// the island stays visible to screenshots, recordings and screen sharing — and the glass still sees
-/// what is behind it. Must be used from the UI thread. Not every Windows build delivers the picture:
-/// Works says whether this one does (checked on first use).
+/// what is behind it. The magnifier lives on a thread of its own, so a grab never holds the island's UI
+/// thread. Not every Windows build delivers the picture: Works says whether this one does.
 /// </summary>
 public static class MagCapture
 {
-    [StructLayout(LayoutKind.Sequential)]
-    private struct RECT { public int Left, Top, Right, Bottom; }
+    private static readonly Native.MagScalingCallback Callback = OnImage;   // kept alive for as long as the process runs
+    private static readonly object StartLock = new();
+    private static volatile Dispatcher? _thread;
+    private static volatile bool _failed;
+    private static volatile int _works = -1;
 
-    [StructLayout(LayoutKind.Sequential)]
-    private struct MAGIMAGEHEADER
+    // the fields below are only touched on the magnifier's thread
+    private static IntPtr _host, _mag, _excluded;
+    private static int _magW, _magH;
+    private static bool _initialized;
+    private static byte[]? _full;
+    private static int _fullW, _fullH, _fullStride, _wantW, _wantH;
+    private static bool _got;
+    private static string _lastProblem = "";
+
+    // ---- crash guard ----
+    // Inside Windows the Magnification API can take the whole process down — no exception, on any thread — and
+    // on some PCs it did so on the first grabs: Atoll 1.8.0 then never stayed open with light graphics off. A
+    // marker is written before the first grab and removed after a few good ones or on a normal exit. Still there
+    // at the next start means the last run died in here: the magnifier stays off (solid glass while the island
+    // is visible to capture) until the user asks to try again on the Check page.
+    private static string GuardDir => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DynamicIsland");
+    private static string PendingFile => Path.Combine(GuardDir, "magnifier.pending");
+    private static string DisabledFile => Path.Combine(GuardDir, "magnifier.disabled");
+    private const int GoodGrabsToTrust = 20;
+    private static int _goodGrabs;
+    private static bool _guardChecked;
+
+    /// <summary>Test and picture runs (killed at will) leave no marker behind.</summary>
+    public static bool UseGuard { get; set; } = true;
+
+    /// <summary>Switched off because an earlier run died inside the magnifier.</summary>
+    public static bool CrashedBefore { get; private set; }
+
+    /// <summary>UI thread, before the first grab.</summary>
+    private static bool GuardAllows()
     {
-        public uint Width, Height;
-        public Guid Format;
-        public uint Stride, Offset;
-        public UIntPtr Size;
+        if (_guardChecked || !UseGuard) return !_failed;
+        _guardChecked = true;
+        try
+        {
+            if (File.Exists(PendingFile))
+            {
+                File.WriteAllText(DisabledFile, "Atoll died inside the Magnification API; the glass uses no magnifier until this file is gone.");
+                File.Delete(PendingFile);
+                Log.Write("glass (magnifier): the last run died inside it — switched off");
+            }
+            if (File.Exists(DisabledFile))
+            {
+                CrashedBefore = true;
+                _failed = true;
+                _works = 0;
+                return false;
+            }
+            Directory.CreateDirectory(GuardDir);
+            File.WriteAllText(PendingFile, DateTime.UtcNow.ToString("o"));
+        }
+        catch (Exception e) { Log.Write("glass (magnifier): guard: " + e.Message); }   // no guard is better than no glass
+        return true;
     }
 
-    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
-    private delegate bool ScalingCallback(IntPtr hwnd, IntPtr src, MAGIMAGEHEADER srcHeader, IntPtr dst, MAGIMAGEHEADER dstHeader, RECT unclipped, RECT clipped, IntPtr dirty);
+    /// <summary>A normal exit, or enough good grabs: Windows copes with the magnifier here.</summary>
+    public static void MarkClean()
+    {
+        if (!UseGuard) return;
+        try { File.Delete(PendingFile); }
+        catch (Exception e) { Log.Write("glass (magnifier): guard: " + e.Message); }
+    }
 
-    [DllImport("Magnification.dll")] private static extern bool MagInitialize();
-    [DllImport("Magnification.dll")] private static extern bool MagSetWindowSource(IntPtr hwnd, RECT rect);
-    [DllImport("Magnification.dll")] private static extern bool MagSetWindowFilterList(IntPtr hwnd, int mode, int count, IntPtr[] list);
-    [DllImport("Magnification.dll")] private static extern bool MagSetImageScalingCallback(IntPtr hwnd, ScalingCallback cb);
-    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-    private static extern IntPtr CreateWindowEx(int ex, string cls, string name, int style, int x, int y, int w, int h, IntPtr parent, IntPtr menu, IntPtr inst, IntPtr param);
-    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] private static extern IntPtr GetModuleHandle(string? name);
-
-    private const int WS_EX_LAYERED = 0x80000, WS_POPUP = unchecked((int)0x80000000), WS_CHILD = 0x40000000, WS_VISIBLE = 0x10000000;
-    private const int MW_FILTERMODE_EXCLUDE = 0;
-
-    private static IntPtr _host, _mag, _excluded;
-    private static bool _failed;
-    private static int _magW, _magH;
-    private static readonly ScalingCallback Callback = OnImage;   // kept alive for as long as the process runs
-    private static byte[]? _full;
-    private static int _fullW, _fullH, _fullStride;
-    private static bool _got;
+    /// <summary>The Check page's "Try again": the magnifier is allowed once more (guarded the same way).</summary>
+    public static void TryAgain()
+    {
+        try { File.Delete(DisabledFile); }
+        catch (Exception e) { Log.Write("glass (magnifier): guard: " + e.Message); }
+        CrashedBefore = false;
+        _guardChecked = false;
+        _failed = false;
+        _works = -1;
+        _lastProblem = "";
+    }
 
     /// <summary>Tests: the size of the picture Windows handed over last.</summary>
     public static (int W, int H) LastSize => (_fullW, _fullH);
 
     /// <summary>null: not tried yet.</summary>
-    public static bool? Works { get; private set; }
-
-    private static bool OnImage(IntPtr hwnd, IntPtr src, MAGIMAGEHEADER h, IntPtr dst, MAGIMAGEHEADER dh, RECT unclipped, RECT clipped, IntPtr dirty)
-    {
-        try
-        {
-            int size = (int)(h.Stride * h.Height);
-            if (size <= 0 || size > 64 * 1024 * 1024) return true;
-            if (_full == null || _full.Length < size) _full = new byte[size];
-            Marshal.Copy(src + (int)h.Offset, _full, 0, size);
-            _fullW = (int)h.Width; _fullH = (int)h.Height; _fullStride = (int)h.Stride;
-            _got = true;
-        }
-        catch { }
-        return true;
-    }
-
-    private static bool Init(IntPtr exclude)
-    {
-        if (_failed) return false;
-        if (_mag != IntPtr.Zero && _excluded == exclude) return true;
-        try
-        {
-            if (_mag == IntPtr.Zero)
-            {
-                if (!MagInitialize()) { _failed = true; return false; }
-                var inst = GetModuleHandle(null);
-                _host = CreateWindowEx(WS_EX_LAYERED, "Static", "AtollGlassHost", WS_POPUP, 0, 0, 0, 0, IntPtr.Zero, IntPtr.Zero, inst, IntPtr.Zero);
-                if (_host == IntPtr.Zero) { _failed = true; return false; }
-                // one size for good, as big as all the screens: resizing a magnifier window while Windows is
-                // drawing into it crashes inside Windows itself (seen in the field), so it is never resized
-                var all = System.Windows.Forms.SystemInformation.VirtualScreen;
-                _magW = Math.Max(all.Width, 640); _magH = Math.Max(all.Height, 480);
-                _mag = CreateWindowEx(0, "Magnifier", "AtollGlass", WS_CHILD | WS_VISIBLE, 0, 0, _magW, _magH, _host, IntPtr.Zero, inst, IntPtr.Zero);
-                if (_mag == IntPtr.Zero || !MagSetImageScalingCallback(_mag, Callback)) { _failed = true; return false; }
-            }
-            if (!MagSetWindowFilterList(_mag, MW_FILTERMODE_EXCLUDE, 1, [exclude])) { _failed = true; return false; }
-            _excluded = exclude;
-            return true;
-        }
-        catch { _failed = true; return false; }
-    }
+    public static bool? Works => _works < 0 ? null : _works == 1;
 
     /// <summary>
     /// The screen area r without the window "exclude", shrunk to (w, h) pixels, as BGRA bytes — or null where
-    /// this Windows doesn't deliver the picture.
+    /// this Windows doesn't deliver the picture. The buffer is written on the magnifier's thread: don't touch
+    /// it until the task is done.
     /// </summary>
+    public static Task<byte[]?> CaptureAsync(IntPtr exclude, System.Drawing.Rectangle r, int w, int h, byte[]? buffer)
+    {
+        if (_failed || w < 1 || h < 1 || r.Width < 1 || r.Height < 1 || !GuardAllows()) return Task.FromResult<byte[]?>(null);
+        var thread = Thread();
+        if (thread == null) return Task.FromResult<byte[]?>(null);
+        return thread.InvokeAsync(() => CaptureHere(exclude, r, w, h, buffer)).Task;
+    }
+
+    /// <summary>Tests: the same, waiting for the picture (at most two seconds).</summary>
     public static byte[]? Capture(IntPtr exclude, System.Drawing.Rectangle r, int w, int h, byte[]? buffer)
     {
-        if (w < 1 || h < 1 || r.Width < 1 || r.Height < 1 || !Init(exclude)) { if (_failed) Works = false; return null; }
+        var t = CaptureAsync(exclude, r, w, h, buffer);
+        return t.Wait(2000) ? t.Result : null;
+    }
+
+    private static Dispatcher? Thread()
+    {
+        if (_thread != null) return _thread;
+        lock (StartLock)
+        {
+            if (_thread != null) return _thread;
+            using var ready = new ManualResetEventSlim();
+            var t = new System.Threading.Thread(() =>
+            {
+                _thread = Dispatcher.CurrentDispatcher;
+                ready.Set();
+                Dispatcher.Run();
+            }) { IsBackground = true, Name = "Atoll glass" };
+            t.SetApartmentState(ApartmentState.STA);
+            t.Start();
+            ready.Wait();
+            return _thread;
+        }
+    }
+
+    private static void Fail(string why)
+    {
+        _failed = true;
+        _works = 0;
+        if (why != _lastProblem) Log.Write("glass (magnifier): " + why);
+        _lastProblem = why;
+    }
+
+    private static bool OnImage(IntPtr hwnd, IntPtr src, Native.MAGIMAGEHEADER h, IntPtr dst, Native.MAGIMAGEHEADER dh, Native.RECT unclipped, Native.RECT clipped, IntPtr dirty)
+    {
         try
         {
+            // only the part that was asked for, row by row: the picture can be bigger than the grab
+            int cw = Math.Min((int)h.Width, _wantW), ch = Math.Min((int)h.Height, _wantH), stride = cw * 4;
+            if (cw < 1 || ch < 1) return true;
+            if (_full == null || _full.Length < stride * ch) _full = new byte[stride * ch];
+            for (int y = 0; y < ch; y++) Marshal.Copy(src + (int)h.Offset + y * (int)h.Stride, _full, y * stride, stride);
+            _fullW = cw; _fullH = ch; _fullStride = stride;
+            _got = true;
+        }
+        catch (Exception e)
+        {
+            if (_lastProblem != e.Message) Log.Write("glass (magnifier): picture: " + e.Message);
+            _lastProblem = e.Message;
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// A magnifier window at least w × h. Not the size of all the screens: the picture Windows hands over is
+    /// as big as the window, and copying the whole desktop every grab was the CPU load of 1.8.0. Resizing a
+    /// magnifier window while Windows draws into it crashes inside Windows (seen in the field), so a bigger
+    /// one is a new window — between grabs, on this thread — never a resize.
+    /// </summary>
+    private static bool Ensure(IntPtr exclude, int w, int h)
+    {
+        if (!_initialized)
+        {
+            if (!Native.MagInitialize()) { Fail("MagInitialize failed"); return false; }
+            _initialized = true;
+        }
+        if (_mag != IntPtr.Zero && !Native.IsWindow(_mag)) { _mag = _host = IntPtr.Zero; }
+        if (_mag == IntPtr.Zero || w > _magW || h > _magH)
+        {
+            if (_host != IntPtr.Zero) Native.DestroyWindow(_host);   // the magnifier is its child: it goes too
+            _host = _mag = _excluded = IntPtr.Zero;
+            // a little room to grow (the island opens wider than it folds), in steps of 64 pixels
+            static int Room(int need, int was) => Math.Max(was, (need * 5 / 4 + 63) / 64 * 64);
+            _magW = Room(w, _magW);
+            _magH = Room(h, _magH);
+            var inst = Native.GetModuleHandle(null);
+            _host = Native.CreateWindowEx(Native.WS_EX_LAYERED, "Static", "AtollGlassHost", Native.WS_POPUP, 0, 0, 0, 0, IntPtr.Zero, IntPtr.Zero, inst, IntPtr.Zero);
+            if (_host == IntPtr.Zero) { Fail("no host window (" + Marshal.GetLastWin32Error() + ")"); return false; }
+            _mag = Native.CreateWindowEx(0, "Magnifier", "AtollGlass", Native.WS_CHILD | Native.WS_VISIBLE, 0, 0, _magW, _magH, _host, IntPtr.Zero, inst, IntPtr.Zero);
+            if (_mag == IntPtr.Zero) { Fail("no magnifier window (" + Marshal.GetLastWin32Error() + ")"); return false; }
+            if (!Native.MagSetImageScalingCallback(_mag, Callback)) { Fail("MagSetImageScalingCallback failed"); return false; }
+            Log.Write($"glass (magnifier): window {_magW}x{_magH}");
+        }
+        if (_excluded != exclude)
+        {
+            if (!Native.MagSetWindowFilterList(_mag, Native.MW_FILTERMODE_EXCLUDE, 1, [exclude])) { Fail("MagSetWindowFilterList failed"); return false; }
+            _excluded = exclude;
+        }
+        return true;
+    }
+
+    private static byte[]? CaptureHere(IntPtr exclude, System.Drawing.Rectangle r, int w, int h, byte[]? buffer)
+    {
+        if (_failed) return null;
+        try
+        {
+            var all = System.Windows.Forms.SystemInformation.VirtualScreen;
+            if (r.Width > Math.Max(all.Width, 640) || r.Height > Math.Max(all.Height, 480)) return null;   // bigger than the screens: nothing sensible to grab
+            if (!Ensure(exclude, r.Width, r.Height)) return null;
             _got = false;
-            if (!Native.IsWindow(_mag)) { _mag = IntPtr.Zero; Works = false; _failed = true; return null; }   // gone (the program is closing)
-            if (r.Width > _magW || r.Height > _magH) return null;   // bigger than the screens: nothing sensible to grab
-            if (!MagSetWindowSource(_mag, new RECT { Left = r.Left, Top = r.Top, Right = r.Right, Bottom = r.Bottom }) || !_got || _full == null)
-            {
-                Works = false; _failed = true;
-                return null;
-            }
-            Works = true;
+            _wantW = r.Width; _wantH = r.Height;
+            if (!Native.MagSetWindowSource(_mag, new Native.RECT { Left = r.Left, Top = r.Top, Right = r.Right, Bottom = r.Bottom })) { Fail("MagSetWindowSource failed"); return null; }
+            if (!_got || _full == null) { Fail("this Windows gives no picture"); return null; }
+            _works = 1;
+            if (++_goodGrabs == GoodGrabsToTrust) MarkClean();
             if (buffer == null || buffer.Length != w * h * 4) buffer = new byte[w * h * 4];
-            // box-shrink the full picture to w × h (it is blurred afterwards anyway)
-            int srcW = Math.Min(_fullW, r.Width), srcH = Math.Min(_fullH, r.Height);
+            // box-shrink the picture to w × h (it is blurred afterwards anyway)
+            int srcW = _fullW, srcH = _fullH;
             double sx = (double)srcW / w, sy = (double)srcH / h;
             for (int y = 0; y < h; y++)
             {
@@ -132,6 +242,6 @@ public static class MagCapture
             }
             return buffer;
         }
-        catch { Works = false; _failed = true; return null; }
+        catch (Exception e) { Fail(e.GetType().Name + ": " + e.Message); return null; }
     }
 }

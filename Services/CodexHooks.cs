@@ -18,8 +18,9 @@ public static class CodexHooks
     private static string HooksPath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".codex", "hooks.json");
 
-    private static string ScriptPath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DynamicIsland", Marker);
+    private static string ScriptPath => ClaudeHooks.ScriptPath;
+
+    internal static bool PointsHere() => File.Exists(HooksPath) && ClaudeHooks.PointsHere(File.ReadAllText(HooksPath));
 
     /// <summary>Codex is (or was) used on this computer.</summary>
     public static bool CodexFound => Directory.Exists(Path.GetDirectoryName(HooksPath));

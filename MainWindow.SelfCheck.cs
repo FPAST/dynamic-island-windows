@@ -95,6 +95,10 @@ public partial class MainWindow
         var rows = new List<CheckRow>();
         void OpenSettings(string page) => Process.Start(new ProcessStartInfo("ms-settings:" + page) { UseShellExecute = true });
 
+        if (Settings.Safe)
+            rows.Add(new(L.T("Безопасный режим"), CheckState.Warn,
+                L.T("Atoll запущен с --safe: новое из 1.8.0 (громкость и яркость, прогресс программ, караоке, голосовой ассистент, стекло при записи экрана, свой вид острова) выключено на этот запуск. Ваши настройки не изменены.")));
+
         // messages
         if (!_settings.MirrorNotifications)
             rows.Add(new(L.T("Сообщения мессенджеров"), CheckState.Off, L.T("Выключено в настройках."), L.T("Включить"),
@@ -137,7 +141,11 @@ public partial class MainWindow
         }
 
         // glass
-        if (_settings.Glass && !Lite)
+        if (_settings.Glass && !Lite && MagCapture.CrashedBefore && _excluded != true)
+            rows.Add(new(L.T("Матовое стекло"), CheckState.Warn,
+                L.T("Сейчас стекло сплошное: прошлый раз Windows закрыл Atoll, когда он снимал фон за островом. Пока остров виден записи экрана, фон не снимается."),
+                L.T("Попробовать снова"), () => { MagCapture.TryAgain(); CaptureFrost(); }));
+        else if (_settings.Glass && !Lite)
             rows.Add(FrostCanGrab
                 ? new(L.T("Матовое стекло"), CheckState.Ok, L.T("Работает: остров показывает размытый фон за собой."))
                 : new(L.T("Матовое стекло"), CheckState.Warn, L.T("Сейчас стекло сплошное: Windows не дал снять фон за островом.")));
@@ -181,7 +189,9 @@ public partial class MainWindow
             var text = r.Name == L.T("Музыка") && r.State == CheckState.Ok ? "" : r.Text;   // the song's name stays out of it
             sb.AppendLine($"[{mark}] {r.Name}{(text.Length > 0 ? ": " + text : "")}");
         }
+        if (Settings.Safe) sb.AppendLine("Safe mode (--safe)");
         sb.AppendLine($"Glass {(_settings.Glass ? "on" : "off")}, lite {(Lite ? "on" : "off")}, scale {_settings.IslandScale}%, theme {(_settings.ThemeId.Length > 0 ? _settings.ThemeId : "custom")}");
+        sb.AppendLine(TopCostsReport());
         return sb.ToString();
     }
 }

@@ -2,6 +2,31 @@
 
 All notable changes to Atoll (formerly "Dynamic Island for Windows"). Русская версия каждого пункта — ниже английской.
 
+## 1.8.1 — 2026-11-19
+
+- **Fixed: heavy CPU load with the glass while the island stays visible to screen recording** (it does so on its own whenever NVIDIA's recorder runs). Every refresh of the glass copied the whole desktop — all monitors — on the interface thread; now it takes only the area behind the island, on a thread of its own. On several large monitors the glass also switched itself off quietly; it no longer does.
+- **Fixed: on some PCs Atoll did not open unless light graphics were on.** The screen picture for the glass (Windows' Magnification API) can crash inside Windows itself, where no error handler reaches. Atoll now notices when a run died there and stops using it (the glass is solid while the island is visible to recording; Settings → Check → Try again). And if a start does not finish for any reason, the next one turns light graphics on by itself and says so.
+- **Fixed: one broken feature closed the whole island.** An error now goes to the log with where it happened, and the island keeps working; if a feature fails to start, the rest still starts.
+- **Less work on the interface thread**: screen brightness, the progress of other programs and messenger notifications are read in the background; the karaoke line only redraws while it moves; a sound-device object no longer piles up every few seconds.
+- **Safe mode**: start Atoll with `--safe` to switch off what 1.8.0 added (volume and brightness, program progress, karaoke, the voice assistant, glass while visible to recording, your own island look) for that run. Your settings stay as they are.
+- **The report says where the time goes**: the reports from Settings (smoothness, and Check → Copy report) now end with the five things the island spent most time on and how much CPU it used.
+- **Fixed: the Voice button in the Chat tab was hidden under the Claude Code character.** The voice controls now sit on the left, next to the chat choice.
+- **Fixed: the System tab named a graphics card that was no longer in the PC** (after swapping cards it kept showing the old one). The name now comes from the cards Windows sees right now.
+- **Any program or folder in the lists**: Home → Apps (+) can now add any file or folder from disk, not only what the Start menu knows; "Hide the island in front of programs" (Settings → Behavior) takes any .exe, even one that is not running, or a whole folder — everything started from it (a game's folder, a portable program).
+- **Microsoft Store version**: Claude Code and Codex reach the island again (their hook and its key now live in `%USERPROFILE%\.atoll`, a folder the Store version shares with other programs). Hooks set up earlier are moved there on their own.
+
+### По-русски
+- Исправлено: сильная нагрузка на процессор со стеклом, когда остров виден записи экрана (так бывает сам собой при запущенной записи NVIDIA). Каждое обновление стекла копировало весь рабочий стол со всех мониторов в потоке интерфейса; теперь берётся только область за островом, в отдельном потоке. На нескольких больших мониторах стекло больше не выключается само.
+- Исправлено: на некоторых ПК Atoll не открывался без облегчённой графики. Снимок экрана для стекла (Magnification API) может падать внутри самой Windows, где ошибку не поймать. Теперь Atoll замечает, что прошлый запуск упал там, и больше его не использует (стекло сплошное, пока остров виден записи; Настройки → Проверка → «Попробовать снова»). А если запуск не дошёл до конца по любой причине, следующий сам включает облегчённую графику и сообщает об этом.
+- Исправлено: сбой одной функции закрывал весь остров. Теперь ошибка пишется в журнал, а остров работает дальше; если функция не запустилась, остальные всё равно запускаются.
+- Меньше работы в потоке интерфейса: яркость, прогресс программ и уведомления мессенджеров читаются в фоне; строка караоке перерисовывается, только пока движется; аудиоустройство теперь освобождается, а не копится.
+- Безопасный режим: запуск с --safe выключает на этот раз новое из 1.8.0 (громкость и яркость, прогресс программ, караоке, голосовой ассистент, стекло при записи экрана, свой вид острова). Настройки не меняются.
+- Отчёт показывает, куда уходит время: отчёты из настроек (плавность и «Проверка» → «Скопировать отчёт») теперь заканчиваются пятью самыми затратными делами острова и долей процессора.
+- Исправлено: кнопку «Голос» на вкладке «Чат» закрывал персонаж Claude Code. Кнопки голоса теперь слева, рядом с выбором чата.
+- Исправлено: вкладка «Система» показывала видеокарту, которой уже нет в ПК (после замены карты оставалось старое название). Теперь название берётся из карт, которые Windows видит сейчас.
+- Любая программа или папка в списках: «Приложения» на Главной (+) теперь добавляют любой файл или папку с диска, а не только то, что есть в меню «Пуск»; «Прятать остров поверх программ» (Настройки → Поведение) принимает любой .exe, даже не запущенный, или целую папку — всё, что из неё запускается (папка с игрой, портативная программа).
+- Версия из Microsoft Store: Claude Code и Codex снова достучатся до острова (хук и его ключ теперь лежат в %USERPROFILE%\.atoll). Ранее настроенные хуки переносятся туда сами.
+
 ## 1.8.0 — 2026-11-16
 
 - **Resize the island by hand**: right-click the island → Resize… (or Settings → Layout). Pull the folded pill's right edge to make it wider, its bottom edge to make it bigger; Reset puts it back.

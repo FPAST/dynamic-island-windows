@@ -132,4 +132,90 @@ internal static class Native
         keybd_event(vk, 0, 0, UIntPtr.Zero);
         keybd_event(vk, 0, KEYUP, UIntPtr.Zero);
     }
+
+    // ------------------------------------------------------------------ Magnification API (MagCapture)
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct MAGIMAGEHEADER
+    {
+        public uint Width, Height;
+        public Guid Format;
+        public uint Stride, Offset;
+        public UIntPtr Size;
+    }
+
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    public delegate bool MagScalingCallback(IntPtr hwnd, IntPtr src, MAGIMAGEHEADER srcHeader, IntPtr dst, MAGIMAGEHEADER dstHeader, RECT unclipped, RECT clipped, IntPtr dirty);
+
+    public const int WS_EX_LAYERED = 0x80000, WS_POPUP = unchecked((int)0x80000000), WS_CHILD = 0x40000000, WS_VISIBLE = 0x10000000;
+    public const int MW_FILTERMODE_EXCLUDE = 0;
+    [DllImport("Magnification.dll")] public static extern bool MagInitialize();
+    [DllImport("Magnification.dll")] public static extern bool MagSetWindowSource(IntPtr hwnd, RECT rect);
+    [DllImport("Magnification.dll")] public static extern bool MagSetWindowFilterList(IntPtr hwnd, int mode, int count, IntPtr[] list);
+    [DllImport("Magnification.dll")] public static extern bool MagSetImageScalingCallback(IntPtr hwnd, MagScalingCallback cb);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    public static extern IntPtr CreateWindowEx(int ex, string cls, string name, int style, int x, int y, int w, int h, IntPtr parent, IntPtr menu, IntPtr inst, IntPtr param);
+    [DllImport("user32.dll")] public static extern bool DestroyWindow(IntPtr h);
+    [DllImport("user32.dll")] public static extern bool GetWindowDisplayAffinity(IntPtr hwnd, out uint affinity);
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] public static extern IntPtr GetModuleHandle(string? name);
+
+    // ------------------------------------------------------------------ graphics cards
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    public struct DISPLAY_DEVICE
+    {
+        public int cb;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string DeviceName;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)] public string DeviceString;
+        public int StateFlags;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)] public string DeviceID;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)] public string DeviceKey;
+    }
+
+    public const int DISPLAY_DEVICE_ATTACHED_TO_DESKTOP = 0x1, DISPLAY_DEVICE_PRIMARY_DEVICE = 0x4, DISPLAY_DEVICE_MIRRORING_DRIVER = 0x8;
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern bool EnumDisplayDevices(string? device, uint index, ref DISPLAY_DEVICE dd, uint flags);
+
+    /// <summary>
+    /// The graphics cards in the PC now, the one driving the main screen first. Not the registry's list of
+    /// display drivers: a card that was taken out keeps its entry there (a Radeon swapped for a GeForce still
+    /// showed as the Radeon).
+    /// </summary>
+    public static List<string> GraphicsCards()
+    {
+        var cards = new List<(string Name, int Rank)>();
+        try
+        {
+            var dd = new DISPLAY_DEVICE { cb = Marshal.SizeOf<DISPLAY_DEVICE>() };
+            for (uint i = 0; EnumDisplayDevices(null, i, ref dd, 0); i++, dd = new DISPLAY_DEVICE { cb = Marshal.SizeOf<DISPLAY_DEVICE>() })
+            {
+                if ((dd.StateFlags & DISPLAY_DEVICE_MIRRORING_DRIVER) != 0 || string.IsNullOrWhiteSpace(dd.DeviceString)) continue;
+                int rank = (dd.StateFlags & DISPLAY_DEVICE_PRIMARY_DEVICE) != 0 ? 0 : (dd.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP) != 0 ? 1 : 2;
+                cards.Add((dd.DeviceString.Trim(), rank));
+            }
+        }
+        catch (Exception e) { Log.Write("graphics cards: " + e.Message); }
+        return cards.OrderBy(c => c.Rank).Select(c => c.Name).Distinct().ToList();
+    }
+
+    // ------------------------------------------------------------------ where a process runs from
+
+    private const uint PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
+    [DllImport("kernel32.dll", SetLastError = true)] private static extern IntPtr OpenProcess(uint access, bool inherit, uint pid);
+    [DllImport("kernel32.dll")] private static extern bool CloseHandle(IntPtr h);
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern bool QueryFullProcessImageName(IntPtr process, uint flags, StringBuilder name, ref int size);
+
+    /// <summary>The full path of a process's program, or "" (limited rights are enough, also for most elevated ones).</summary>
+    public static string ProcessPath(uint pid)
+    {
+        var h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid);
+        if (h == IntPtr.Zero) return "";
+        try
+        {
+            var sb = new StringBuilder(1024);
+            int size = sb.Capacity;
+            return QueryFullProcessImageName(h, 0, sb, ref size) ? sb.ToString(0, size) : "";
+        }
+        finally { CloseHandle(h); }
+    }
 }

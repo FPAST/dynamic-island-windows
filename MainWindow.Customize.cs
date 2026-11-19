@@ -95,7 +95,7 @@ public partial class MainWindow
             _editBar.SetResourceReference(Border.BorderBrushProperty, "GlassRim");
             _editLayer.Children.Add(_editBar);
 
-            _editTimer.Tick += (_, _) => PlaceEditGrips();
+            _editTimer.Tick += (_, _) => Measure("edit grips", PlaceEditGrips);
         }
         _editLayer.Visibility = Visibility.Visible;
         PreviewKeyDown += EditMode_KeyDown;

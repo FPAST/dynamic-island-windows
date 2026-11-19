@@ -24,7 +24,7 @@ public partial class MainWindow
 
     private void InitApps()
     {
-        _appsTimer.Tick += (_, _) => UpdateRunningApps();
+        _appsTimer.Tick += (_, _) => Measure("apps", UpdateRunningApps);
         HomePage.IsVisibleChanged += (_, _) => { if (HomePage.IsVisible) { UpdateRunningApps(); _appsTimer.Start(); } else _appsTimer.Stop(); };
         BuildApps();
         // Store apps get their names once the index has loaded
@@ -143,6 +143,21 @@ public partial class MainWindow
             AppSearchResults.Children.Add(b);
         }
         RefitIsland();
+    }
+
+    /// <summary>Any program, file or folder on disk — not only what the Start menu knows.</summary>
+    private async void AppAddFile_Click(object sender, RoutedEventArgs e)
+    {
+        if (PickPath(folder: false, L.T("Добавить файл или программу"), L.T("Все файлы") + "|*.*") is not { } path) return;
+        AddApps([path]);
+        await ToggleAppSearch(false);
+    }
+
+    private async void AppAddFolder_Click(object sender, RoutedEventArgs e)
+    {
+        if (PickPath(folder: true, L.T("Добавить папку")) is not { } path) return;
+        AddApps([path]);
+        await ToggleAppSearch(false);
     }
 
     private bool OverApps(DragEventArgs e)

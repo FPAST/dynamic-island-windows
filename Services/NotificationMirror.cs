@@ -19,6 +19,8 @@ public sealed class NotificationMirror
     private readonly HashSet<uint> _seen = [];
     private bool _primed;
     private UserNotificationListener? _listener;
+    private int _busy;
+    private string _lastProblem = "";
 
     public bool Available { get; private set; }
 
@@ -48,7 +50,11 @@ public sealed class NotificationMirror
             var status = await _listener.RequestAccessAsync();
             Available = status == UserNotificationListenerAccessStatus.Allowed;
         }
-        catch { Available = false; }
+        catch (Exception e)
+        {
+            Available = false;
+            Log.Write("notification listener: " + e.GetType().Name + ": " + e.Message);
+        }
         return Available;
     }
 
@@ -76,15 +82,32 @@ public sealed class NotificationMirror
         catch (Exception e) { Log.Write("notiftest: list failed: " + e.Message); }
     }
 
-    /// <summary>New notifications since the last call (the first call only remembers what is already there).</summary>
+    /// <summary>
+    /// New notifications since the last call (the first call only remembers what is already there). Any thread;
+    /// a call while another one is still reading returns nothing.
+    /// </summary>
     public async Task<List<Message>> PollAsync(bool allApps)
+    {
+        if (Interlocked.Exchange(ref _busy, 1) == 1) return [];
+        try { return await ReadNewAsync(allApps); }
+        finally { Volatile.Write(ref _busy, 0); }
+    }
+
+    /// <summary>A failure is logged once, not every two seconds.</summary>
+    private void Problem(string what)
+    {
+        if (what != _lastProblem) Log.Write("notification listener: " + what);
+        _lastProblem = what;
+    }
+
+    private async Task<List<Message>> ReadNewAsync(bool allApps)
     {
         var result = new List<Message>();
         if (!Available || _listener == null) return result;
 
         IReadOnlyList<UserNotification> list;
         try { list = await _listener.GetNotificationsAsync(NotificationKinds.Toast); }
-        catch { return result; }
+        catch (Exception e) { Problem("list: " + e.Message); return result; }
 
         foreach (var n in list)
         {
@@ -120,7 +143,7 @@ public sealed class NotificationMirror
 
                 result.Add(new Message(app, title, body, logo));
             }
-            catch { }
+            catch (Exception e) { Problem("a notification: " + e.GetType().Name + ": " + e.Message); }
         }
         _primed = true;
         if (_seen.Count > 500) _seen.IntersectWith(list.Select(n => n.Id));

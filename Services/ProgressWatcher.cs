@@ -39,7 +39,14 @@ public sealed partial class ProgressWatcher
     /// <summary>Screenshots and tests: pretend a job is running (null: none).</summary>
     public void Demo(string? app, int percent) => Current = app == null ? null : new Job(IntPtr.Zero, app, percent, DateTime.Now, 0);
 
-    public void Poll()
+    /// <summary>Tests and tools: Scan and Apply in one go, on the calling thread.</summary>
+    public void Poll() => Apply(Scan());
+
+    /// <summary>
+    /// The windows showing a percentage right now. Safe on a background thread (one Scan at a time): going
+    /// through every window and asking for program names takes a while.
+    /// </summary>
+    public Dictionary<IntPtr, (string App, int Pct)> Scan()
     {
         var found = new Dictionary<IntPtr, (string App, int Pct)>();
         var sb = new StringBuilder(256);
@@ -63,7 +70,13 @@ public sealed partial class ProgressWatcher
             found[h] = (app, pct);
             return true;
         }, IntPtr.Zero);
+        if (_names.Count > 200) _names.Clear();
+        return found;
+    }
 
+    /// <summary>Takes a Scan's result: jobs that ended, the one to show. On the UI thread (Finished fires there).</summary>
+    public void Apply(Dictionary<IntPtr, (string App, int Pct)> found)
+    {
         var now = DateTime.Now;
         foreach (var gone in _jobs.Keys.Where(k => !found.ContainsKey(k)).ToList())
         {
@@ -74,7 +87,6 @@ public sealed partial class ProgressWatcher
         }
         foreach (var (h, f) in found)
             _jobs[h] = _jobs.TryGetValue(h, out var old) ? old with { Percent = f.Pct } : new Job(h, f.App, f.Pct, now, f.Pct);
-        if (_names.Count > 200) _names.Clear();
 
         // a number that never moves is not a job (a document called "100% cotton"): it must change first
         Current = _jobs.Values.Where(j => j.Percent != j.First)

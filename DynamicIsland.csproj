@@ -12,7 +12,7 @@
     <AssemblyName>DynamicIsland</AssemblyName>
     <ApplicationIcon>Assets\icon.ico</ApplicationIcon>
 
-    <Version>1.8.0</Version>
+    <Version>1.8.1</Version>
     <Product>Atoll</Product>
     <AssemblyTitle>Atoll</AssemblyTitle>
     <Description>Atoll, a Dynamic Island-style island for Windows: music, lyrics, weather, timers, screenshots, chat and more at the top of the screen.</Description>
@@ -25,6 +25,13 @@
     <PlatformTarget>x64</PlatformTarget>
     <AppendPlatformToOutputPath>false</AppendPlatformToOutputPath>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- the unit tests are a project of their own -->
+    <Compile Remove="tests\**" />
+    <None Remove="tests\**" />
+    <Page Remove="tests\**" />
+  </ItemGroup>
 
   <ItemGroup>
     <!-- WinForms is only used for the tray icon and GDI capture; keep its names out of the way. -->

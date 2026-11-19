@@ -25,7 +25,7 @@ public partial class MainWindow
     private int _unread;
     private int _slowCount;
     private bool _focusByPomodoro;
-    private bool _downloadsBusy, _callProbeBusy;
+    private bool _downloadsBusy, _callProbeBusy, _progressBusy;
     private int _callMisses;
     private readonly AudioService _audioProbe = new();   // used on background threads only
     private bool _statsBusy;
@@ -53,11 +53,11 @@ public partial class MainWindow
             if (_settings.ShowProgress && !FocusMode.IsOn)
                 ShowToast("\uE73E", L.T("Готово"), ProgressWatcher.Friendly(app), null, (Brush)FindResource("Accent"), ms: 4000);
         };
-        InitShellHook();
-        InitSelfCheck();
-        InitWelcome();
+        Safely("shell hook", InitShellHook);
+        Safely("check page", InitSelfCheck);
+        Safely("welcome", InitWelcome);
 
-        InitTimerPage();
+        Safely("timer page", InitTimerPage);
         IcsBox.Text = _settings.CalendarIcs;
         PomodoroFocusSwitch.IsChecked = _settings.PomodoroFocus;
         _ = _calendar.RefreshAsync(force: true);
@@ -233,8 +233,17 @@ public partial class MainWindow
             _downloadsBusy = true;
             _ = Task.Run(() => { try { _downloads.Poll(); } catch { } }).ContinueWith(_ => _downloadsBusy = false);
         }
-        if (_settings.ShowProgress && !_gameMode && _demoMedia == null) _progress.Poll();
-        if (_slowCount % 4 == 1) WatchVolumeDevice();
+        if (_settings.ShowProgress && !_gameMode && _demoMedia == null && !_progressBusy)
+        {
+            _progressBusy = true;
+            _ = Task.Run(_progress.Scan).ContinueWith(t =>
+            {
+                _progressBusy = false;
+                if (t.IsFaulted) { Log.Write("progress: " + t.Exception?.InnerException?.Message); return; }
+                Measure("progress watcher", () => _progress.Apply(t.Result));
+            }, TaskScheduler.FromCurrentSynchronizationContext());
+        }
+        if (_slowCount % 4 == 1) Measure("volume device", WatchVolumeDevice);
         WatchMonitor();
         if (_slowCount % 2 == 1) WatchMessengerTitles();
         if (_slowCount % 2 == 0 || _demoMedia != null)
@@ -275,7 +284,7 @@ public partial class MainWindow
 
         CheckCalendar();
 
-        if (_slowCount % 2 == 0 && _settings.MirrorNotifications) await PollNotificationsAsync();
+        if (_slowCount % 2 == 0 && _settings.MirrorNotifications) await Measure("notifications", PollNotificationsAsync);
         if (_slowCount % 900 == 0) _ = _calendar.RefreshAsync();
         TrackHabits();
         if (_slowCount % 30 == 1) WatchBattery();
@@ -298,7 +307,9 @@ public partial class MainWindow
 
     private async Task PollNotificationsAsync()
     {
-        var messages = await _notifications.PollAsync(_settings.MirrorAllApps);
+        // read on the thread pool: Windows can take its time, the island must not wait for it
+        bool all = _settings.MirrorAllApps;
+        var messages = await Task.Run(() => _notifications.PollAsync(all));
         foreach (var m in messages)
         {
             _unread++;

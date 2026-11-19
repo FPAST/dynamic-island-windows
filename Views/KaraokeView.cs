@@ -38,6 +38,9 @@ public sealed class KaraokeView : FrameworkElement
 
     public string Text => _text;
 
+    /// <summary>Where the view books the time its frames take (the island's performance report).</summary>
+    public Action<string, long>? Spent { get; set; }
+
     /// <summary>A new line starts: its words, when it starts in the song and when the next one does.</summary>
     public void SetLine(string text, TimeSpan start, TimeSpan next)
     {
@@ -53,6 +56,7 @@ public sealed class KaraokeView : FrameworkElement
         _length = TimeSpan.FromSeconds(Math.Max(0.8, gap > 0.3 ? Math.Min(gap * 0.92, natural) : natural));
         InvalidateMeasure();
         InvalidateVisual();
+        Hook();
     }
 
     /// <summary>Where the song is now (called a few times a second; in between the view counts by itself).</summary>
@@ -61,6 +65,7 @@ public sealed class KaraokeView : FrameworkElement
         _position = position;
         _positionAt = _clock.Elapsed.TotalSeconds;
         _playing = playing;
+        Hook();
     }
 
     private FormattedText Format(string text, out double scale)
@@ -80,9 +85,16 @@ public sealed class KaraokeView : FrameworkElement
 
     protected override Size MeasureOverride(Size availableSize) => new(_line == null ? 0 : Math.Ceiling(Math.Min(_line.Width, MaxLineWidth)) + 2, 20);
 
+    /// <summary>Paused, or the line fully lit and the new one arrived: nothing moves.</summary>
+    private bool Still => _clock.Elapsed.TotalSeconds - _changedAt > 0.8 && (!_playing || Progress() >= 1);
+
+    /// <summary>
+    /// Frames only while the line moves. A handler on CompositionTarget.Rendering makes WPF draw every frame
+    /// even when it returns at once, so a still line keeps none (1.8.0 kept it while visible: CPU load).
+    /// </summary>
     private void Hook()
     {
-        bool want = IsVisible;
+        bool want = IsVisible && !Still;
         if (want == _ticking) return;
         _ticking = want;
         if (want) CompositionTarget.Rendering += OnFrame; else CompositionTarget.Rendering -= OnFrame;
@@ -90,10 +102,15 @@ public sealed class KaraokeView : FrameworkElement
 
     private void OnFrame(object? sender, EventArgs e)
     {
-        // a still line (paused, fully lit, nothing arriving) needs no redraw
-        double since = _clock.Elapsed.TotalSeconds - _changedAt;
-        if (since > 0.8 && (!_playing || Progress() >= 1)) return;
-        InvalidateVisual();
+        long t0 = Stopwatch.GetTimestamp();
+        Step();
+        Spent?.Invoke("frame: karaoke", Stopwatch.GetTimestamp() - t0);
+    }
+
+    private void Step()
+    {
+        InvalidateVisual();   // the last frame draws the line as it stays
+        if (Still) Hook();
     }
 
     private double Progress()
@@ -103,6 +120,13 @@ public sealed class KaraokeView : FrameworkElement
     }
 
     protected override void OnRender(DrawingContext dc)
+    {
+        long t0 = Stopwatch.GetTimestamp();
+        Draw(dc);
+        Spent?.Invoke("karaoke draw", Stopwatch.GetTimestamp() - t0);
+    }
+
+    private void Draw(DrawingContext dc)
     {
         if (_line == null) return;
         double w = ActualWidth, h = ActualHeight;

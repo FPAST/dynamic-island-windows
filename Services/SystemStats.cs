@@ -70,16 +70,7 @@ public sealed class SystemStats : IDisposable
         finally { Marshal.FreeHGlobal(buf); }
     }
 
-    private static string GpuName()
-    {
-        try
-        {
-            using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(
-                @"SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}\0000");
-            return key?.GetValue("DriverDesc") as string ?? "";
-        }
-        catch { return ""; }
-    }
+    private static string GpuName() => Native.GraphicsCards().FirstOrDefault() ?? "";
 
     public void Dispose()
     {

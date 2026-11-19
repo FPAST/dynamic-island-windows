@@ -346,6 +346,11 @@
                                  Margin="13,0,0,0" VerticalAlignment="Center" IsHitTestVisible="False"/>
                     </Grid>
                     <WrapPanel x:Name="AppSearchResults" Margin="0,8,0,0"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                      <TextBlock Text="Или выберите на диске:" Style="{StaticResource Muted}" FontSize="12.5" VerticalAlignment="Center" Margin="2,0,8,0"/>
+                      <Button Style="{StaticResource GhostPill}" Padding="12,5" Margin="0,0,6,0" Content="Файл…" Click="AppAddFile_Click"/>
+                      <Button Style="{StaticResource GhostPill}" Padding="12,5" Content="Папка…" Click="AppAddFolder_Click"/>
+                    </StackPanel>
                   </StackPanel>
                 </StackPanel>
               </Border>
@@ -637,14 +642,18 @@
                     </DataTemplate>
                   </ComboBox.ItemTemplate>
                 </ComboBox>
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <!-- the voice controls sit left, next to the chat choice: on the right the Claude Code buddy
+                     (on the chat window's edge) covered the voice button -->
+                <StackPanel Orientation="Horizontal" DockPanel.Dock="Left" Margin="8,0,0,0">
                   <Button x:Name="VoiceNameButton" Style="{StaticResource GhostPill}" Padding="10,5" Margin="0,0,6,0"
                           ToolTip="Голос Gemini" Click="VoiceName_Click"/>
-                  <TextBlock x:Name="VoiceStatusText" Style="{StaticResource Muted}" MaxWidth="100" Margin="0,0,6,0"
-                             VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Visibility="Collapsed"/>
                   <Button x:Name="VoiceAssistantButton" Style="{StaticResource GhostPill}" Content="Голос"
                           Padding="10,5" Margin="0,0,6,0" ToolTip="Голосовой диалог Gemini Live"
                           Click="VoiceAssistant_Click"/>
+                  <TextBlock x:Name="VoiceStatusText" Style="{StaticResource Muted}" MaxWidth="70" Margin="0,0,6,0"
+                             VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Visibility="Collapsed"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                   <Button x:Name="ChatSizeButton" Style="{StaticResource IconButton}" Width="30" Height="30" FontSize="12" Content="&#xE740;" ToolTip="Больше места (для входа и капчи)" Click="ChatSize_Click"/>
                   <Button Style="{StaticResource IconButton}" Width="30" Height="30" FontSize="12" Content="&#xE72C;" ToolTip="Обновить" Click="ChatReload_Click"/>
                   <Button Style="{StaticResource IconButton}" Width="30" Height="30" FontSize="12" Content="&#xE8A7;" ToolTip="Открыть в браузере" Click="ChatOpenExternal_Click"/>
@@ -1154,10 +1163,17 @@
                     <TextBlock Text="Прятать остров поверх программ" FontSize="13" Margin="0,6,0,6"/>
                     <WrapPanel x:Name="HideAppChips"/>
                     <TextBlock x:Name="HideAppsEmpty" Style="{StaticResource Muted}" Text="Например, игры без полного экрана или программы для созвонов" TextWrapping="Wrap" Margin="0,0,0,6"/>
-                    <DockPanel Margin="0,0,0,10">
+                    <DockPanel Margin="0,0,0,6">
                       <Button DockPanel.Dock="Right" Style="{StaticResource GhostPill}" Padding="12,6" Margin="8,0,0,0" Content="Добавить" Click="HideAppAdd_Click"/>
-                      <ComboBox x:Name="HideAppPicker" Style="{StaticResource SoftCombo}"/>
+                      <ComboBox x:Name="HideAppPicker" Style="{StaticResource SoftCombo}" ToolTip="Программы, запущенные сейчас"/>
                     </DockPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                      <TextBlock Text="Или выберите на диске:" Style="{StaticResource Muted}" FontSize="12.5" VerticalAlignment="Center" Margin="2,0,8,0"/>
+                      <Button Style="{StaticResource GhostPill}" Padding="12,5" Margin="0,0,6,0" Content="Программа…" Click="HideAppProgram_Click"
+                              ToolTip="Любой .exe — даже если программа сейчас не запущена"/>
+                      <Button Style="{StaticResource GhostPill}" Padding="12,5" Content="Папка…" Click="HideAppFolder_Click"
+                              ToolTip="Всё, что запускается из этой папки (например, папка с игрой)"/>
+                    </StackPanel>
                     <CheckBox x:Name="LockSwitch" Style="{StaticResource Switch}" Click="Behavior_Click" Content="Закрепить на месте (не перетаскивать)"/>
                     <CheckBox x:Name="CapsSwitch" Style="{StaticResource Switch}" Click="Behavior_Click" Content="Показывать Caps Lock"/>
                     <CheckBox x:Name="LayoutSwitch" Style="{StaticResource Switch}" Click="Behavior_Click" Content="Показывать смену раскладки"/>

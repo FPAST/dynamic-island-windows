@@ -45,7 +45,7 @@ public static class Uninstaller
     public static void ScheduleDelete(bool data, bool appFolder)
     {
         var targets = new List<string>();
-        if (data) { targets.Add(AppDataFolder); targets.Add(LocalDataFolder); }
+        if (data) { targets.Add(AppDataFolder); targets.Add(LocalDataFolder); targets.Add(Path.GetDirectoryName(ClaudeBridge.TokenPath)!); }
         if (appFolder && !IsDevBuild) targets.Add(AppContext.BaseDirectory.TrimEnd('\\'));
         if (targets.Count == 0) return;
         // the paths go into a cmd line: one with % (expanded by cmd) or a quote could point rmdir somewhere else

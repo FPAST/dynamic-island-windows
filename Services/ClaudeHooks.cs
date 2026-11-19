@@ -16,8 +16,13 @@ public static class ClaudeHooks
     private static string SettingsPath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude", "settings.json");
 
-    private static string ScriptPath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DynamicIsland", Marker);
+    // next to the bridge token in ~\.atoll: %LOCALAPPDATA% is redirected inside the Store package, and
+    // Claude Code / Codex (outside the package) would not find the script there
+    internal static string ScriptPath => Path.Combine(Path.GetDirectoryName(ClaudeBridge.TokenPath)!, Marker);
+
+    /// <summary>A hooks file whose entries already run the script from ScriptPath (JSON escapes the backslashes).</summary>
+    internal static bool PointsHere(string json) =>
+        json.Replace(@"\\", @"\").Contains(ScriptPath, StringComparison.OrdinalIgnoreCase);
 
     public static bool IsInstalled
     {
@@ -34,11 +39,17 @@ public static class ClaudeHooks
     /// <summary>Keep the installed hook script up to date with this version of the app.</summary>
     public static void RefreshScript()
     {
+        bool claude = IsInstalled, codex = CodexHooks.IsInstalled;
+        if (!claude && !codex) return;
         try
         {
-            if (IsInstalled || CodexHooks.IsInstalled) File.Copy(Path.Combine(AppContext.BaseDirectory, "Assets", Marker), ScriptPath, overwrite: true);
+            Directory.CreateDirectory(Path.GetDirectoryName(ScriptPath)!);
+            File.Copy(Path.Combine(AppContext.BaseDirectory, "Assets", Marker), ScriptPath, overwrite: true);
+            // hooks set up before 1.8.1 run the script from %LOCALAPPDATA%: point them at the new copy
+            if (claude && !PointsHere(File.ReadAllText(SettingsPath))) { Install(); Log.Write("claude hooks: moved to " + ScriptPath); }
+            if (codex && !CodexHooks.PointsHere()) { CodexHooks.Install(); Log.Write("codex hooks: moved to " + ScriptPath); }
         }
-        catch { }
+        catch (Exception e) { Log.Write("claude hooks: refresh failed: " + e.Message); }
     }
 
     public static void Install()

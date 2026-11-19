@@ -37,7 +37,7 @@ public partial class MainWindow
 
     private void InitGlass()
     {
-        _frostTimer.Tick += (_, _) => CaptureFrost();
+        _frostTimer.Tick += (_, _) => Measure("frost", CaptureFrost);
         _frostTimer.Start();
         ApplyGlass();
         SetupAura();
@@ -103,26 +103,40 @@ public partial class MainWindow
     /// With frosted glass on, the island is left out of every screen capture - otherwise it would photograph
     /// itself and the glass turns opaque. With glass off it shows up in screenshots and recordings again.
     /// </summary>
-    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern bool GetWindowDisplayAffinity(IntPtr hwnd, out uint affinity);
-
     private static readonly string[] NvidiaRecorders = ["NVIDIA Overlay", "NVIDIA Share", "nvsphelper64", "nvsphelper"];
-    private bool _nvidiaRecorder;
+    private volatile bool _nvidiaRecorder;
     private DateTime _nvidiaCheckedAt;
+    private bool _nvidiaChecking;
 
-    /// <summary>Is NVIDIA's screen recorder around? (checked at most once a minute)</summary>
+    /// <summary>
+    /// Is NVIDIA's screen recorder around? Checked at most once a minute, after the first time on a background
+    /// thread (listing every process takes a while): until it answers, the last answer stands.
+    /// </summary>
     private bool NvidiaRecorderRunning()
     {
-        if (DateTime.UtcNow - _nvidiaCheckedAt < TimeSpan.FromMinutes(1)) return _nvidiaRecorder;
+        if (DateTime.UtcNow - _nvidiaCheckedAt < TimeSpan.FromMinutes(1) || _nvidiaChecking) return _nvidiaRecorder;
+        bool first = _nvidiaCheckedAt == default;
         _nvidiaCheckedAt = DateTime.UtcNow;
-        bool found = false;
-        foreach (var name in NvidiaRecorders)
+        if (first) return _nvidiaRecorder = FindNvidiaRecorder();   // the start decides how the island begins: ask right away
+        _nvidiaChecking = true;
+        Task.Run(FindNvidiaRecorder).ContinueWith(t =>
         {
-            var ps = System.Diagnostics.Process.GetProcessesByName(name);
-            foreach (var p in ps) p.Dispose();
-            if (ps.Length > 0) { found = true; break; }
+            _nvidiaChecking = false;
+            if (!t.IsFaulted) _nvidiaRecorder = t.Result;
+        }, TaskScheduler.FromCurrentSynchronizationContext());
+        return _nvidiaRecorder;
+    }
+
+    private bool FindNvidiaRecorder()
+    {
+        bool found = false;
+        foreach (var p in System.Diagnostics.Process.GetProcesses())
+        {
+            if (!found && NvidiaRecorders.Contains(p.ProcessName, StringComparer.OrdinalIgnoreCase)) found = true;
+            p.Dispose();
         }
         if (found != _nvidiaRecorder) Log.Write("NVIDIA recorder " + (found ? "found: the island stays visible to screen capture" : "gone"));
-        return _nvidiaRecorder = found;
+        return found;
     }
 
     /// <summary>Keep the island out of screenshots / recordings? The user's choice, or automatic.</summary>
@@ -149,7 +163,7 @@ public partial class MainWindow
     /// capture (then a plain grab does), or — when it must stay visible to screenshots and recorders —
     /// the Magnification API leaves just our window out (where this Windows supports it).
     /// </summary>
-    private bool FrostCanGrab => _excluded == true || _demoPlate != null || MagCapture.Works != false;
+    private bool FrostCanGrab => _excluded == true || _demoPlate != null || (!Settings.Safe && MagCapture.Works != false);
 
     private void CaptureFrost()
     {
@@ -172,11 +186,21 @@ public partial class MainWindow
         if (!_settings.Glass || Lite || !FrostCanGrab || _hidden || _fullscreenHidden || !IsLoaded || !Island.IsVisible || _dragging || _posActive) return false;
         double iw = Math.Max(coming.Width, Island.ActualWidth), ih = Math.Max(coming.Height, Island.ActualHeight);
         if (_frostCovers && iw / 2 + FrostMargin <= _frostHalf + 0.5 && ih + FrostMargin <= _frostHeight + 0.5) return true;   // already big enough
-        return GrabFrost(iw, ih);
+        // waits briefly for the picture: opening without it would show the island solid (grey) for a moment
+        return GrabFrost(iw, ih, waitMs: 40);
     }
 
-    /// <summary>Grab and show the backdrop for an island of this size (centred where the island is).</summary>
-    private bool GrabFrost(double islandW, double islandH)
+    /// <summary>A grab is on its way (one at a time; its buffer is _frostPixels).</summary>
+    private bool _frostBusy;
+
+    /// <summary>
+    /// Grab and show the backdrop for an island of this size (centred where the island is). The grab itself
+    /// runs off the UI thread; with waitMs the picture is shown at once if it comes in time, otherwise
+    /// whenever it arrives. True: the picture is shown now.
+    /// </summary>
+    private bool GrabFrost(double islandW, double islandH, int waitMs = 0) => Measure("frost grab", () => GrabFrostNow(islandW, islandH, waitMs));
+
+    private bool GrabFrostNow(double islandW, double islandH, int waitMs)
     {
         UiStep("glass");
         try
@@ -191,47 +215,75 @@ public partial class MainWindow
             // liquid glass bends the picture at the edge: it needs a sharper grab than plain frost
             int div = LiquidGlass ? 2 : 4;
             int w = Math.Max(1, rect.Width / div), h = Math.Max(1, rect.Height / div);
-            var px = _frostTestBackdrop != null ? _frostTestBackdrop(w, h)
-                   : _demoPlate != null ? CaptureService.CropSmall(_demoPlate, _demoPlateAt, rect, w, h, _frostPixels)
-                   : _excluded == true ? CaptureService.CaptureSmall(rect, w, h, _frostPixels)
-                   : _shutDown ? null : MagCapture.Capture(_hwnd, rect, w, h, _frostPixels);
-            if (px == null) return false;
-            _frostPixels = px;
-
-            long sig = w * 73856093L ^ h * 19349663L;
-            for (int i = 0; i < px.Length; i += 16) sig = sig * 31 + px[i] + (px[i + 1] << 8) + (px[i + 2] << 16);
-            bool sizeChanged = _frostBmp == null || _frostBmp.PixelWidth != w || _frostBmp.PixelHeight != h;
-            if (!sizeChanged && sig == _frostSig && Math.Abs(half - _frostHalf) < 0.5 && Math.Abs(height - _frostHeight) < 0.5)
+            if (_frostTestBackdrop != null || _demoPlate != null)
             {
-                if (FrostHost.Opacity > 0.5) SetFrostCovers(true);
-                return true;   // nothing changed behind
+                var still = _frostTestBackdrop != null ? _frostTestBackdrop(w, h) : CaptureService.CropSmall(_demoPlate!, _demoPlateAt, rect, w, h, _frostPixels);
+                return still != null && ShowFrost(still, w, h, half, height, islandW, islandH);
             }
-            _frostSig = sig;
-
-            if (sizeChanged)
+            if (_shutDown || _frostBusy) return false;
+            _frostBusy = true;
+            var buffer = _frostPixels;
+            Task<byte[]?> grab = _excluded == true
+                ? Task.Run(() => CaptureService.CaptureSmall(rect, w, h, buffer))
+                : MagCapture.CaptureAsync(_hwnd, rect, w, h, buffer);
+            if (waitMs > 0 && grab.Wait(waitMs))
             {
-                _frostBmp = new WriteableBitmap(w, h, 96, 96, PixelFormats.Bgr32, null);
-                Frost.Source = _frostBmp;
+                _frostBusy = false;
+                return grab.Result is { } now && ShowFrost(now, w, h, half, height, islandW, islandH);
             }
-            ApplyLiquidBlur();
-            var shown = px;
-            if (LiquidGlass)
+            grab.ContinueWith(t =>
             {
-                double sb = w / (half * 2);   // DIP → grab pixels
-                shown = Refract(px, w, h, (half - islandW / 2) * sb, islandW * sb, islandH * sb, Radius(islandH) * sb);
-            }
-            _frostBmp!.WritePixels(new Int32Rect(0, 0, w, h), shown, w * 4, 0);
-            _frostHalf = half;
-            _frostHeight = height;
-            Frost.Width = half * 2;
-            Frost.Height = height;
-            Canvas.SetLeft(Frost, Island.ActualWidth / 2 - half);
-            FrostHost.BeginAnimation(OpacityProperty, null);
-            FrostHost.Opacity = 1;
-            SetFrostCovers(true);
-            return true;
+                _frostBusy = false;
+                if (t.IsFaulted) { Log.Write("glass: grab failed: " + t.Exception?.InnerException?.Message); return; }
+                // the island may have been dragged, hidden or switched to solid while the picture was taken
+                if (t.Result is not { } later || !_settings.Glass || Lite || _shutDown || _hidden || _fullscreenHidden || _dragging || _posActive) return;
+                Measure("frost show", () => ShowFrost(later, w, h, half, height, islandW, islandH));
+            }, TaskScheduler.FromCurrentSynchronizationContext());
+            return false;
         }
-        catch { return false; }
+        catch (Exception e)
+        {
+            _frostBusy = false;
+            Log.Write("glass: " + e.Message);
+            return false;
+        }
+    }
+
+    private bool ShowFrost(byte[] px, int w, int h, double half, double height, double islandW, double islandH)
+    {
+        _frostPixels = px;
+        long sig = w * 73856093L ^ h * 19349663L;
+        for (int i = 0; i < px.Length; i += 16) sig = sig * 31 + px[i] + (px[i + 1] << 8) + (px[i + 2] << 16);
+        bool sizeChanged = _frostBmp == null || _frostBmp.PixelWidth != w || _frostBmp.PixelHeight != h;
+        if (!sizeChanged && sig == _frostSig && Math.Abs(half - _frostHalf) < 0.5 && Math.Abs(height - _frostHeight) < 0.5)
+        {
+            if (FrostHost.Opacity > 0.5) SetFrostCovers(true);
+            return true;   // nothing changed behind
+        }
+        _frostSig = sig;
+
+        if (sizeChanged)
+        {
+            _frostBmp = new WriteableBitmap(w, h, 96, 96, PixelFormats.Bgr32, null);
+            Frost.Source = _frostBmp;
+        }
+        ApplyLiquidBlur();
+        var shown = px;
+        if (LiquidGlass)
+        {
+            double sb = w / (half * 2);   // DIP → grab pixels
+            shown = Refract(px, w, h, (half - islandW / 2) * sb, islandW * sb, islandH * sb, Radius(islandH) * sb);
+        }
+        _frostBmp!.WritePixels(new Int32Rect(0, 0, w, h), shown, w * 4, 0);
+        _frostHalf = half;
+        _frostHeight = height;
+        Frost.Width = half * 2;
+        Frost.Height = height;
+        Canvas.SetLeft(Frost, Island.ActualWidth / 2 - half);
+        FrostHost.BeginAnimation(OpacityProperty, null);
+        FrostHost.Opacity = 1;
+        SetFrostCovers(true);
+        return true;
     }
 
     /// <summary>Called whenever the outline changes: keep frost and aura glued to the shape.</summary>

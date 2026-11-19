@@ -22,8 +22,9 @@ public sealed class ClaudeBridge
     /// A random secret only this Windows user can read. The hook script sends it with every call,
     /// so other programs and web pages can't fake Claude Code requests.
     /// </summary>
+    // %USERPROFILE%\.atoll is not redirected inside the Store package, so the hook script (run by Claude Code) sees the same file
     public static string TokenPath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DynamicIsland", "bridge.token");
+        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".atoll", "bridge.token");
 
     private static readonly Lazy<byte[]> Token = new(() =>
     {

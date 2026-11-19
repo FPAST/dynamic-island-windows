@@ -10,6 +10,7 @@ public partial class App : Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        WatchCrashes();
 
         if (e.Args.Contains("--uninstall"))
         {
@@ -42,8 +43,15 @@ public partial class App : Application
             return;
         }
 
+        // test and picture runs are killed at will: they neither leave nor read the start markers
+        if (!TestRun)
+            StartupGuard.Begin();
+        else
+            MagCapture.UseGuard = false;
+
         System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance); // rasdial output
         var settings = Settings.Current;
+        if (e.Args.Contains("--safe")) settings.EnterSafeMode();
         // "--lang de" previews another language without touching the saved setting
         int langArg = Array.IndexOf(e.Args, "--lang");
         Loc.Init(langArg >= 0 && langArg + 1 < e.Args.Length ? e.Args[langArg + 1] : settings.Language);
@@ -53,6 +61,44 @@ public partial class App : Application
         MainWindow = window;
         window.Closed += (_, _) => Shutdown();
         window.Show();
+    }
+
+    /// <summary>A test, picture or demo run (--run, --cover, --snapshot…): it must not touch the user's state.</summary>
+    public static bool TestRun => DynamicIsland.MainWindow.IsToolRun || Environment.GetCommandLineArgs().Contains("--run");
+
+    private static readonly Dictionary<string, int> Crashes = [];
+
+    /// <summary>
+    /// An error nobody caught goes to the log with where it happened. One in a UI handler is survived: a single
+    /// broken feature must not close the whole island (1.8.0 closed at once, leaving nothing to report). The
+    /// same error from a timer would repeat every tick: it is logged the first 3 times, then every 100th.
+    /// </summary>
+    private static void WatchCrashes()
+    {
+        Current.DispatcherUnhandledException += (_, e) =>
+        {
+            Crash("ui", e.Exception);
+            e.Handled = true;
+        };
+        AppDomain.CurrentDomain.UnhandledException += (_, e) => Crash(e.IsTerminating ? "fatal" : "background", e.ExceptionObject as Exception);
+        TaskScheduler.UnobservedTaskException += (_, e) =>
+        {
+            Crash("task", e.Exception);
+            e.SetObserved();
+        };
+    }
+
+    /// <summary>Logs an error caught at a boundary (a timer, a frame handler) with the same limit.</summary>
+    public static void Crash(string where, Exception? e)
+    {
+        if (e == null) return;
+        var key = e.GetType().FullName + " " + e.TargetSite;
+        int n;
+        lock (Crashes) Crashes[key] = n = Crashes.GetValueOrDefault(key) + 1;
+        if (n > 3 && n % 100 != 0) return;
+        var text = e.ToString();
+        if (text.Length > 3000) text = text[..3000] + "…";
+        Log.Write($"unhandled ({where}, #{n}): {text}");
     }
 
     /// <summary>Give up the "only one island" lock early, so a relaunched copy can start while this one closes.</summary>

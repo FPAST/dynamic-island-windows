@@ -41,7 +41,7 @@ public partial class MainWindow
     /// notification center is switched off, or access was refused — a messenger that blinks in the taskbar
     /// still means "a new message": the island says so, without the text.
     /// </summary>
-    private bool FlashFallback => _settings.MirrorNotifications && (!_notifications.Available || NotificationMirror.CenterDisabled());
+    private bool FlashFallback => !Settings.Safe && _settings.MirrorNotifications && (!_notifications.Available || NotificationMirror.CenterDisabled());
 
     private void OnWindowFlash(IntPtr window)
     {

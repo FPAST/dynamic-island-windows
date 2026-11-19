@@ -14,7 +14,8 @@ $timeout = if ($isPermission) { 115 } else { 3 }
 $src = if ($Source -eq 'codex') { 'codex' } else { 'claude' }
 
 # the island's secret (only this Windows user can read it) proves the call comes from the agent's hook
-$tokenFile = Join-Path $env:LOCALAPPDATA 'DynamicIsland\bridge.token'
+$tokenFile = Join-Path $env:USERPROFILE '.atoll\bridge.token'
+if (-not (Test-Path $tokenFile)) { $tokenFile = Join-Path $env:LOCALAPPDATA 'DynamicIsland\bridge.token' }
 $token = if (Test-Path $tokenFile) { (Get-Content $tokenFile -Raw).Trim() } else { '' }
 if ($token) {
     try {

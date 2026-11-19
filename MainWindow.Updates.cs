@@ -15,7 +15,7 @@ public partial class MainWindow
     private bool _updating;
     private readonly DispatcherTimer _updateTimer = new() { Interval = TimeSpan.FromHours(6) };
 
-    private static bool IsToolRun => Environment.GetCommandLineArgs()
+    internal static bool IsToolRun => Environment.GetCommandLineArgs()
         .Any(a => a is "--snapshot" or "--promo" or "--review" or "--brand" or "--live-demo" or "--cover");
 
     private void InitUpdates()

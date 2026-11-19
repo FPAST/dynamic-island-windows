@@ -17,6 +17,7 @@ public partial class MainWindow
     private string _volumeDeviceId = "";
     private float _volumeWas = -1;
     private bool _muteWas;
+    private string _volumeProblem = "";
 
     /// <summary>Every few seconds: follow the default output (headphones plugged in) and listen to its volume.</summary>
     private void WatchVolumeDevice()
@@ -25,16 +26,28 @@ public partial class MainWindow
         try
         {
             var d = _levelDevices.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
-            if (d.ID == _volumeDeviceId) return;
-            if (_volumeDevice != null) try { _volumeDevice.AudioEndpointVolume.OnVolumeNotification -= OnVolume; } catch { }
+            // asked every few seconds: a COM object each time, released at once when it is the same device
+            if (d.ID == _volumeDeviceId) { d.Dispose(); return; }
+            if (_volumeDevice != null)
+            {
+                try { _volumeDevice.AudioEndpointVolume.OnVolumeNotification -= OnVolume; } catch { }
+                _volumeDevice.Dispose();
+            }
             _volumeDevice = d;
             _volumeDeviceId = d.ID;
             var v = d.AudioEndpointVolume;
             _volumeWas = v.MasterVolumeLevelScalar;   // a new device is not a volume change
             _muteWas = v.Mute;
             v.OnVolumeNotification += OnVolume;
+            _volumeProblem = "";
         }
-        catch { _volumeDeviceId = ""; _volumeDevice = null; }
+        catch (Exception e)
+        {
+            if (_volumeProblem != e.Message) Log.Write("levels: no default output device: " + e.Message);
+            _volumeProblem = e.Message;
+            _volumeDeviceId = "";
+            _volumeDevice = null;
+        }
     }
 
     /// <summary>Called by Windows on its own thread.</summary>
@@ -68,6 +81,7 @@ public partial class MainWindow
     private SafeFileHandle? _lcd;
     private bool _noLcd;
     private int _brightnessWas = -1;
+    private bool _brightnessBusy;
 
     /// <summary>The built-in screen's brightness, 0…100, or -1 (a desktop monitor has none to ask about).</summary>
     private int ReadBrightness()
@@ -88,13 +102,21 @@ public partial class MainWindow
         catch { _noLcd = true; return -1; }
     }
 
-    /// <summary>~4 times a second (from OnTick).</summary>
+    /// <summary>
+    /// ~4 times a second (from OnTick). The screen driver is asked on a background thread: some drivers take
+    /// their time, and the island must not wait for them.
+    /// </summary>
     private void WatchBrightness()
     {
-        if (!_settings.ShowLevels || _noLcd || _demoMedia != null) return;
-        int b = ReadBrightness();
-        if (b < 0) return;
-        if (_brightnessWas >= 0 && b != _brightnessWas) ShowLevel("\uE706", L.T("Яркость"), b / 100.0, "brightness");
-        _brightnessWas = b;
+        if (!_settings.ShowLevels || _noLcd || _demoMedia != null || _brightnessBusy) return;
+        _brightnessBusy = true;
+        Task.Run(ReadBrightness).ContinueWith(t =>
+        {
+            _brightnessBusy = false;
+            if (t.IsFaulted || t.Result < 0 || !_settings.ShowLevels) return;
+            int b = t.Result;
+            if (_brightnessWas >= 0 && b != _brightnessWas) ShowLevel("\uE706", L.T("Яркость"), b / 100.0, "brightness");
+            _brightnessWas = b;
+        }, TaskScheduler.FromCurrentSynchronizationContext());
     }
 }

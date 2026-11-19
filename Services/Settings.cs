@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace DynamicIsland.Services;
 
@@ -222,6 +223,37 @@ public sealed class Settings
         return s;
     }
 
+    // ------------------------------------------------------------------ --safe
+
+    /// <summary>--safe: what 1.8.0 added is off for this run. Only in memory: the file keeps the user's values.</summary>
+    public static bool Safe { get; private set; }
+
+    /// <summary>Per setting: the user's own value and the one --safe put in its place.</summary>
+    private Dictionary<string, (JsonNode? Own, JsonNode? Safe)>? _safeSwaps;
+
+    public void EnterSafeMode()
+    {
+        Safe = true;
+        var own = JsonSerializer.SerializeToNode(this) as JsonObject;
+        ShowLevels = false;
+        ShowProgress = false;
+        FollowMonitor = false;
+        Karaoke = false;
+        PillExtra = 0;
+        Roundness = 100;
+        IdleOpacity = 100;
+        Font = "";
+        GeminiVoiceApiKey = "";
+        Onboarded = true;
+        SeenVersion = Updater.Current.ToString(3);
+        var safe = JsonSerializer.SerializeToNode(this) as JsonObject;
+        _safeSwaps = [];
+        if (own == null || safe == null) return;
+        foreach (var (name, value) in safe)
+            if (!JsonNode.DeepEquals(own[name], value)) _safeSwaps[name] = (own[name]?.DeepClone(), value?.DeepClone());
+        Log.Write("safe mode: " + (_safeSwaps.Count == 0 ? "nothing to switch off" : "off for this run: " + string.Join(", ", _safeSwaps.Keys)));
+    }
+
     /// <summary>Demo / screenshot mode: never touch the user's files.</summary>
     public static bool ReadOnly { get; set; }
 
@@ -233,7 +265,11 @@ public sealed class Settings
             Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
             // write to a temp file and swap: a kill in the middle can't leave a half-written settings file
             var tmp = FilePath + ".tmp";
-            File.WriteAllText(tmp, JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }));
+            var json = JsonSerializer.SerializeToNode(this) as JsonObject ?? [];
+            // a value --safe changed goes back to the user's own, unless the user changed it in this run
+            foreach (var (name, (own, safe)) in _safeSwaps ?? [])
+                if (JsonNode.DeepEquals(json[name], safe)) json[name] = own?.DeepClone();
+            File.WriteAllText(tmp, json.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
             File.Move(tmp, FilePath, overwrite: true);
         }
         catch { /* not critical */ }

@@ -65,14 +65,14 @@ public partial class MainWindow : Window
         if (ContextMenu != null) Services.Loc.TranslateTree(ContextMenu);
 
         PlaceWindow();
-        _tick.Tick += (_, _) => OnTick();
-        _gaze.Tick += (_, _) => UpdateGaze();
+        _tick.Tick += (_, _) => Measure("tick", OnTick);
+        _gaze.Tick += (_, _) => Measure("gaze", UpdateGaze);
         _blink.Tick += (_, _) => Blink();
         // hover: not while typing (the cursor just happens to sit there), and on the tab that fits the moment
         _expandDelay.Tick += (_, _) => { _expandDelay.Stop(); if (_mode == Mode.Compact && !_dragging && !Typing) OpenSmart(); };
         _collapseDelay.Tick += (_, _) => { _collapseDelay.Stop(); TryCollapse(); };
         _toastTimer.Tick += (_, _) => { _toastTimer.Stop(); if (_mode == Mode.Toast && !Island.IsMouseOver) SetMode(Mode.Compact); };
-        _watch.Tick += (_, _) => WatchFullscreen();
+        _watch.Tick += (_, _) => Measure("fullscreen watch", WatchFullscreen);
 
         SourceInitialized += (_, _) => OnSourceInitialized();
         Deactivated += (_, _) =>
@@ -96,23 +96,36 @@ public partial class MainWindow : Window
         int live = Array.IndexOf(args, "--live-demo");
         if (snap >= 0 || promo >= 0 || review >= 0 || live >= 0 || args.Contains("--cover")) BeginDemo();
         if (live >= 0) StartLiveDemo(args.ElementAtOrDefault(live + 1) ?? "demo-commands.txt");
-        ApplyThemeLocal();
-        Character.Kind = _settings.Character;
-        InitGlass();
-        UpdateShape(false);
-        InitHome();
-        InitSettingsPage();
-        InitBuddyReactions();
-        InitUpdates();
-        InitControlCenter();
-        InitApps();
-        ApplyPhoto();
-        ApplyScene();
-        ApplyLook();
-        ApplyIslandScale();
-        InitClaude();
-        InitRecording();
-        InitExtras();
+
+        // the last start never got as far as showing the island: light graphics before any glass or effect runs
+        bool rescued = StartupGuard.PreviousFailed && _settings.LiteGraphics != true;
+        if (rescued)
+        {
+            _settings.LiteGraphics = true;
+            _settings.Save();
+            Log.Write("start: the last start did not finish — light graphics switched on");
+        }
+        // up for a few seconds: this start counts as good
+        var up = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+        up.Tick += (_, _) => { up.Stop(); StartupGuard.Done(); };
+        up.Start();
+        Safely("theme", ApplyThemeLocal);
+        Safely("character", () => Character.Kind = _settings.Character);
+        Safely("glass", InitGlass);
+        Safely("shape", () => UpdateShape(false));
+        Safely("home", InitHome);
+        Safely("settings page", InitSettingsPage);
+        Safely("buddy", InitBuddyReactions);
+        Safely("updates", InitUpdates);
+        Safely("control center", InitControlCenter);
+        Safely("apps", InitApps);
+        Safely("photo", ApplyPhoto);
+        Safely("scene", ApplyScene);
+        Safely("look", ApplyLook);
+        Safely("island size", ApplyIslandScale);
+        Safely("claude", InitClaude);
+        Safely("recording", InitRecording);
+        Safely("extras", InitExtras);
 
         OnTick();
         _tick.Start();
@@ -120,8 +133,12 @@ public partial class MainWindow : Window
         _gaze.Start();
         _watch.Start();
         ScheduleBlink();
-        CreateTray();
+        Safely("tray", CreateTray);
 
+        if (rescued)
+            _ = Dispatcher.InvokeAsync(() => ShowToast("\uE7BA", L.T("Включена облегчённая графика"),
+                L.T("Прошлый запуск не удался, поэтому эффекты выключены. Вернуть: Настройки → Поведение."), ms: 8000),
+                System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         if (_settings.Hidden) HideIsland(animate: false);
 
         int i = Array.IndexOf(args, "--expand");
@@ -554,6 +571,81 @@ public partial class MainWindow : Window
                     Application.Current.Shutdown();
                     return;
                 }
+                if (action == "hidepaths")   // test: "hide in front of" by name, by program path and by folder (the taskbar belongs to explorer.exe)
+                {
+                    Settings.ReadOnly = true;
+                    var dir = args.ElementAtOrDefault(r + 2) ?? System.IO.Path.GetTempPath();
+                    var bar = Native.FindWindow("Shell_TrayWnd", null);
+                    var win = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+                    foreach (var entry in new[] { "explorer", System.IO.Path.Combine(win, "explorer.exe"), win, win + System.IO.Path.DirectorySeparatorChar, System.IO.Path.Combine(win, "System32"), System.IO.Path.Combine("D:", "Nothing", "Here"), "notepad" })
+                    {
+                        _settings.HideInApps = [entry];
+                        _hiddenPid = 0;
+                        Log.Write($"hidepaths: '{entry}' -> {(IsHiddenApp(bar) ? "hides" : "stays")}");
+                    }
+                    _settings.HideInApps = ["Zoom", System.IO.Path.Combine(win, "explorer.exe"), System.IO.Path.Combine("D:" + System.IO.Path.DirectorySeparatorChar, "Games", "Some Game")];
+                    BuildHideAppChips();
+                    var host = (FrameworkElement)VisualTreeHelper.GetParent(HideAppChips);
+                    host.Visibility = Visibility.Visible;
+                    host.Measure(new Size(560, double.PositiveInfinity)); host.Arrange(new Rect(0, 0, 560, host.DesiredSize.Height)); host.UpdateLayout();
+                    var rtb = new RenderTargetBitmap(560 * 2, (int)Math.Ceiling(Math.Min(host.ActualHeight, 600) * 2), 192, 192, PixelFormats.Pbgra32);
+                    rtb.Render(host);
+                    CaptureService.SavePng(rtb, System.IO.Path.Combine(dir, "hidepaths.png"));
+                    Application.Current.Shutdown();
+                    return;
+                }
+                if (action == "chatbuddy")   // test: the Claude Code buddy on the chat window covers none of the voice controls (with --cover)
+                {
+                    Settings.ReadOnly = true;
+                    _settings.ExpandOnHover = false; _settings.Character = "clawd"; Character.Kind = "clawd";
+                    TabChat.IsChecked = true; _pinnedOpen = true; Expand();
+                    await Task.Delay(3000);
+                    SetVoiceStatus("Слушаю… очень длинный статус голосового диалога");
+                    await Task.Delay(500);
+                    Rect Box(FrameworkElement e) => e.IsVisible ? e.TransformToAncestor(Root).TransformBounds(new Rect(0, 0, e.ActualWidth, e.ActualHeight)) : Rect.Empty;
+                    var buddy = Box(ChatBuddy);
+                    foreach (var (name, el) in new (string, FrameworkElement)[] { ("voice name", VoiceNameButton), ("voice", VoiceAssistantButton), ("voice status", VoiceStatusText), ("chat size", ChatSizeButton) })
+                    {
+                        var b = Box(el);
+                        Log.Write($"chatbuddy: {name} {b.Left:0}..{b.Right:0} x {b.Top:0}..{b.Bottom:0}, buddy {buddy.Left:0}..{buddy.Right:0} x {buddy.Top:0}..{buddy.Bottom:0}: {(b.IntersectsWith(buddy) ? "COVERED" : "clear")}");
+                    }
+                    // no picture: the chat page shows the user's own signed-in chat, even in a demo run
+                    Application.Current.Shutdown();
+                    return;
+                }
+                if (action == "crashtest")   // test: an error in a timer (250 times) and in a forgotten task: the island lives on, the log stays short
+                {
+                    Settings.ReadOnly = true;
+                    int k = 0;
+                    var bad = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(10) };
+                    bad.Tick += (_, _) => Measure("crashtest", () => { if (++k > 250) { bad.Stop(); return; } throw new InvalidOperationException("crashtest tick"); });
+                    bad.Start();
+                    _ = Task.Run(() => throw new ApplicationException("crashtest task"));
+                    await Task.Delay(5000);
+                    GC.Collect(); GC.WaitForPendingFinalizers(); GC.Collect();
+                    await Task.Delay(500);
+                    Log.Write($"crashtest: still running after {k - 1} errors, mode={_mode}, tick on={_tick.IsEnabled}");
+                    Application.Current.Shutdown();
+                    return;
+                }
+                if (action == "karaokecost")   // test: what the karaoke line costs while the song plays and while it is paused (with --cover)
+                {
+                    Settings.ReadOnly = true;
+                    Island.IsHitTestVisible = false; _settings.ExpandOnHover = false; _settings.Karaoke = true;
+                    await Task.Delay(4000);
+                    SetMode(Mode.Compact);
+                    await DemoCommand("music");
+                    foreach (var playing in new[] { true, false })
+                    {
+                        if (!playing) { _demoMedia = _demoMedia! with { Position = _demoMedia.CurrentPosition, PositionUpdatedAt = DateTimeOffset.Now, IsPlaying = false }; UpdateMediaUi(); }
+                        await Task.Delay(3000);
+                        ResetCosts();
+                        await Task.Delay(20000);
+                        Log.Write($"karaokecost: {(playing ? "playing" : "paused")}, line visible={Karaoke.IsVisible}: " + TopCostsReport().Replace(Environment.NewLine, " | "));
+                    }
+                    Application.Current.Shutdown();
+                    return;
+                }
                 if (action == "karaoketest")   // pictures and widths of the karaoke pill as lines change (with --cover)
                 {
                     var dir = args.ElementAtOrDefault(r + 2) ?? System.IO.Path.GetTempPath();
@@ -633,6 +725,21 @@ public partial class MainWindow : Window
                         Log.Write($"magtest: mag grab #{i}: works={MagCapture.Works}, {(mag == null ? "null" : $"mean {Mean(mag):0}")}, {sw.Elapsed.TotalMilliseconds:0.0} ms");
                         if (mag != null && i == 0) CaptureService.SavePng(BitmapSource.Create(w, h, 96, 96, PixelFormats.Bgr32, null, mag, w * 4), System.IO.Path.Combine(dir, "mag-without.png"));
                         await Task.Delay(300);
+                    }
+                    Application.Current.Shutdown();
+                    return;
+                }
+                if (action == "glasscost")   // test: what the glass costs while the island stays visible to capture (as with NVIDIA's recorder)
+                {
+                    Settings.ReadOnly = true;
+                    _settings.ExpandOnHover = false; _settings.Glass = true; _settings.CaptureHidden = false; ApplyCaptureExclusion(); ApplyGlass();
+                    foreach (var open in new[] { false, true })
+                    {
+                        if (open) { TabHome.IsChecked = true; _pinnedOpen = true; Expand(); }
+                        await Task.Delay(3000);
+                        ResetCosts();
+                        await Task.Delay(30000);
+                        Log.Write($"glasscost: {(open ? "open" : "folded")}, mag works={MagCapture.Works}, last picture {MagCapture.LastSize.W}x{MagCapture.LastSize.H}: " + TopCostsReport().Replace(Environment.NewLine, " | "));
                     }
                     Application.Current.Shutdown();
                     return;
@@ -719,7 +826,7 @@ public partial class MainWindow : Window
                     foreach (var hide in new[] { false, true })
                     {
                         _settings.CaptureHidden = hide; ApplyCaptureExclusion(); CaptureFrost(); UpdateGlassFill();
-                        GetWindowDisplayAffinity(_hwnd, out uint aff);
+                        Native.GetWindowDisplayAffinity(_hwnd, out uint aff);
                         Log.Write($"features: hide from capture={hide}: affinity=0x{aff:X}, frost covers={_frostCovers}");
                     }
                     Log.Write($"features: vpn app = {ControlCenter.VpnApp()?.Name ?? "none"}");
@@ -1043,8 +1150,8 @@ public partial class MainWindow : Window
         if (promo >= 0)
             _ = RunPromoAsync(args.ElementAtOrDefault(promo + 1) ?? "promo", args.ElementAtOrDefault(promo + 2) ?? "ru");
 
-        await InitMediaAsync();
-        await InitWeatherAsync();
+        await SafelyAsync("media", InitMediaAsync);
+        await SafelyAsync("weather", InitWeatherAsync);
     }
 
     private void OnSourceInitialized()
@@ -1145,6 +1252,8 @@ public partial class MainWindow : Window
         Native.RemoveClipboardFormatListener(_hwnd);
         ShutdownChat();
         _settings.Save();
+        MagCapture.MarkClean();   // a normal exit: Windows did not take us down inside the magnifier
+        StartupGuard.Done();
         FocusMode.End(); // never leave Windows notifications switched off
         _fps.Dispose();
         ShutdownControlCenter(); // taskbar and desktop icons come back
@@ -1233,7 +1342,9 @@ public partial class MainWindow : Window
         CompositionTarget.Rendering += OnRendering;
     }
 
-    private void OnRendering(object? sender, EventArgs e)
+    private void OnRendering(object? sender, EventArgs e) => Measure("frame: island", () => RenderFrame(e));
+
+    private void RenderFrame(EventArgs e)
     {
         var now = ((RenderingEventArgs)e).RenderingTime;
         if (now == _lastFrame) return;
@@ -1923,12 +2034,12 @@ public partial class MainWindow : Window
         UpdateProgress();
         KeepRepeating();
         WatchKeyboard();
-        WatchBrightness();
-        UpdateLyricLine();
+        Measure("brightness", WatchBrightness);
+        Measure("lyrics line", UpdateLyricLine);
         UpdateLive();
         if (_tickCount % 4 == 0)
         {
-            SlowTick();
+            Measure("slow tick", SlowTick);
             if (_tickCount % 8 == 0) _media.PollLegacy();
             if (_mode == Mode.Expanded && TabMusic.IsChecked == true && !VolumeSlider.IsMouseCaptureWithin) RefreshVolume();
         }
@@ -2113,7 +2224,7 @@ public partial class MainWindow : Window
         _tray = new Forms.NotifyIcon
         {
             Icon = new System.Drawing.Icon(iconStream, Forms.SystemInformation.SmallIconSize),
-            Text = "Atoll",
+            Text = Settings.Safe ? "Atoll · " + L.T("безопасный режим") : "Atoll",
             Visible = true,
             ContextMenuStrip = new Forms.ContextMenuStrip(),
         };
