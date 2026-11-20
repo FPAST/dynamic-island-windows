@@ -33,7 +33,7 @@ public partial class MainWindow
                 var label = new TextBlock { Text = ProgressWatcher.Friendly(name), FontSize = 13, Width = 132, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(8, 0, 8, 0) };
                 label.SetResourceReference(TextBlock.ForegroundProperty, "Fg");
                 var value = new TextBlock { Style = (Style)FindResource("Muted"), Width = 40, TextAlignment = TextAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
-                var slider = new Slider { Style = (Style)FindResource("SoftSlider"), Minimum = 0, Maximum = 100, VerticalAlignment = VerticalAlignment.Center, Tag = name };
+                var slider = new Views.JellySlider { Minimum = 0, Maximum = 100, VerticalAlignment = VerticalAlignment.Center, Tag = name };
                 slider.ValueChanged += (_, e) =>
                 {
                     value.Text = $"{e.NewValue:0}%";

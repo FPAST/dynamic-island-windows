@@ -28,7 +28,7 @@ public partial class MainWindow
             var apiKey = GeminiLiveVoice.ResolveApiKey(_settings.GeminiVoiceApiKey);
             if (string.IsNullOrWhiteSpace(apiKey))
             {
-                SetVoiceStatus("Укажите ключ в настройках «ИИ-агенты», GEMINI_API_KEY или KIK config.json");
+                SetVoiceStatus("Нет ключа: Настройки → ИИ-агенты");
                 return;
             }
 
@@ -44,7 +44,7 @@ public partial class MainWindow
             assistant.Failed += error => Dispatcher.BeginInvoke(async () =>
             {
                 await StopVoiceAssistantAsync();
-                SetVoiceStatus($"Ошибка Gemini Live: {error.Message}");
+                SetVoiceStatus(GeminiLiveVoice.Explain(error, apiKey));
             });
 
             await assistant.StartAsync();
@@ -58,7 +58,8 @@ public partial class MainWindow
                 await _voiceAssistant.StopAsync();
                 _voiceAssistant = null;
             }
-            SetVoiceStatus($"Ошибка: {ex.Message}");
+            SetVoiceStatus(GeminiLiveVoice.Explain(ex, GeminiLiveVoice.ResolveApiKey(_settings.GeminiVoiceApiKey)));
+            Log.Write("voice: " + ex.GetType().Name);   // the type only: never the key
         }
         finally
         {
@@ -253,7 +254,6 @@ public partial class MainWindow
         if (_settingsLoading || !IsLoaded) return;
 
         _settings.GeminiVoiceVolume = (int)Math.Round(VoiceVolumeSlider.Value);
-        VoiceVolumeValue.Text = $"{_settings.GeminiVoiceVolume}%";
         _settings.Save();
         _voiceAssistant?.SetOutputVolume(_settings.GeminiVoiceVolume);
     }

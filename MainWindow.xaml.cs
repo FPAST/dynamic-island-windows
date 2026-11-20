@@ -28,6 +28,12 @@ public partial class MainWindow : Window
     private readonly Spring _w = new(200) { Stiffness = 340, Damping = 31 };
     private readonly Spring _h = new(CompactHeight) { Stiffness = 340, Damping = 31 };
     private readonly Spring _y = new(0) { Stiffness = 300, Damping = 24 };
+    /// <summary>
+    /// The press (Morph island: 520 / 18). In hundredths — 100 is full size — because Spring settles within
+    /// 0.15 of its target, which on a plain 0…1 scale would end the dip before it is seen.
+    /// </summary>
+    private readonly Spring _press = new(100) { Stiffness = 520, Damping = 18 };
+    private bool _hShrinking;
     private bool _rendering;
     private TimeSpan _lastFrame;
 
@@ -51,6 +57,7 @@ public partial class MainWindow : Window
     public MainWindow(string[] args)
     {
         InitializeComponent();
+        HomeMissed.Resized += RefitIsland;
         _shrinkTimer.Tick += (_, _) => ShrinkNow();
         // Esc folds the open island (when nothing inside used the key first, e.g. the app search)
         KeyDown += (_, e) =>
@@ -63,6 +70,24 @@ public partial class MainWindow : Window
         ShadowHost.RenderTransform = Island.RenderTransform;   // the shadow moves, squashes and bounces with the island
         Services.Loc.TranslateTree(this);
         if (ContextMenu != null) Services.Loc.TranslateTree(ContextMenu);
+        TitleCaseCaptions(this);
+        // pill buttons on the island are interactive glass: pressed, they swell a little
+        foreach (var ev in new[] { PreviewMouseLeftButtonDownEvent, PreviewMouseLeftButtonUpEvent, MouseLeaveEvent })
+        {
+            bool down = ev == PreviewMouseLeftButtonDownEvent;
+            EventManager.RegisterClassHandler(typeof(System.Windows.Controls.Primitives.ButtonBase), ev, new RoutedEventHandler((s, _) => SwellPill((FrameworkElement)s, down)));
+        }
+        // every context menu of the island (right click, voices, apps, themes): above the island while it is open
+        EventManager.RegisterClassHandler(typeof(ContextMenu), ContextMenu.OpenedEvent, new RoutedEventHandler((m, _) =>
+        {
+            _menusOpen++;
+            if (PresentationSource.FromVisual((Visual)m) is System.Windows.Interop.HwndSource src) Native.KeepTopmost(src.Handle);
+            // it grows out of a pill (Dynamic menu), its glass with it
+            ((ContextMenu)m).Dispatcher.BeginInvoke(() => Views.MenuMorph.Open((ContextMenu)m, MenuGlass), System.Windows.Threading.DispatcherPriority.Loaded);
+        }));
+        // menus are glass where Windows can blur (and the person hasn't turned transparency off)
+        Application.Current.Resources["MenuBg"] = new SolidColorBrush(MenuGlass ? Color.FromArgb(0xA8, 0x1E, 0x1E, 0x24) : Color.FromArgb(0xF2, 0x1E, 0x1E, 0x22));
+        EventManager.RegisterClassHandler(typeof(ContextMenu), ContextMenu.ClosedEvent, new RoutedEventHandler((_, _) => _menusOpen = Math.Max(0, _menusOpen - 1)));
 
         PlaceWindow();
         _tick.Tick += (_, _) => Measure("tick", OnTick);
@@ -94,7 +119,8 @@ public partial class MainWindow : Window
         int promo = Array.IndexOf(args, "--promo");
         int review = Array.IndexOf(args, "--review");
         int live = Array.IndexOf(args, "--live-demo");
-        if (snap >= 0 || promo >= 0 || review >= 0 || live >= 0 || args.Contains("--cover")) BeginDemo();
+        int tiktok = Array.IndexOf(args, "--tiktok"), tiktokScreen = Array.IndexOf(args, "--tiktok-screen");
+        if (snap >= 0 || promo >= 0 || review >= 0 || live >= 0 || tiktok >= 0 || tiktokScreen >= 0 || args.Contains("--cover")) BeginDemo();
         if (live >= 0) StartLiveDemo(args.ElementAtOrDefault(live + 1) ?? "demo-commands.txt");
 
         // the last start never got as far as showing the island: light graphics before any glass or effect runs
@@ -152,7 +178,7 @@ public partial class MainWindow : Window
                 {
                     "music" => TabMusic, "weather" => TabWeather, "chat" => TabChat,
                     "timer" => TabTimer, "clip" => TabClip, "notes" => TabNotes,
-                    "calendar" => TabCalendar, "system" => TabSystem,
+                    "calendar" => TabCalendar, "system" => TabSystem, "widgets" => TabWidgets,
                     "settings" => TabSettings, _ => TabHome,
                 };
                 tab.IsChecked = true;
@@ -415,6 +441,41 @@ public partial class MainWindow : Window
                     Application.Current.Shutdown();
                     return;
                 }
+                if (action == "fpsapps")   // test: which full-screen programs get the FPS pill, in both modes (nothing is saved)
+                {
+                    Settings.ReadOnly = true;
+                    _settings.ExpandOnHover = false;
+                    await Task.Delay(2500);
+                    // (process name, its full path): listed by name, by program path, by folder, and ones that are not listed
+                    var gameDir = System.IO.Path.Combine("D:" + System.IO.Path.DirectorySeparatorChar, "Games");
+                    (string Name, string Path)[] fronts =
+                    [
+                        ("chrome", @"C:\Program Files\Google\Chrome\Application\chrome.exe"), ("msedge", ""), ("Firefox", ""), ("browser", ""), ("explorer", @"C:\Windows\explorer.exe"), ("DynamicIsland", ""),
+                        ("Cyberpunk2077", ""), ("game", System.IO.Path.Combine(gameDir, "Pirate", "game.exe")), ("launcher", System.IO.Path.Combine(gameDir, "Pirate", "launcher.exe")),
+                        ("Witcher3", System.IO.Path.Combine(gameDir, "Witcher", "bin", "Witcher3.exe")), ("Witcher3", System.IO.Path.Combine(gameDir, "WitcherOld", "Witcher3.exe")),
+                        ("eldenring", ""), ("", ""),
+                    ];
+                    _settings.GameStatsApps = ["Cyberpunk2077", System.IO.Path.Combine(gameDir, "Pirate", "game.exe"), System.IO.Path.Combine(gameDir, "Witcher")];
+                    _settings.GameStats = true; _settings.HideInFullscreen = false; _testFullscreen = true;
+                    var fgw = Native.GetForegroundWindow();
+                    Native.GetWindowThreadProcessId(fgw, out uint fgPid);
+                    Log.Write($"fpsapps: listed=[{string.Join(" | ", _settings.GameStatsApps)}]");
+                    foreach (var only in new[] { false, true })
+                    {
+                        _settings.GameStatsOnlyListed = only;
+                        foreach (var (n, path) in fronts)
+                        {
+                            // pretend the window in front belongs to a program with this name and path
+                            _gamePid = fgPid; _gamePidName = n; _gamePidPath = path;
+                            WatchFullscreen();
+                            Log.Write($"fpsapps: only listed={only}, front='{n}' '{path}' -> counts as game={FpsMeter.CountsAsGame(n, path, only, _settings.GameStatsApps)}, FPS pill={_gameMode}, island hidden={_fullscreenHidden}");
+                        }
+                    }
+                    _testFullscreen = false; _gamePid = 0; WatchFullscreen();
+                    Log.Write($"fpsapps: no full-screen program -> FPS pill={_gameMode}, island hidden={_fullscreenHidden}");
+                    Application.Current.Shutdown();
+                    return;
+                }
                 if (action == "bugfix")   // test: the game pill with "FPS in games" chosen, the FPS session starting and stopping, the Discord island while the main one opens
                 {
                     Settings.ReadOnly = true;
@@ -571,6 +632,622 @@ public partial class MainWindow : Window
                     Application.Current.Shutdown();
                     return;
                 }
+                if (action == "scrubtest")   // test: the scrubber — press jumps and wakes the capsule, steps of 5, release puts it to sleep, a set value eases over 150 ms; pictures of the bar only (with --cover)
+                {
+                    var dir = args.ElementAtOrDefault(r + 2) ?? System.IO.Path.GetTempPath();
+                    Settings.ReadOnly = true;
+                    Island.IsHitTestVisible = false; _settings.ExpandOnHover = false;
+                    await Task.Delay(3500);
+                    _pinnedOpen = true; Expand(); await Task.Delay(600);
+                    TabSettings.IsChecked = true; await Task.Delay(800);
+                    foreach (RadioButton nav in SettingsNav.Children)
+                        if (SettingsSections.Children[SettingsNav.Children.IndexOf(nav)] is FrameworkElement sec && sec.IsAncestorOf(ScaleSlider)) nav.IsChecked = true;
+                    await Task.Delay(900);
+                    var b = ScaleSlider;
+                    int shot = 0;
+                    void Shot(string what)
+                    {
+                        double w = b.ActualWidth + 24, h = b.ActualHeight + 24;
+                        var off = VisualTreeHelper.GetOffset(b);
+                        var own = new RenderTargetBitmap((int)((off.X + w) * 2), (int)((off.Y + h) * 2), 192, 192, PixelFormats.Pbgra32);
+                        own.Render(b);
+                        var dv = new DrawingVisual();
+                        using (var dc = dv.RenderOpen())
+                        {
+                            dc.DrawRectangle((Brush)FindResource("IslandBg"), null, new Rect(0, 0, w, h));
+                            dc.PushClip(new RectangleGeometry(new Rect(0, 0, w, h)));
+                            dc.DrawImage(own, new Rect(12 - off.X, 12 - off.Y, off.X + w, off.Y + h));
+                            dc.Pop();
+                        }
+                        var rtb = new RenderTargetBitmap((int)(w * 2), (int)(h * 2), 192, 192, PixelFormats.Pbgra32);
+                        rtb.Render(dv);
+                        CaptureService.SavePng(rtb, System.IO.Path.Combine(dir, $"scrub-{++shot}-{what}.png"));
+                    }
+                    string St() { var t = b.TestState; return $"value {b.Value:0.##} '{b.Format(b.Value)}', fill {t.Shown:0.000}, capsule awake {t.Wake:0.00}, dragging={t.Dragging}, moving={t.Moving}"; }
+                    Log.Write($"scrubtest: '{b.Label}' {b.ActualWidth:0}x{b.ActualHeight:0}, at rest: " + St()); Shot("rest");
+                    b.TestPress(0.37 * b.ActualWidth);
+                    await Task.Delay(60); Log.Write("scrubtest: pressed at 37%, 0.06 s: " + St());
+                    await Task.Delay(300); Log.Write("scrubtest: 0.36 s: " + St()); Shot("pressed");
+                    b.TestDrag(0.83 * b.ActualWidth); await Task.Delay(20); Log.Write("scrubtest: dragged to 83%: " + St()); Shot("dragged");
+                    b.TestDrag(b.ActualWidth + 50); Log.Write("scrubtest: dragged past the end: " + St());
+                    b.TestRelease();
+                    await Task.Delay(400); Log.Write("scrubtest: released, 0.4 s: " + St()); Shot("released");
+                    b.Value = 90;
+                    await Task.Delay(50); Log.Write("scrubtest: set to 90, 0.05 s (easing): " + St());
+                    await Task.Delay(250); Log.Write("scrubtest: 0.3 s: " + St()); Shot("eased");
+                    b.Value = 100;
+                    Application.Current.Shutdown();
+                    return;
+                }
+                if (action == "plantest")   // test: Claude Code's plan from hook bodies (TaskCreate / TaskUpdate, then TodoWrite) — the rows' states, check, dimming; pictures of the plan only (with --cover)
+                {
+                    var dir = args.ElementAtOrDefault(r + 2) ?? System.IO.Path.GetTempPath();
+                    Settings.ReadOnly = true;
+                    Island.IsHitTestVisible = false; _settings.ExpandOnHover = false;
+                    await Task.Delay(3500);
+                    _pinnedOpen = true; Expand(); await Task.Delay(900);
+                    var plan = new ClaudePlan();
+                    int shot = 0;
+                    void Feed(string body)
+                    {
+                        var snap = plan.Apply((System.Text.Json.Nodes.JsonObject)System.Text.Json.Nodes.JsonNode.Parse(body)!, "DynamicIsland");
+                        Log.Write("plantest: hook " + (snap == null ? "ignored" : $"→ {snap.Tasks.Count} tasks: " + string.Join(", ", snap.Tasks.Select(t => $"#{t.Id} {t.Status}"))));
+                        if (snap != null) ShowClaudePlan(snap);
+                    }
+                    void Shot(string what)
+                    {
+                        var el = ClaudePlanTile;
+                        el.UpdateLayout();
+                        var off = VisualTreeHelper.GetOffset(el);
+                        double w = el.ActualWidth + 20, h = el.ActualHeight + 20, fw = off.X + w, fh = off.Y + h;
+                        var own = new RenderTargetBitmap((int)(fw * 2), (int)(fh * 2), 192, 192, PixelFormats.Pbgra32);
+                        own.Render(el);
+                        var dv = new DrawingVisual();
+                        using (var dc = dv.RenderOpen())
+                        {
+                            dc.DrawRectangle((Brush)FindResource("IslandBg"), null, new Rect(0, 0, w, h));
+                            dc.PushClip(new RectangleGeometry(new Rect(0, 0, w, h)));
+                            dc.DrawImage(own, new Rect(10 - off.X, 10 - off.Y, fw, fh));
+                            dc.Pop();
+                        }
+                        var rtb = new RenderTargetBitmap((int)(w * 2), (int)(h * 2), 192, 192, PixelFormats.Pbgra32);
+                        rtb.Render(dv);
+                        CaptureService.SavePng(rtb, System.IO.Path.Combine(dir, $"plan-{++shot}-{what}.png"));
+                    }
+                    string St() { var t = ClaudePlanList.TestState; return $"{t.Count}: " + string.Join(" | ", t.Rows.Select(x => $"'{x.Text}' {x.State} o {x.Opacity:0.00} y {x.Y:0.00} tint {x.Tint:0.00} check {x.Check:0.00}{(x.Streak ? " streak" : "")}")); }
+                    const string S = "\"session_id\":\"s1\",\"hook_event_name\":\"PostToolUse\",\"cwd\":\"C:\\\\src\\\\DynamicIsland\"";
+                    Feed("{" + S + ",\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"a.cs\"}}");
+                    Feed("{" + S + ",\"tool_name\":\"TaskCreate\",\"tool_input\":{\"subject\":\"Найти, где тормозит стекло\",\"activeForm\":\"Ищу, где тормозит стекло\"},\"tool_response\":{\"task\":{\"id\":\"1\",\"subject\":\"x\"}}}");
+                    Feed("{" + S + ",\"tool_name\":\"TaskCreate\",\"tool_input\":{\"subject\":\"Перенести захват в фоновый поток\",\"active_form\":\"Переношу захват в фон\"},\"tool_response\":{\"task\":{\"id\":\"2\"}}}");
+                    Feed("{" + S + ",\"tool_name\":\"TaskCreate\",\"tool_input\":{\"subject\":\"Собрать и проверить\"},\"tool_response\":\"Task #3 created successfully: Собрать и проверить\"}");
+                    Feed("{" + S + ",\"tool_name\":\"TaskCreate\",\"tool_input\":{\"subject\":\"Записать в CHANGELOG\"}}");
+                    await Task.Delay(300); Log.Write("plantest: four pending: " + St()); Shot("pending");
+                    Feed("{" + S + ",\"tool_name\":\"TaskUpdate\",\"tool_input\":{\"taskId\":\"1\",\"status\":\"in_progress\"}}");
+                    await Task.Delay(500); Log.Write("plantest: first running: " + St()); Shot("running");
+                    Feed("{" + S + ",\"tool_name\":\"TaskUpdate\",\"tool_input\":{\"id\":\"1\",\"status\":\"completed\"}}");
+                    Feed("{" + S + ",\"tool_name\":\"TaskUpdate\",\"tool_input\":{\"task_id\":\"2\",\"status\":\"in_progress\"}}");
+                    await Task.Delay(60); Log.Write("plantest: 0.06 s after the first was done: " + St()); Shot("checking");
+                    await Task.Delay(540); Log.Write("plantest: 0.6 s after: " + St()); Shot("done1");
+                    Feed("{" + S + ",\"tool_name\":\"TaskUpdate\",\"tool_input\":{\"taskId\":\"4\",\"status\":\"deleted\"}}");
+                    Feed("{" + S + ",\"tool_name\":\"TaskUpdate\",\"tool_input\":{\"taskId\":\"2\",\"status\":\"completed\"}}");
+                    Feed("{" + S + ",\"tool_name\":\"TaskUpdate\",\"tool_input\":{\"taskId\":\"3\",\"status\":\"in_progress\"}}");
+                    await Task.Delay(600); Log.Write("plantest: #4 deleted, #2 done, #3 running: " + St()); Shot("later");
+                    Feed("{\"session_id\":\"s2\",\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"TodoWrite\",\"tool_input\":{\"todos\":[{\"content\":\"Обновить перевод\",\"status\":\"completed\",\"activeForm\":\"Обновляю перевод\"},{\"content\":\"Проверить сборку\",\"status\":\"in_progress\",\"activeForm\":\"Проверяю сборку\"}]}}");
+                    await Task.Delay(500); Log.Write("plantest: new session with TodoWrite: " + St()); Shot("todowrite");
+                    Application.Current.Shutdown();
+                    return;
+                }
+                if (action == "stacktest")   // test: the notification stack — folded, fanned out, a card swiped away and one sprung back; pictures of the stack only (demo items, with --cover)
+                {
+                    var dir = args.ElementAtOrDefault(r + 2) ?? System.IO.Path.GetTempPath();
+                    Settings.ReadOnly = true;
+                    Island.IsHitTestVisible = false; _settings.ExpandOnHover = false;
+                    await Task.Delay(3500);
+                    var st = HomeMissed;
+                    st.Add(new("\uE916", (Brush)FindResource("Accent"), L.T("Таймер"), L.T("Время вышло: 25:00"), DateTime.Now.AddMinutes(-42), null));
+                    st.Add(new("\uE896", (Brush)FindResource("AccentBlue"), L.T("Загрузка завершена"), "atoll-2.0-setup.exe", DateTime.Now.AddMinutes(-17), null));
+                    st.Add(new("✳", (Brush)FindResource("ClaudeOrange"), "Claude Code", "DynamicIsland · " + L.T("готово"), DateTime.Now.AddMinutes(-3), null));
+                    st.Add(new("\uE8BD", new SolidColorBrush(Color.FromRgb(0x2A, 0xAB, 0xEE)), "Telegram", L.T("Новое сообщение"), DateTime.Now, null));
+                    _pinnedOpen = true; Expand(); await Task.Delay(1200);
+                    int shot = 0;
+                    void Shot(string what)
+                    {
+                        st.UpdateLayout();
+                        double w = st.ActualWidth + 40, h = st.ActualHeight + 16;
+                        var dv = new DrawingVisual();
+                        using (var dc = dv.RenderOpen())
+                        {
+                            dc.DrawRectangle((Brush)FindResource("IslandBg"), null, new Rect(0, 0, w, h));
+                            // RenderTargetBitmap draws the stack at its offset in the page: render it big enough, then shift it back
+                            var off = VisualTreeHelper.GetOffset(st);
+                            double fw = off.X + st.ActualWidth + 20, fh = off.Y + st.ActualHeight + 20;
+                            var own = new RenderTargetBitmap((int)(fw * 2), (int)(fh * 2), 192, 192, PixelFormats.Pbgra32);
+                            own.Render(st);
+                            dc.PushClip(new RectangleGeometry(new Rect(0, 0, w, h)));
+                            dc.DrawImage(own, new Rect(20 - off.X, 10 - off.Y, fw, fh));
+                            dc.Pop();
+                        }
+                        var rtb = new RenderTargetBitmap((int)(w * 2), (int)(h * 2), 192, 192, PixelFormats.Pbgra32);
+                        rtb.Render(dv);
+                        CaptureService.SavePng(rtb, System.IO.Path.Combine(dir, $"stack-{++shot}-{what}.png"));
+                    }
+                    string St()
+                    {
+                        var t = st.TestState;
+                        return $"height {t.ListHeight:0}, open={t.Open}, island {ActualHeight:0} px; cards: " + string.Join(" | ", t.Cards.Select(c => $"y {c.Y:0} s {c.Scale:0.00} o {c.Opacity:0.00} x {c.X:0}{(c.Leaving ? " leaving" : "")}"));
+                    }
+                    Log.Write("stacktest: folded: " + St()); Shot("folded");
+                    st.TestHover(true);
+                    await Task.Delay(120); Log.Write("stacktest: 0.12 s into fanning out: " + St()); Shot("fanning");
+                    await Task.Delay(600); Log.Write("stacktest: fanned out: " + St()); Shot("open");
+                    st.TestSwipe(1, 60, 0.02);
+                    await Task.Delay(100); Log.Write("stacktest: 60 px slow swipe, 0.1 s later: " + St());
+                    await Task.Delay(500); Log.Write("stacktest: sprung back: " + St());
+                    st.TestSwipe(1, 70, 0.6);
+                    await Task.Delay(90); Log.Write("stacktest: 70 px flick, 0.09 s later: " + St()); Shot("flying");
+                    await Task.Delay(700); Log.Write("stacktest: after the flick: " + St() + $", {st.Count} left"); Shot("after");
+                    st.TestHover(false);
+                    await Task.Delay(700); Log.Write("stacktest: folded again: " + St()); Shot("refolded");
+                    Application.Current.Shutdown();
+                    return;
+                }
+                if (action == "menutest2")   // test: the Dynamic menu — the island menu from the ☰ button grows out of a pill, items rise in; the cross; pictures of the menu only (with --cover)
+                {
+                    var dir = args.ElementAtOrDefault(r + 2) ?? System.IO.Path.GetTempPath();
+                    Settings.ReadOnly = true;
+                    Island.IsHitTestVisible = false; _settings.ExpandOnHover = false;
+                    _settings.MenuButton = true; ApplyLook();
+                    await Task.Delay(3500);
+                    _pinnedOpen = true; Expand(); await Task.Delay(900);
+                    Log.Write($"menutest2: button visible={MenuButton.IsVisible}, {MenuButton.ActualWidth:0}x{MenuButton.ActualHeight:0}");
+                    int shot = 0;
+                    void Shot(string what)
+                    {
+                        if (PresentationSource.FromVisual(IslandMenu) is not System.Windows.Interop.HwndSource src || src.RootVisual is not FrameworkElement root) return;
+                        var s = Views.MenuMorph.Last;
+                        if (s.FullW <= 0) return;
+                        double w = s.FullW + 40, h = s.FullH + 40;
+                        var dv = new DrawingVisual();
+                        using (var dc = dv.RenderOpen())
+                        {
+                            dc.DrawRectangle(new SolidColorBrush(Color.FromRgb(0x5A, 0x6E, 0x8C)), null, new Rect(0, 0, w, h));
+                            var shape = new Rect(20 + (s.Right ? s.FullW - s.W : 0), 20 + (s.Bottom ? s.FullH - s.H : 0), s.W, s.H);
+                            dc.PushClip(new RectangleGeometry(shape, s.R, s.R));
+                            dc.DrawRectangle((Brush)FindResource("MenuBg"), null, shape);
+                            var own = new RenderTargetBitmap((int)(s.FullW * 2), (int)(s.FullH * 2), 192, 192, PixelFormats.Pbgra32);
+                            own.Render(root);
+                            dc.DrawImage(own, new Rect(20, 20, s.FullW, s.FullH));
+                            dc.Pop();
+                        }
+                        var rtb = new RenderTargetBitmap((int)(w * 2), (int)(h * 2), 192, 192, PixelFormats.Pbgra32);
+                        rtb.Render(dv);
+                        CaptureService.SavePng(rtb, System.IO.Path.Combine(dir, $"menu-{++shot}-{what}.png"));
+                    }
+                    string St() { var s = Views.MenuMorph.Last; return $"shape {s.W:0}x{s.H:0} r{s.R:0.0} of {s.FullW:0}x{s.FullH:0}, first item {s.Item:0.00}, from {(s.Bottom ? "bottom" : "top")}-{(s.Right ? "right" : "left")}"; }
+                    MenuButton_Click(MenuButton, new RoutedEventArgs());
+                    foreach (var ms in new[] { 40, 80, 120, 200, 400, 900 })
+                    {
+                        await Task.Delay(ms - (shot == 0 ? 0 : new[] { 40, 80, 120, 200, 400, 900 }[shot - 1]));
+                        Shot($"{ms}ms"); Log.Write($"menutest2: {ms} ms: " + St() + $", menu open={IslandMenu.IsOpen}");
+                    }
+                    IslandMenu.IsOpen = false;
+                    await Task.Delay(500);
+                    Log.Write($"menutest2: closed, menu open={IslandMenu.IsOpen}, cross={MenuToggle.Open}");
+                    Application.Current.Shutdown();
+                    return;
+                }
+                if (action == "copytest")   // test: the copy button's roll to "Copied" and back, the width fitting; pictures (the clipboard is not touched; with --cover)
+                {
+                    var dir = args.ElementAtOrDefault(r + 2) ?? System.IO.Path.GetTempPath();
+                    Settings.ReadOnly = true;
+                    Island.IsHitTestVisible = false; _settings.ExpandOnHover = false;
+                    await Task.Delay(3500);
+                    _pinnedOpen = true; Expand(); await Task.Delay(600);
+                    TabSettings.IsChecked = true; await Task.Delay(800);
+                    foreach (RadioButton nav in SettingsNav.Children)
+                        if (SettingsSections.Children[SettingsNav.Children.IndexOf(nav)] is FrameworkElement sec && sec.IsAncestorOf(PerfReportButton)) nav.IsChecked = true;
+                    await Task.Delay(900);
+                    var b = (Views.CopyButton)PerfReportButton;
+                    int shot = 0;
+                    void Shot(string what)
+                    {
+                        double w = b.ActualWidth + 60, h = b.ActualHeight + 16;
+                        var dv = new DrawingVisual();
+                        using (var dc = dv.RenderOpen())
+                        {
+                            dc.DrawRectangle((Brush)FindResource("IslandBg"), null, new Rect(0, 0, w, h));
+                            dc.DrawRectangle(new VisualBrush(b) { Stretch = Stretch.None, AlignmentX = AlignmentX.Left, AlignmentY = AlignmentY.Top }, null, new Rect(8, 8, b.ActualWidth, b.ActualHeight));
+                        }
+                        var rtb = new RenderTargetBitmap((int)(w * 2), (int)(h * 2), 192, 192, PixelFormats.Pbgra32);
+                        rtb.Render(dv);
+                        CaptureService.SavePng(rtb, System.IO.Path.Combine(dir, $"copy-{++shot}-{what}.png"));
+                    }
+                    string St() { var s = b.TestState; return $"roll {s.Roll:0.00}, icon {s.Icon:0.00}, word width {s.Width:0}, button {b.ActualWidth:0} px, moving={s.Moving}"; }
+                    Log.Write($"copytest: at rest: '{b.Label}' " + St()); Shot("rest");
+                    b.Done();
+                    await Task.Delay(110); Shot("rolling"); Log.Write("copytest: 0.11 s after: " + St());
+                    await Task.Delay(700); Shot("copied"); Log.Write("copytest: 0.8 s after: " + St());
+                    await Task.Delay(2000); Shot("back"); Log.Write("copytest: 2.8 s after: " + St());
+                    Application.Current.Shutdown();
+                    return;
+                }
+                if (action == "droptest")   // test: the island's file zone: a file near, the drop, ZIP with progress, green and the check; on made-up files in a temp folder (with --cover)
+                {
+                    var dir = args.ElementAtOrDefault(r + 2) ?? System.IO.Path.GetTempPath();
+                    Settings.ReadOnly = true;
+                    Island.IsHitTestVisible = false; _settings.ExpandOnHover = false;
+                    var work = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "atoll-droptest");
+                    if (System.IO.Directory.Exists(work)) System.IO.Directory.Delete(work, true);
+                    System.IO.Directory.CreateDirectory(work);
+                    var rnd = new Random(7);
+                    var files = new List<string>();
+                    foreach (var n in new[] { "trip-photos.raw", "notes.txt", "mix.wav" })
+                    {
+                        var f = System.IO.Path.Combine(work, n);
+                        var bytes = new byte[n == "notes.txt" ? 200_000 : 30_000_000];
+                        rnd.NextBytes(bytes);
+                        System.IO.File.WriteAllBytes(f, bytes);
+                        files.Add(f);
+                    }
+                    await Task.Delay(3000);
+                    int shot = 0;
+                    void Shot(string what)
+                    {
+                        var v = DropView;
+                        var rtb = new RenderTargetBitmap((int)Math.Ceiling(v.ActualWidth * 2) + 4, (int)Math.Ceiling(v.ActualHeight * 2) + 4, 192, 192, PixelFormats.Pbgra32);
+                        var dv = new DrawingVisual();
+                        using (var dc = dv.RenderOpen())
+                        {
+                            dc.DrawRectangle((Brush)FindResource("IslandBg"), null, new Rect(0, 0, v.ActualWidth + 2, v.ActualHeight + 2));
+                            dc.DrawRectangle(new VisualBrush(v) { Stretch = Stretch.None, AlignmentX = AlignmentX.Left, AlignmentY = AlignmentY.Top }, null, new Rect(1, 1, v.ActualWidth, v.ActualHeight));
+                        }
+                        rtb.Render(dv);
+                        CaptureService.SavePng(rtb, System.IO.Path.Combine(dir, $"drop-{++shot}-{what}.png"));
+                    }
+                    string St() { var s = DropCoreView.TestState; return $"ring {s.Ring:0.00}, green {s.Green:0.00}, check {s.Check:0.00}, moving={s.Moving}, title '{DropTitle.Text}', line '{DropSubtitle.Text}'"; }
+                    ShowDropTarget(); await Task.Delay(900); Shot("near"); Log.Write("droptest: a file near: " + St());
+                    ShowDropped(files.ToArray()); await Task.Delay(700); Shot("dropped"); Log.Write("droptest: dropped: " + St());
+                    var sw = System.Diagnostics.Stopwatch.StartNew();
+                    WorkOnDrop(files.ToArray(), L.T("Сжимаю в ZIP"), L.T("Архив готов"), p => FileDropActions.Zip(files, p));
+                    await Task.Delay(250); Shot("working"); Log.Write("droptest: 0.25 s into ZIP: " + St());
+                    var marks = new List<string>();
+                    while (_dropWorking && sw.Elapsed.TotalSeconds < 30)
+                    {
+                        var s = DropCoreView.TestState;
+                        if (s.Green > 0.6 && !marks.Contains("green")) { marks.Add("green"); Shot("done"); Log.Write($"droptest: green at {sw.Elapsed.TotalSeconds:0.0} s: " + St()); }
+                        await Task.Delay(30);
+                    }
+                    var zip = System.IO.Directory.GetFiles(work, "*.zip").FirstOrDefault();
+                    Log.Write($"droptest: work done at {sw.Elapsed.TotalSeconds:0.0} s, zip {(zip == null ? "MISSING" : $"{System.IO.Path.GetFileName(zip)} {new System.IO.FileInfo(zip).Length / 1e6:0.0} MB")}, mode={_mode}, island collapsed during the work: no");
+                    await Task.Delay(500);
+                    try { System.IO.Directory.Delete(work, true); } catch (Exception ex) { Log.Write("droptest: cleanup: " + ex.Message); }
+                    Application.Current.Shutdown();
+                    return;
+                }
+                if (action == "gootest")   // test: the app row's goo menu: the fan of bubbles, picking Downloads, the toast; pictures (with --cover)
+                {
+                    var dir = args.ElementAtOrDefault(r + 2) ?? System.IO.Path.GetTempPath();
+                    Settings.ReadOnly = true;
+                    Island.IsHitTestVisible = false; _settings.ExpandOnHover = false;
+                    _settings.DockApps.Clear();   // the pictures show none of the user's own apps (settings are read-only here)
+                    await Task.Delay(3500);
+                    _pinnedOpen = true; Expand(); await Task.Delay(600);
+                    TabHome.IsChecked = true; BuildApps(); await Task.Delay(1500);
+                    var g = _goo!;
+                    void Shot(string what)
+                    {
+                        var rtb = new RenderTargetBitmap((int)Math.Ceiling(HomePage.ActualWidth * 1.5), (int)Math.Ceiling(HomePage.ActualHeight * 1.5), 144, 144, PixelFormats.Pbgra32);
+                        var dv = new DrawingVisual();
+                        using (var dc = dv.RenderOpen())
+                        {
+                            dc.DrawRectangle((Brush)FindResource("IslandBg"), null, new Rect(0, 0, HomePage.ActualWidth, HomePage.ActualHeight));
+                            dc.DrawRectangle(new VisualBrush(HomePage) { Stretch = Stretch.None, AlignmentX = AlignmentX.Left, AlignmentY = AlignmentY.Top,
+                                                                          ViewboxUnits = BrushMappingMode.Absolute, Viewbox = new Rect(0, 0, HomePage.ActualWidth, HomePage.ActualHeight) },
+                                             null, new Rect(0, 0, HomePage.ActualWidth, HomePage.ActualHeight));
+                        }
+                        rtb.Render(dv);
+                        CaptureService.SavePng(rtb, System.IO.Path.Combine(dir, $"goo-{what}.png"));
+                    }
+                    string St() { var s = g.TestState; return $"open={s.Open}, + turned {s.Turn:0}°, width {s.Width:0}, farthest bubble {s.FarthestBubble:0} px, moving={s.Moving}"; }
+                    Log.Write("gootest: closed: " + St());
+                    g.Toggle(); await Task.Delay(120); Shot("pouring"); Log.Write("gootest: 120 ms after opening: " + St());
+                    await Task.Delay(900); Shot("open"); Log.Write("gootest: open: " + St());
+                    g.TestPick(3); await Task.Delay(500); Shot("toast"); Log.Write("gootest: picked Downloads: " + St());
+                    Log.Write($"gootest: Downloads in the row: {_settings.DockApps.Contains(Services.DownloadWatcher.DownloadsFolder(), StringComparer.OrdinalIgnoreCase)}");
+                    await Task.Delay(3200); Log.Write("gootest: 3.7 s later: " + St());
+                    Application.Current.Shutdown();
+                    return;
+                }
+                if (action == "wavetest")   // test: the song's name as a weight wave: the swell sweeping while it plays, resting on pause; pictures (with --cover)
+                {
+                    var dir = args.ElementAtOrDefault(r + 2) ?? System.IO.Path.GetTempPath();
+                    Settings.ReadOnly = true;
+                    Island.IsHitTestVisible = false; _settings.ExpandOnHover = false;
+                    await Task.Delay(3500);
+                    _pinnedOpen = true; Expand(); await Task.Delay(600);
+                    TabMusic.IsChecked = true; await Task.Delay(1500);
+                    var t = (Views.WeightWaveText)TrackTitle;
+                    void Shot(string what)
+                    {
+                        double w = Math.Max(t.ActualWidth, 10) + 16, h = t.ActualHeight + 12;
+                        var dv = new DrawingVisual();
+                        using (var dc = dv.RenderOpen())
+                        {
+                            dc.DrawRectangle((Brush)FindResource("IslandBg"), null, new Rect(0, 0, w, h));
+                            dc.DrawRectangle(new VisualBrush(t) { Stretch = Stretch.None, AlignmentX = AlignmentX.Left, AlignmentY = AlignmentY.Top }, null, new Rect(8, 6, t.ActualWidth, t.ActualHeight));
+                        }
+                        var rtb = new RenderTargetBitmap((int)(w * 3), (int)(h * 3), 288, 288, PixelFormats.Pbgra32);
+                        rtb.Render(dv);
+                        CaptureService.SavePng(rtb, System.IO.Path.Combine(dir, $"wave-{what}.png"));
+                    }
+                    var trail = new List<string>();
+                    for (int i = 0; i < 12; i++)
+                    {
+                        var st = t.TestState;
+                        trail.Add($"{st.Boldest}");
+                        if (i == 2 || i == 5 || i == 8) Shot($"playing-{i}");
+                        await Task.Delay(400);
+                    }
+                    Log.Write($"wavetest: '{t.Text}', playing, boldest letter every 0.4 s: {string.Join(" ", trail)}, moving={t.TestState.Moving}");
+                    _demoMedia = _demoMedia! with { Position = _demoMedia.CurrentPosition, PositionUpdatedAt = DateTimeOffset.Now, IsPlaying = false };
+                    UpdateMediaUi(); await Task.Delay(2500);
+                    var rest = t.TestState;
+                    Log.Write($"wavetest: paused 2.5 s: strongest letter blend {rest.MaxBlend:0.00}, moving={rest.Moving}");
+                    Shot("paused");
+                    Application.Current.Shutdown();
+                    return;
+                }
+                if (action == "seektest")   // test: seeking with the jelly slider: the time in the drop, the jump on release (demo song only; with --cover)
+                {
+                    var dir = args.ElementAtOrDefault(r + 2) ?? System.IO.Path.GetTempPath();
+                    Settings.ReadOnly = true;
+                    Island.IsHitTestVisible = false; _settings.ExpandOnHover = false;
+                    await Task.Delay(3500);
+                    _pinnedOpen = true; Expand(); await Task.Delay(600);
+                    TabMusic.IsChecked = true; await Task.Delay(1500);
+                    var s = (Views.JellySlider)SeekSlider;
+                    var m0 = _lastMedia!;
+                    Log.Write($"seektest: playing at {FormatTime(m0.CurrentPosition)} of {FormatTime(m0.Duration)}, slider {s.Value:0.000} (song {m0.CurrentPosition.TotalSeconds / m0.Duration.TotalSeconds:0.000}), moving={s.TestState.Moving}");
+                    await Task.Delay(1000);
+                    Log.Write($"seektest: a second later: slider {s.Value:0.000}, moving={s.TestState.Moving} (playing alone must not keep frames going)");
+                    double w = s.ActualWidth;
+                    s.TestPress(10 + 0.7 * (w - 20)); await Task.Delay(400);
+                    Log.Write($"seektest: held at 70%: drop says {s.Format!(s.Value)}, drop up {s.TestState.DropRise:0} px");
+                    var rtb = new RenderTargetBitmap((int)Math.Ceiling(MusicPage.ActualWidth * 2), 220, 192, 192, PixelFormats.Pbgra32);
+                    var dv = new DrawingVisual();
+                    var row = (FrameworkElement)s.Parent;
+                    var at = row.TranslatePoint(new Point(0, 0), MusicPage);
+                    using (var dc = dv.RenderOpen())
+                    {
+                        dc.DrawRectangle((Brush)FindResource("IslandBg"), null, new Rect(0, 0, MusicPage.ActualWidth, 110));
+                        dc.DrawRectangle(new VisualBrush(MusicPage) { Stretch = Stretch.None, AlignmentX = AlignmentX.Left, AlignmentY = AlignmentY.Top, ViewboxUnits = BrushMappingMode.Absolute,
+                                                                      Viewbox = new Rect(0, at.Y - 70, MusicPage.ActualWidth, 110), ViewportUnits = BrushMappingMode.Absolute, Viewport = new Rect(0, 0, MusicPage.ActualWidth, 110) },
+                                         null, new Rect(0, 0, MusicPage.ActualWidth, 110));
+                    }
+                    rtb.Render(dv);
+                    CaptureService.SavePng(rtb, System.IO.Path.Combine(dir, "seek-held.png"));
+                    s.TestRelease(); await Task.Delay(900);
+                    var m1 = _lastMedia!;
+                    Log.Write($"seektest: released: song now at {FormatTime(m1.CurrentPosition)} ({m1.CurrentPosition.TotalSeconds / m1.Duration.TotalSeconds:0.000}), slider {s.Value:0.000}, time on the left {Elapsed.Text}");
+                    Application.Current.Shutdown();
+                    return;
+                }
+                if (action == "rubbertest")   // test: the rubber pill under the island's tabs and the settings menu: which edge leads, how far it stretches; pictures (with --cover)
+                {
+                    var dir = args.ElementAtOrDefault(r + 2) ?? System.IO.Path.GetTempPath();
+                    Settings.ReadOnly = true;
+                    Island.IsHitTestVisible = false; _settings.ExpandOnHover = false;
+                    await Task.Delay(3500);
+                    _pinnedOpen = true; Expand(); await Task.Delay(600);
+                    TabHome.IsChecked = true; ShowTabIcons(true, animate: false); await Task.Delay(1200);
+                    int shot = 0;
+                    void Shot(FrameworkElement el, string what)
+                    {
+                        var rtb = new RenderTargetBitmap((int)Math.Ceiling(el.ActualWidth * 2) + 8, (int)Math.Ceiling(el.ActualHeight * 2) + 8, 192, 192, PixelFormats.Pbgra32);
+                        var dv = new DrawingVisual();
+                        using (var dc = dv.RenderOpen())
+                        {
+                            dc.DrawRectangle((Brush)FindResource("IslandBg"), null, new Rect(0, 0, el.ActualWidth + 4, el.ActualHeight + 4));
+                            dc.DrawRectangle(new VisualBrush(el) { Stretch = Stretch.None, AlignmentX = AlignmentX.Left, AlignmentY = AlignmentY.Top }, null, new Rect(2, 2, el.ActualWidth, el.ActualHeight));
+                        }
+                        rtb.Render(dv);
+                        CaptureService.SavePng(rtb, System.IO.Path.Combine(dir, $"rubber-{++shot}-{what}.png"));
+                    }
+                    async Task Move(Views.RubberStack strip, RadioButton to, string name, FrameworkElement pic)
+                    {
+                        var s0 = strip.TestState; double rest = Math.Abs(s0.To - s0.From);
+                        to.IsChecked = true;
+                        await Task.Delay(30);
+                        double maxLen = 0; var sw = System.Diagnostics.Stopwatch.StartNew();
+                        var st = strip.TestState;
+                        bool shotTaken = false;
+                        while (sw.ElapsedMilliseconds < 1500)
+                        {
+                            st = strip.TestState;
+                            maxLen = Math.Max(maxLen, Math.Abs(st.To - st.From));
+                            if (!shotTaken && sw.ElapsedMilliseconds > 90) { Shot(pic, name); shotTaken = true; }
+                            await Task.Delay(8);
+                        }
+                        st = strip.TestState;
+                        Log.Write($"rubbertest: {name}: pill {rest:0} long at rest, stretched up to {maxLen:0} ({maxLen / Math.Max(1, rest):0.00}×), ends at {st.From:0}…{st.To:0}, still moving={st.Moving}");
+                    }
+                    // which edge leads: sample both edges 60 ms into a move to the right
+                    var s1 = TabStrip.TestState;
+                    TabWeather.IsChecked = true; await Task.Delay(60);
+                    var s2 = TabStrip.TestState;
+                    Log.Write($"rubbertest: 60 ms into a move right: leading (right) edge went {s2.To - s1.To:0.0} px, trailing (left) edge {s2.From - s1.From:0.0} px");
+                    await Task.Delay(1500);
+                    TabHome.IsChecked = true; await Task.Delay(1500);
+                    await Move(TabStrip, TabSystem, "tabs-right", TabArea);
+                    await Move(TabStrip, TabMusic, "tabs-left", TabArea);
+                    TabSettings.IsChecked = true; await Task.Delay(1200);
+                    if (SettingsNav.Children.Count > 3)
+                    {
+                        ((RadioButton)SettingsNav.Children[0]).IsChecked = true; await Task.Delay(1200);
+                        await Move(SettingsNav, (RadioButton)SettingsNav.Children[3], "settings-down", SettingsNav);
+                    }
+                    ShowTabIcons(false, animate: false); await Task.Delay(300);
+                    Shot(TabArea, "tabs-resting");
+                    Application.Current.Shutdown();
+                    return;
+                }
+                if (action == "jellytest")   // test: the jelly slider in the Music tab: stretch, drop, lean, rubber, snap back; a settings slider's ticks (with --cover)
+                {
+                    var dir = args.ElementAtOrDefault(r + 2) ?? System.IO.Path.GetTempPath();
+                    Settings.ReadOnly = true;
+                    Island.IsHitTestVisible = false; _settings.ExpandOnHover = false;
+                    await Task.Delay(3500);
+                    _pinnedOpen = true; Expand(); await Task.Delay(600);
+                    TabMusic.IsChecked = true; await Task.Delay(2000);
+                    var s = (Views.JellySlider)VolumeSlider;
+                    double w = s.ActualWidth;
+                    int shot = 0;
+                    void Shot(string what)
+                    {
+                        // the slider and the room above it (the drop rises out of its bounds), on the island's colour
+                        double bw = w + 40, bh = 130;
+                        var dv = new DrawingVisual();
+                        using (var dc = dv.RenderOpen())
+                        {
+                            dc.DrawRectangle((Brush)FindResource("IslandBg"), null, new Rect(0, 0, bw, bh));
+                            dc.PushTransform(new TranslateTransform(20, 60));
+                            dc.DrawRectangle(new VisualBrush(s) { Stretch = Stretch.None, AlignmentX = AlignmentX.Left, AlignmentY = AlignmentY.Top,
+                                                                  ViewboxUnits = BrushMappingMode.Absolute, Viewbox = new Rect(-20, -60, bw, bh),
+                                                                  ViewportUnits = BrushMappingMode.Absolute, Viewport = new Rect(-20, -60, bw, bh) },
+                                             null, new Rect(-20, -60, bw, bh));
+                            dc.Pop();
+                        }
+                        var rtb = new RenderTargetBitmap((int)(bw * 2), (int)(bh * 2), 192, 192, PixelFormats.Pbgra32);
+                        rtb.Render(dv);
+                        CaptureService.SavePng(rtb, System.IO.Path.Combine(dir, $"jelly-{++shot}-{what}.png"));
+                    }
+                    string St() { var t = s.TestState; return $"x {t.X:0.0} (target {t.Target:0.0}), stretch {t.Stretch:0.00}, drop up {t.DropRise:0.0} px at {t.DropScale:0.00}, lean {t.Tilt:0.0}°, value {s.Value:0.00}, moving={t.Moving}"; }
+                    Log.Write($"jellytest: width {w:0}, start: " + St());
+                    s.TestPress(w * 0.3); await Task.Delay(350);
+                    Log.Write("jellytest: pressed at 30%: " + St()); Shot("pressed");
+                    double maxStretch = 1, maxLean = 0;
+                    for (int i = 1; i <= 8; i++)
+                    {
+                        s.TestDrag(w * (0.3 + 0.6 * i / 8)); await Task.Delay(16);
+                        var t = s.TestState; maxStretch = Math.Max(maxStretch, t.Stretch); maxLean = Math.Max(maxLean, Math.Abs(t.Tilt));
+                        if (i == 5) Shot("dragging");
+                    }
+                    for (int i = 0; i < 10; i++) { await Task.Delay(16); var t = s.TestState; maxStretch = Math.Max(maxStretch, t.Stretch); maxLean = Math.Max(maxLean, Math.Abs(t.Tilt)); }
+                    Log.Write($"jellytest: fast drag 30%→90%: most stretch {maxStretch:0.00}, most lean {maxLean:0.0}°, now " + St());
+                    s.TestDrag(w + 80); await Task.Delay(400);
+                    Log.Write($"jellytest: dragged 80 px past the end (thumb's end {w - 10:0}): " + St()); Shot("rubber");
+                    s.TestRelease();
+                    double past = 0; var sw = System.Diagnostics.Stopwatch.StartNew();
+                    while (sw.ElapsedMilliseconds < 1500) { await Task.Delay(16); past = Math.Min(past, (w - 10) - s.TestState.X); }
+                    Log.Write($"jellytest: released: back inside, the most past the end afterwards {-past:0.0} px, then " + St()); Shot("released");
+                    Application.Current.Shutdown();
+                    return;
+                }
+                if (action == "morphtest")   // test: Morph island's motion: width lands before height, overshoot, volume, press; pictures mid-morph (with --cover)
+                {
+                    var dir = args.ElementAtOrDefault(r + 2) ?? System.IO.Path.GetTempPath();
+                    Settings.ReadOnly = true;
+                    Island.IsHitTestVisible = false; _settings.ExpandOnHover = false;
+                    await Task.Delay(4000);
+                    Log.Write($"morphtest: bouncy={_settings.Bouncy}, fast={_settings.FastAnimations}, reduced={Services.Motion.Reduced}");
+                    async Task Record(string name, Action go, bool shots)
+                    {
+                        double w0 = _w.Value, h0 = _h.Value;
+                        var sw = System.Diagnostics.Stopwatch.StartNew();
+                        double wPeak = w0, hPeak = h0, wPeakAt = 0, hPeakAt = 0, maxGive = 0, minPress = 100, shownLow = double.MaxValue;
+                        int frame = 0;
+                        go();
+                        double wT = _w.Target, hT = _h.Target;
+                        bool growW = wT > w0, growH = hT > h0;
+                        void OnFrame(object? s, EventArgs e)
+                        {
+                            double t = sw.Elapsed.TotalSeconds;
+                            if (growW ? _w.Value > wPeak : _w.Value < wPeak) { wPeak = _w.Value; wPeakAt = t; }
+                            if (growH ? _h.Value > hPeak : _h.Value < hPeak) { hPeak = _h.Value; hPeakAt = t; }
+                            maxGive = Math.Max(maxGive, Math.Abs(Island.Width / Math.Max(1, _w.Value) - 1));
+                            minPress = Math.Min(minPress, _press.Value);
+                            shownLow = Math.Min(shownLow, Island.Height);
+                            frame++;
+                        }
+                        CompositionTarget.Rendering += OnFrame;
+                        foreach (var at in new[] { 0.08, 0.16, 0.26, 0.45, 0.9 })
+                        {
+                            while (sw.Elapsed.TotalSeconds < at) await Task.Delay(5);
+                            if (!shots) continue;
+                            var rtb = new RenderTargetBitmap((int)Math.Ceiling(Root.ActualWidth), (int)Math.Ceiling(Math.Min(Root.ActualHeight, 520)), 96, 96, PixelFormats.Pbgra32);
+                            rtb.Render(Root);
+                            CaptureService.SavePng(rtb, System.IO.Path.Combine(dir, $"morph-{name}-{at * 1000:000}ms.png"));
+                        }
+                        await Task.Delay(800);
+                        CompositionTarget.Rendering -= OnFrame;
+                        double Over(double peak, double from, double to) => Math.Abs(to - from) < 1 ? 0 : (peak - to) / (to - from) * 100;
+                        Log.Write($"morphtest: {name}: width {w0:0}→{wT:0} peak {wPeak:0.0} at {wPeakAt * 1000:0} ms (over {Over(wPeak, w0, wT):0.0}%), " +
+                                  $"height {h0:0}→{hT:0} peak {hPeak:0.0} at {hPeakAt * 1000:0} ms (over {Over(hPeak, h0, hT):0.0}%), " +
+                                  $"shown height down to {shownLow:0.0}, volume up to {maxGive * 100:0.0}%, press down to {minPress / 100:0.000}, settled={_w.IsSettled && _h.IsSettled && _press.IsSettled}, {frame} frames");
+                    }
+                    ResetCosts();
+                    await Record("open", () => { TabHome.IsChecked = true; _pinnedOpen = true; Expand(); }, shots: true);
+                    await Record("close", () => { _pinnedOpen = false; SetMode(Mode.Compact); }, shots: true);
+                    await Record("toast", () => ShowToast("\uE73E", "Atoll", L.T("Готово")), shots: false);
+                    Log.Write("morphtest: " + TopCostsReport().Replace(Environment.NewLine, " | "));
+                    Application.Current.Shutdown();
+                    return;
+                }
+                if (action == "musicrecord")   // test: the record and its bars in the Music tab and on the music widget, playing and paused (with --cover)
+                {
+                    var dir = args.ElementAtOrDefault(r + 2) ?? System.IO.Path.GetTempPath();
+                    Settings.ReadOnly = true;
+                    Island.IsHitTestVisible = false; _settings.ExpandOnHover = false;
+                    await Task.Delay(3500);
+                    _pinnedOpen = true; Expand(); await Task.Delay(600);
+                    TabMusic.IsChecked = true; await Task.Delay(2500);
+                    void Shot(FrameworkElement el, string name)
+                    {
+                        var rtb = new RenderTargetBitmap((int)Math.Ceiling(el.ActualWidth * 2), (int)Math.Ceiling(el.ActualHeight * 2), 192, 192, PixelFormats.Pbgra32);
+                        rtb.Render(el);
+                        CaptureService.SavePng(rtb, System.IO.Path.Combine(dir, name + ".png"));
+                    }
+                    static T? FindChild<T>(DependencyObject d) where T : DependencyObject
+                    {
+                        for (int i = 0; i < VisualTreeHelper.GetChildrenCount(d); i++)
+                        {
+                            var c = VisualTreeHelper.GetChild(d, i);
+                            if (c is T t) return t;
+                            if (FindChild<T>(c) is { } deeper) return deeper;
+                        }
+                        return null;
+                    }
+                    async Task<string> Motion(Views.MusicRecordView rec, Views.MusicBarsView bars)
+                    {
+                        double a0 = rec.Angle, l0 = bars.Level;
+                        await Task.Delay(1000);
+                        return $"record turned {(rec.Angle - a0 + 360) % 360:0.0}° in 1 s, bars {(Math.Abs(bars.Level - l0) > 0.01 ? "moving" : "still")}";
+                    }
+                    Log.Write("musicrecord: island, playing: " + await Motion(ArtRecord, MusicBars));
+                    Shot(MusicPage, "island-music-playing");
+                    _demoMedia = _demoMedia! with { Position = _demoMedia.CurrentPosition, PositionUpdatedAt = DateTimeOffset.Now, IsPlaying = false };
+                    UpdateMediaUi(); await Task.Delay(800);
+                    Log.Write("musicrecord: island, paused: " + await Motion(ArtRecord, MusicBars));
+                    Shot(MusicPage, "island-music-paused");
+                    _demoMedia = _demoMedia! with { PositionUpdatedAt = DateTimeOffset.Now, IsPlaying = true };
+                    UpdateMediaUi();
+                    _pinnedOpen = false; SetMode(Mode.Compact);
+                    _settings.DesktopWidgets.Clear(); _settings.WidgetPlaces.Clear();
+                    foreach (var letter in new[] { "M", "L" })
+                    {
+                        _settings.WidgetSizeOf["music"] = letter;
+                        if (_widgets.ContainsKey("music")) RebuildWidget("music"); else AddWidget("music", pop: false);
+                        _widgetTimer.Start();
+                        await Task.Delay(2500);
+                        var w = _widgets["music"];
+                        var el = (FrameworkElement)w.Content;
+                        var rec = FindChild<Views.MusicRecordView>(el); var bars = FindChild<Views.MusicBarsView>(el);
+                        Log.Write($"musicrecord: widget {letter}: " + (rec == null || bars == null ? "NO RECORD" : await Motion(rec, bars)));
+                        Shot(el, "widget-music-" + letter);
+                    }
+                    Application.Current.Shutdown();
+                    return;
+                }
                 if (action == "hidepaths")   // test: "hide in front of" by name, by program path and by folder (the taskbar belongs to explorer.exe)
                 {
                     Settings.ReadOnly = true;
@@ -598,7 +1275,9 @@ public partial class MainWindow : Window
                 {
                     Settings.ReadOnly = true;
                     _settings.ExpandOnHover = false; _settings.Character = "clawd"; Character.Kind = "clawd";
-                    TabChat.IsChecked = true; _pinnedOpen = true; Expand();
+                    _pinnedOpen = true; Expand();
+                    await Task.Delay(600);
+                    TabChat.IsChecked = true;   // after opening: the smart island may have picked another tab on the way
                     await Task.Delay(3000);
                     SetVoiceStatus("Слушаю… очень длинный статус голосового диалога");
                     await Task.Delay(500);
@@ -607,7 +1286,7 @@ public partial class MainWindow : Window
                     foreach (var (name, el) in new (string, FrameworkElement)[] { ("voice name", VoiceNameButton), ("voice", VoiceAssistantButton), ("voice status", VoiceStatusText), ("chat size", ChatSizeButton) })
                     {
                         var b = Box(el);
-                        Log.Write($"chatbuddy: {name} {b.Left:0}..{b.Right:0} x {b.Top:0}..{b.Bottom:0}, buddy {buddy.Left:0}..{buddy.Right:0} x {buddy.Top:0}..{buddy.Bottom:0}: {(b.IntersectsWith(buddy) ? "COVERED" : "clear")}");
+                        Log.Write($"chatbuddy: {name} {b.Left:0}..{b.Right:0} x {b.Top:0}..{b.Bottom:0}, buddy {buddy.Left:0}..{buddy.Right:0} x {buddy.Top:0}..{buddy.Bottom:0}: {(b.IsEmpty || buddy.IsEmpty ? "NOT SHOWN" : b.IntersectsWith(buddy) ? "COVERED" : "clear")}");
                     }
                     // no picture: the chat page shows the user's own signed-in chat, even in a demo run
                     Application.Current.Shutdown();
@@ -700,6 +1379,930 @@ public partial class MainWindow : Window
                             Walk(fe);
                             Log.Write($"voicemenu: pop-up {fe.ActualWidth:0}x{fe.ActualHeight:0}, visible items {items}, items height {h:0}");
                         }
+                    Application.Current.Shutdown();
+                    return;
+                }
+                if (action == "geminitest")   // test: a Gemini Live session with the key from GEMINI_API_KEY (this process only); never logs the key
+                {
+                    Settings.ReadOnly = true;
+                    var key = Environment.GetEnvironmentVariable("GEMINI_API_KEY") ?? "";
+                    string Clean(string t) => key.Length > 0 ? t.Replace(key, "<key>") : t;
+                    var live = new GeminiLiveVoice(key, "Kore");
+                    live.SetOutputVolume(0);   // silent: the test must not talk out loud
+                    live.StatusChanged += st => Log.Write("geminitest: status " + st);
+                    live.UserTranscribed += t => Log.Write("geminitest: heard " + t);
+                    live.Failed += ex => Log.Write("geminitest: failed " + ex.GetType().Name + ": " + Clean(ex.Message));
+                    try
+                    {
+                        var sw = System.Diagnostics.Stopwatch.StartNew();
+                        await live.StartAsync();
+                        Log.Write($"geminitest: setup complete in {sw.ElapsedMilliseconds} ms");
+                        await live.SendTextAsync("Скажи одно короткое предложение: проверка связи.");
+                        for (int i = 0; i < 30 && live.AudioBytesReceived == 0; i++) await Task.Delay(500);
+                        await Task.Delay(3000);
+                        Log.Write($"geminitest: audio received {live.AudioBytesReceived} bytes");
+                    }
+                    catch (Exception ex) { Log.Write("geminitest: start failed " + ex.GetType().Name + ": " + Clean(ex.Message) + (ex.InnerException != null ? " / " + Clean(ex.InnerException.Message) : "") + " -> shown: " + GeminiLiveVoice.Explain(ex, key)); }
+                    await live.StopAsync();
+                    Application.Current.Shutdown();
+                    return;
+                }
+                if (action == "keyfieldtest")   // test: a pasted key is kept at once and a settings refresh does not wipe it
+                {
+                    Settings.ReadOnly = true;
+                    await Task.Delay(2000);
+                    _settings.GeminiVoiceApiKey = "";
+                    GeminiVoiceApiKeyBox.Password = "  \"AIzaTESTTESTTESTTEST\"  ";
+                    bool saved = _settings.GeminiVoiceApiKey == "AIzaTESTTESTTESTTEST";
+                    RefreshSettingsPage();
+                    Log.Write($"keyfieldtest: kept at once={saved}, after refresh field kept={GeminiVoiceApiKeyBox.Password.Length > 0}, setting={_settings.GeminiVoiceApiKey.Length} chars");
+                    Application.Current.Shutdown();
+                    return;
+                }
+                if (action == "mediaprobe")   // diagnostics: how often and how late the player reports its position (read only)
+                {
+                    var t0 = DateTime.Now;
+                    while ((DateTime.Now - t0).TotalSeconds < 12)
+                    {
+                        var m = _media.Current;
+                        Log.Write($"probe {(DateTime.Now - t0).TotalSeconds:0.00}: {_media.RawTimeline()} | extrapolated={m?.CurrentPosition.TotalSeconds:0.000} playing={m?.IsPlaying} | lyrics clock={LyricsPosition().TotalSeconds:0.000} resyncs={_lyricsClock.Resyncs}");
+                        await Task.Delay(250);
+                    }
+                    Application.Current.Shutdown();
+                    return;
+                }
+                if (action == "glassshot")   // the glass on a test "wallpaper" shown by our own full-screen backdrop (the real wallpaper is never touched); tools/shot.ps1 takes the pictures
+                {
+                    var dir = args.ElementAtOrDefault(r + 2) ?? System.IO.Path.GetTempPath();
+                    var wallName = args.ElementAtOrDefault(r + 3) ?? "light";
+                    var mode = args.ElementAtOrDefault(r + 4) ?? "image";
+                    Settings.ReadOnly = true;
+                    System.IO.Directory.CreateDirectory(dir);
+                    var screen = System.Windows.Forms.Screen.PrimaryScreen!.Bounds;
+                    var toDip = PresentationSource.FromVisual(this)?.CompositionTarget?.TransformFromDevice ?? Matrix.Identity;
+                    var toPx = PresentationSource.FromVisual(this)?.CompositionTarget?.TransformToDevice ?? Matrix.Identity;
+                    Log.Write($"glassshot: {wallName}, {mode}, screen {screen.Width}x{screen.Height}, scale {toPx.M11:0.00}");
+
+                    // the test wallpaper: misty grey-white, or night
+                    var wall = TestWallpaper(wallName == "dark", screen.Width, screen.Height);
+                    CaptureService.SavePng(wall, System.IO.Path.Combine(dir, "wall-" + wallName + ".png"));
+                    _wallpaper.Override = wall;
+                    _wallpaper.BlurPx = _settings.GlassBlur;
+                    _wallpaper.Rebuild();
+                    bool gridMode = mode.StartsWith("grid"), musicMode = mode is "music" or "viz" or "lyrics" or "eq", weatherMode = mode == "weather", clockMode = mode == "clock", photosMode = mode == "photos", budgetMode = mode == "budget", notesMode = mode == "notes", systemMode = mode == "system";
+                    if (musicMode || weatherMode || clockMode || photosMode || budgetMode || notesMode || systemMode) _forceGlass = Views.GlassKind.Image;
+                    if (weatherMode) { _weatherFrozen = true; _lastWeather = DemoWeather(DateTime.Now, DateTime.Now); }
+                    if (gridMode) { Spec = GridLayout.Get(mode[4..]); _forceGlass = Views.GlassKind.Image; }
+                    if (mode == "live") _forceGlass = Views.GlassKind.Live;
+                    if (mode == "solid") _forceGlass = Views.GlassKind.Solid;
+
+                    var tl = toDip.Transform(new Point(screen.Left, screen.Top));
+                    var br = toDip.Transform(new Point(screen.Right, screen.Bottom));
+                    var backdrop = new Window
+                    {
+                        WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, ShowInTaskbar = false, Topmost = true, ShowActivated = false,
+                        Left = tl.X, Top = tl.Y, Width = br.X - tl.X, Height = br.Y - tl.Y, Title = "Atoll glass test backdrop",
+                        Content = new System.Windows.Controls.Image { Source = wall, Stretch = Stretch.UniformToFill },
+                    };
+                    backdrop.Show();
+                    await Task.Delay(600);
+
+                    _settings.DesktopWidgets.Clear(); _settings.WidgetPlaces.Clear(); _settings.WidgetThemeOf.Clear(); _settings.WidgetTheme = "liquid";
+                    var (x0, y0, cols, rows) = WidgetGrid();
+                    int c0 = Math.Max(0, cols / 2 - 3);
+                    // the clock straddles the hills' edge (at 68 % of the height): the rim has something to bend
+                    int r0 = Math.Clamp((int)Math.Round((toDip.Transform(new Point(0, screen.Top + screen.Height * 0.68)).Y - SmallSide * 0.5 - y0) / Step), 0, Math.Max(0, rows - 2));
+                    // the clock and the list sit right on the hills' edge (not on the grid): the rim has an edge to bend
+                    double hillY = toDip.Transform(new Point(0, screen.Top + screen.Height * 0.68)).Y - SmallSide * 0.5;
+                    _settings.WidgetPlaces["clock"] = [x0 + c0 * Step, hillY];
+                    _settings.WidgetPlaces["todo"] = [x0 + (c0 + 1) * Step, hillY];
+                    _settings.WidgetPlaces["weather"] = [x0 + c0 * Step, hillY + Step];
+                    var ids = new List<string> { "clock", "todo", "weather" };
+                    if (gridMode)
+                    {
+                        // a home screen: two small, two medium, one large, on the grid of the variant
+                        var g = Grids()[0].Grid;
+                        int gc = Math.Max(0, g.Cols / 2 - 6), gr = 1;
+                        Rect Cell(int c, int r) => g.Cell(gc + c, gr + r, 0, 0);
+                        _settings.WidgetPlaces.Clear();
+                        _settings.WidgetPlaces["clock"] = [Cell(0, 0).X, Cell(0, 0).Y];
+                        _settings.WidgetPlaces["calendar"] = [Cell(0, 2).X, Cell(0, 2).Y];
+                        _settings.WidgetPlaces["weather"] = [Cell(2, 0).X, Cell(2, 0).Y];
+                        _settings.WidgetPlaces["todo"] = [Cell(2, 2).X, Cell(2, 2).Y];
+                        _settings.WidgetPlaces["month"] = [Cell(6, 0).X, Cell(6, 0).Y];
+                        _settings.WidgetSizeOf["month"] = "L";
+                        ids = ["clock", "calendar", "weather", "todo", "month"];
+                    }
+                    // music: the same widget in its three sizes is shown as three separate windows of one id at a time,
+                    // so it is added, shot and rebuilt per size below
+                    if (musicMode) ids = ["music"];
+                    if (weatherMode || clockMode || photosMode || budgetMode || notesMode || systemMode) ids = [];
+                    foreach (var id in ids) AddWidget(id, pop: false);
+                    _widgetTimer.Start();
+                    foreach (var w in _widgets.Values) w.Front = true;   // above the test backdrop
+                    await Task.Delay(1500);
+                    Log.Write($"glassshot: widgets {string.Join(", ", _widgets.Select(p => p.Key + "=" + p.Value.Kind))}");
+
+
+                    Rect Area()
+                    {
+                        var rs = _widgets.Values.Select(w => new Rect(w.Left, w.Top, w.Width, w.Height)).Aggregate(Rect.Union);
+                        rs.Inflate(24, 24);
+                        var a = toPx.Transform(rs.TopLeft); var b = toPx.Transform(rs.BottomRight);
+                        return new Rect(a, b);
+                    }
+                    var wallPixels = new byte[wall.PixelWidth * wall.PixelHeight * 4];
+                    wall.CopyPixels(wallPixels, wall.PixelWidth * 4, 0);
+                    async Task Shot(string name, double dim = 0)
+                    {
+                        // our backdrop and the widgets on top again, in case anything came in front meanwhile
+                        backdrop.Topmost = false; backdrop.Topmost = true;
+                        foreach (var o in _gridOverlays) { o.Win.Topmost = false; o.Win.Topmost = true; }   // the edit-mode grid over the backdrop
+                        foreach (var w in _widgets.Values) { w.Front = false; w.Front = true; }
+                        await Task.Delay(300);
+                        var a = Area();
+                        System.IO.File.WriteAllText(System.IO.Path.Combine(dir, "ready-" + name + ".txt"), $"{(int)a.X} {(int)a.Y} {(int)a.Width} {(int)a.Height}");
+                        var done = System.IO.Path.Combine(dir, name + ".done");
+                        for (int i = 0; i < 150 && !System.IO.File.Exists(done); i++) await Task.Delay(200);
+                        var png = System.IO.Path.Combine(dir, name + ".png");
+                        if (!System.IO.File.Exists(done) || !System.IO.File.Exists(png)) { Log.Write($"glassshot: {name} NOT taken (is tools/shot.ps1 running?)"); return; }
+                        // the picture must show our test wallpaper around the widgets; if anything else is there (the
+                        // real desktop, another window), it is deleted at once: nothing of the user's screen is kept
+                        bool ours = true;
+                        try
+                        {
+                            var shot = new BitmapImage();
+                            using (var fs = System.IO.File.OpenRead(png)) { shot.BeginInit(); shot.CacheOption = BitmapCacheOption.OnLoad; shot.StreamSource = fs; shot.EndInit(); }
+                            var conv = new FormatConvertedBitmap(shot, PixelFormats.Bgra32, null, 0);
+                            int sw2 = conv.PixelWidth, sh2 = conv.PixelHeight;
+                            var px = new byte[sw2 * sh2 * 4];
+                            conv.CopyPixels(px, sw2 * 4, 0);
+                            foreach (var (cx, cy) in new[] { (2, 2), (sw2 - 3, 2), (2, sh2 - 3), (sw2 - 3, sh2 - 3) })
+                            {
+                                int wx = (int)a.X + cx - screen.Left, wy = (int)a.Y + cy - screen.Top;
+                                if (wx < 0 || wy < 0 || wx >= wall.PixelWidth || wy >= wall.PixelHeight) { ours = false; break; }
+                                int i1 = (cy * sw2 + cx) * 4, i2 = (wy * wall.PixelWidth + wx) * 4;
+                                for (int ch = 0; ch < 3; ch++) if (Math.Abs(px[i1 + ch] - wallPixels[i2 + ch] * (1 - dim)) > 24) ours = false;
+                            }
+                        }
+                        catch { ours = false; }
+                        if (!ours) { System.IO.File.Delete(png); Log.Write($"glassshot: {name} did not show the test backdrop (is the desktop in front, after Win+D?): deleted"); }
+                        else Log.Write($"glassshot: {name} taken");
+                    }
+                    if (musicMode && _widgets.TryGetValue("music", out _))
+                    {
+                        // a made-up cover (never a real one): violet night, then an orange sunset for the next track
+                        BitmapSource Art(Color a, Color b)
+                        {
+                            var dv = new DrawingVisual();
+                            using (var dc = dv.RenderOpen())
+                            {
+                                dc.DrawRectangle(new LinearGradientBrush(a, b, 45), null, new Rect(0, 0, 400, 400));
+                                dc.DrawEllipse(new RadialGradientBrush(Color.FromArgb(0xC0, 255, 255, 255), Color.FromArgb(0, 255, 255, 255)), null, new Point(260, 150), 120, 120);
+                            }
+                            var rtb = new RenderTargetBitmap(400, 400, 96, 96, PixelFormats.Pbgra32); rtb.Render(dv); rtb.Freeze();
+                            return rtb;
+                        }
+                        BitmapImage ToImage(BitmapSource src)
+                        {
+                            var enc = new PngBitmapEncoder(); enc.Frames.Add(BitmapFrame.Create(src));
+                            var ms = new System.IO.MemoryStream(); enc.Save(ms); ms.Position = 0;
+                            var bi = new BitmapImage(); bi.BeginInit(); bi.CacheOption = BitmapCacheOption.OnLoad; bi.StreamSource = ms; bi.EndInit(); bi.Freeze();
+                            return bi;
+                        }
+                        var night = ToImage(Art(Color.FromRgb(0x3B, 0x1F, 0x8C), Color.FromRgb(0xE0, 0x4E, 0xA8)));
+                        var sunset = ToImage(Art(Color.FromRgb(0xFF, 0x8A, 0x2B), Color.FromRgb(0xC2, 0x26, 0x3A)));
+                        _lastMedia = new MediaSnapshot("Ночной город", "Demo Artist", "Spotify", "Spotify.exe", night, true, TimeSpan.FromSeconds(84), DateTimeOffset.Now, TimeSpan.FromSeconds(213));
+                        if (mode == "eq")
+                        {
+                            // a stand-in APO folder in the test folder (the real one is never written by tests)
+                            var fake = System.IO.Path.Combine(dir, "apo-config");
+                            System.IO.Directory.CreateDirectory(fake);
+                            System.IO.File.WriteAllText(System.IO.Path.Combine(fake, "config.txt"), "Preamp: -6 dB" + Environment.NewLine + "Include: example.txt" + Environment.NewLine);
+                            System.IO.File.Delete(System.IO.Path.Combine(fake, EqualizerApo.FileName));
+                            _eqDirOverride = fake;
+                            _settings.EqCustom.Clear();
+                            var rock = EqualizerApo.Presets.First(p => p.Name == "Рок");
+                            _settings.EqGains = (double[])rock.Gains.Clone(); _settings.EqPreset = rock.Name; _settings.EqBypass = false;
+                            _settings.MusicViz = "wave";
+                            _settings.WidgetSizeOf["music"] = "L"; RebuildWidget("music");
+                            var ew = _widgets["music"];
+                            var eg = Grids()[0].Grid;
+                            ew.CardX = eg.X0 + Math.Max(0, eg.Cols / 2 - 2) * Step; ew.CardY = eg.Y0 + Step;
+                            ew.Front = true; UpdateWidgetGlass(ew);
+                            TickWidgets();
+                            await Task.Delay(1000);
+                            await Shot(wallName + "-eq-closed");
+                            ToggleEqPanel(_musicCard!);
+                            await Task.Delay(900);
+                            await Shot(wallName + "-eq-open");
+                            _eqWriteNow?.Invoke();
+                            Log.Write("eq test: WidgetEQ.txt = " + System.IO.File.ReadAllText(System.IO.Path.Combine(fake, EqualizerApo.FileName)).Replace(Environment.NewLine, " | "));
+                            Log.Write("eq test: config.txt = " + System.IO.File.ReadAllText(System.IO.Path.Combine(fake, "config.txt")).Replace(Environment.NewLine, " | ") + "; backup " + System.IO.File.Exists(System.IO.Path.Combine(fake, "config.txt.atoll-backup")));
+                            ToggleEqPanel(_musicCard!);
+                            await Task.Delay(500);
+                            _eqDirOverride = "";   // as if APO were not installed
+                            ToggleEqPanel(_musicCard!);
+                            await Task.Delay(900);
+                            await Shot(wallName + "-eq-noapo");
+                            System.IO.File.WriteAllText(System.IO.Path.Combine(dir, "finished.txt"), "ok");
+                            foreach (var w in _widgets.Values.ToList()) w.Close();
+                            backdrop.Close();
+                            Application.Current.Shutdown();
+                            return;
+                        }
+                        if (mode == "lyrics")
+                        {
+                            // made-up words (never a real song's), timed; the large widget alone
+                            string[] words =
+                            [
+                                "Город спит, а мы опять не спим", "Свет фонарей рисует наши тени", "Этой ночью всё неважно, кроме нас",
+                                "И музыка, что тихо в окна льётся", "Пусть утро подождёт ещё немного", "", "Мы говорим без слов, на языке огней",
+                                "И каждый поворот ведёт нас к морю", "Не отпускай, пока горит рассвет", "Пусть утро подождёт ещё немного",
+                            ];
+                            _currentLyrics = new Lyrics(words.Select((w, i) => new LyricLine(TimeSpan.FromSeconds(60 + i * 7), w)).ToList(), true);
+                            _lyricsKey = _lyricsLoaded = "Demo Artist|Ночной город";
+                            _settings.MusicViz = "wave";
+                            _settings.WidgetSizeOf["music"] = "L"; RebuildWidget("music");
+                            var lw = _widgets["music"];
+                            var lg = Grids()[0].Grid;
+                            lw.CardX = lg.X0 + Math.Max(0, lg.Cols / 2 - 2) * Step; lw.CardY = lg.Y0 + Step;
+                            lw.Front = true; UpdateWidgetGlass(lw);
+                            _vizDemo = () => { var b = new float[AudioVisualizer.BandCount]; for (int i = 0; i < b.Length; i++) b[i] = (float)(0.55 * Math.Exp(-i / 14.0) + 0.12); return b; };
+                            TickWidgets();
+                            await Task.Delay(1500);
+                            await Shot(wallName + "-lyrics-line");          // 84 s: the fourth line is being sung
+                            _lastMedia = _lastMedia with { Position = TimeSpan.FromSeconds(104.5), PositionUpdatedAt = DateTimeOffset.Now };
+                            await Task.Delay(1200);
+                            await Shot(wallName + "-lyrics-scrolled");      // three lines on: the text has scrolled
+                            // the sync shift: −0.5 s puts the line that has just started back to the one before
+                            _lastMedia = _lastMedia with { Position = TimeSpan.FromSeconds(102.2), PositionUpdatedAt = DateTimeOffset.Now };
+                            var before = LyricsService.LineAt(_currentLyrics.Lines, LyricsPosition() + TimeSpan.FromMilliseconds(200));
+                            _settings.LyricsOffsetMs = -500;
+                            var after = LyricsService.LineAt(_currentLyrics.Lines, LyricsPosition() + TimeSpan.FromMilliseconds(200));
+                            _settings.LyricsOffsetMs = 0;
+                            Log.Write($"glassshot: lyrics shift −0.5 s at 102.2 s: line {before} -> {after}");
+                            // a song with no words found, and an instrumental
+                            _currentLyrics = null;
+                            TickWidgets();
+                            await Task.Delay(800);
+                            await Shot(wallName + "-lyrics-notfound");
+                            _currentLyrics = new Lyrics([], false, Instrumental: true);
+                            TickWidgets();
+                            await Task.Delay(500);
+                            await Shot(wallName + "-lyrics-instrumental");
+                            System.IO.File.WriteAllText(System.IO.Path.Combine(dir, "finished.txt"), "ok");
+                            foreach (var w in _widgets.Values.ToList()) w.Close();
+                            backdrop.Close();
+                            Application.Current.Shutdown();
+                            return;
+                        }
+                        if (mode == "viz")
+                        {
+                            // made-up bands (a bass hump and moving ripples): pictures never depend on what plays
+                            var vt0 = DateTime.Now;
+                            _vizDemo = () =>
+                            {
+                                double t = (DateTime.Now - vt0).TotalSeconds;
+                                var b = new float[AudioVisualizer.BandCount];
+                                for (int i = 0; i < b.Length; i++)
+                                {
+                                    double x = (double)i / b.Length;
+                                    b[i] = (float)Math.Clamp(0.78 * Math.Exp(-x * 2.4) * (0.75 + 0.25 * Math.Sin(t * 6 + i * 0.45)) + 0.28 * Math.Abs(Math.Sin(t * 2.7 + i * 0.33)) * (1 - x * 0.6), 0, 1);
+                                }
+                                return b;
+                            };
+                            var g2 = Grids()[0].Grid;
+                            int gc2 = Math.Max(0, g2.Cols / 2 - 5);
+                            var shown = new List<Views.DesktopWidgetWindow>();
+                            void Place(string style)
+                            {
+                                foreach (var w in shown) w.Close();
+                                shown.Clear(); _widgets.Clear(); _widgetUpdaters.Clear();
+                                _settings.MusicViz = style;
+                                foreach (var (letter, col) in new[] { ("M", 0), ("L", 4) })
+                                {
+                                    _settings.WidgetSizeOf["music"] = letter;
+                                    _settings.WidgetPlaces["music"] = [g2.X0 + (gc2 + col) * Step, g2.Y0 + Step];
+                                    ShowWidget("music");
+                                    var w = _widgets["music"]; _widgets.Remove("music"); _widgets["music_" + letter] = w;
+                                    _widgetUpdaters["music_" + letter] = _widgetUpdaters["music"]; _widgetUpdaters.Remove("music");
+                                    shown.Add(w); w.Front = true; UpdateWidgetGlass(w);
+                                }
+                                TickWidgets();
+                            }
+                            _widgetTimer.Start();
+                            foreach (var style in new[] { "wave", "bars", "ring" })
+                            {
+                                Place(style);
+                                _vizTimer.Start();
+                                await Task.Delay(1500);
+                                await Shot(wallName + "-viz-" + style);
+                            }
+                            async Task<double> Measure(int ms)
+                            {
+                                using var proc = System.Diagnostics.Process.GetCurrentProcess();
+                                var c0 = proc.TotalProcessorTime; var w0 = DateTime.Now;
+                                await Task.Delay(ms);
+                                proc.Refresh();
+                                return (proc.TotalProcessorTime - c0).TotalMilliseconds / (DateTime.Now - w0).TotalMilliseconds / Environment.ProcessorCount * 100;
+                            }
+                            Place("wave");
+                            _vizTimer.Start();
+                            await Task.Delay(800);
+                            double drawing = await Measure(10000);
+                            // paused: everything stops
+                            _vizDemo = null;
+                            _lastMedia = _lastMedia with { IsPlaying = false };
+                            VizControl(); _vizTimer.Stop();
+                            await Task.Delay(1500);
+                            double idle = await Measure(10000);
+                            // the real capture, only if something is playing right now (nothing is played by the test itself)
+                            string capture = "not measured (nothing was playing)";
+                            if (_audio.Peak > 0.01f)
+                            {
+                                _lastMedia = _lastMedia with { IsPlaying = true };
+                                VizControl();
+                                await Task.Delay(800);
+                                if (_viz.Running) capture = $"{await Measure(10000):0.00}%";
+                                _viz.Stop(); _vizTimer.Stop();
+                            }
+                            Log.Write($"viz cpu ({Environment.ProcessorCount} threads): drawing 30 fps {drawing:0.00}%, paused {idle:0.00}%, with real capture {capture}");
+                            System.IO.File.WriteAllText(System.IO.Path.Combine(dir, "finished.txt"), "ok");
+                            foreach (var w in shown) w.Close();
+                            backdrop.Close();
+                            Application.Current.Shutdown();
+                            return;
+                        }
+                        var g = Grids()[0].Grid;
+                        int gc = Math.Max(0, g.Cols / 2 - 6);
+                        double gx(int c) => g.X0 + (gc + c) * Step;
+                        double gy = g.Y0 + Step;
+                        // three sizes side by side: S, M, L
+                        _settings.WidgetSizeOf["music"] = "S"; RebuildWidget("music");
+                        var winS = _widgets["music"]; winS.CardX = gx(0); winS.CardY = gy;
+                        _widgets.Remove("music"); _widgetUpdaters.Remove("music", out var updS);
+                        _settings.WidgetSizeOf["music"] = "M"; ShowWidget("music");
+                        var winM = _widgets["music"]; winM.CardX = gx(2); winM.CardY = gy;
+                        _widgets.Remove("music"); _widgetUpdaters.Remove("music", out var updM);
+                        _settings.WidgetSizeOf["music"] = "L"; ShowWidget("music");
+                        var winL = _widgets["music"]; winL.CardX = gx(6); winL.CardY = gy;
+                        _widgets["music_s"] = winS; _widgets["music_m"] = winM;
+                        _widgetUpdaters["music_s"] = updS!; _widgetUpdaters["music_m"] = updM!;
+                        foreach (var w in _widgets.Values) { w.Front = true; UpdateWidgetGlass(w); }
+                        TickWidgets();
+                        await Task.Delay(1200);
+                        await Shot(wallName + "-music-rest");
+                        // the mouse wheel over the medium one (an event inside the app; the real mouse is not touched)
+                        if (winM.Host.Parent is FrameworkElement && winM.Host.Children[0] is FrameworkElement view)
+                            for (int i = 0; i < 3; i++) view.RaiseEvent(new MouseWheelEventArgs(Mouse.PrimaryDevice, 0, -120) { RoutedEvent = MouseWheelEvent });
+                        await Task.Delay(300);
+                        await Shot(wallName + "-music-wheel");
+                        // the next track: the glass takes the new cover's colour
+                        _lastMedia = new MediaSnapshot("Закат над морем", "Demo Band", "Spotify", "Spotify.exe", sunset, true, TimeSpan.FromSeconds(12), DateTimeOffset.Now, TimeSpan.FromSeconds(187));
+                        TickWidgets();
+                        await Task.Delay(1500);
+                        await Shot(wallName + "-music-next");
+                        System.IO.File.WriteAllText(System.IO.Path.Combine(dir, "finished.txt"), "ok");
+                        foreach (var w in _widgets.Values.ToList()) w.Close();
+                        backdrop.Close();
+                        Application.Current.Shutdown();
+                        return;
+                    }
+                    if (systemMode)
+                    {
+                        // made-up load, temperature and programs; the real sensor is only read for the log
+                        Log.Write($"system test: this PC's GPU sensor says {(GpuSensor.Temperature() is { } real ? $"{real:0}°" : "nothing (not supported)")}");
+                        _statsDemo = new SystemStats.Snapshot(34, 62, 58, 18.6, 32, "Demo GPU");
+                        var rnd = new Random(3);
+                        for (int i = 0; i < SystemHistory.Samples; i++)
+                        {
+                            double k = i / (double)SystemHistory.Samples;
+                            _sysHistory.Cpu.Add(Math.Clamp(18 + 14 * Math.Sin(k * 9) + rnd.Next(0, 12), 0, 100));
+                            _sysHistory.Gpu.Add(Math.Clamp(40 + 25 * Math.Sin(k * 5 + 1) + rnd.Next(0, 10), 0, 100));
+                            _sysHistory.Ram.Add(55 + 3 * k);
+                            _sysHistory.NetDown.Add(Math.Max(0, 900_000 * Math.Sin(k * 14) + rnd.Next(0, 300_000)));
+                        }
+                        _gpuTemp = 64;
+                        _cpuTopNow = [new("Browser", 9.4), new("Game", 7.1), new("Music", 2.3), new("Editor", 1.2), new("Chat", 0.6)];
+                        var g = Grids()[0].Grid;
+                        int gc = Math.Max(0, g.Cols / 2 - 6);
+                        var shown = new List<Views.DesktopWidgetWindow>();
+                        void Put(string key, string size, int col)
+                        {
+                            _settings.WidgetSizeOf["system"] = size;
+                            _settings.WidgetPlaces["system"] = [g.X0 + (gc + col) * Step, g.Y0 + Step];
+                            ShowWidget("system");
+                            var w = _widgets["system"]; _widgets.Remove("system"); _widgets[key] = w;
+                            _widgetUpdaters[key] = _widgetUpdaters["system"]; _widgetUpdaters.Remove("system");
+                            shown.Add(w); w.Front = true; UpdateWidgetGlass(w);
+                        }
+                        foreach (var (size, col) in new[] { ("S", 0), ("M", 2), ("L", 6) }) Put("system_" + size, size, col);
+                        TickWidgets();
+                        await Task.Delay(1500);
+                        await Shot(wallName + "-system-sizes");
+                        // a real overheat: 93° for over half a minute (the clock is pretended forward, nothing waits)
+                        _gpuTemp = 93;
+                        _overheat.Update(93, DateTime.Now); _overheat.Update(93, DateTime.Now.AddSeconds(31));
+                        for (int i = 0; i < 20; i++) _sysHistory.GpuTemp.Add(70 + i * 1.2);
+                        TickWidgets();
+                        await Task.Delay(800);
+                        await Shot(wallName + "-system-hot");
+                        System.IO.File.WriteAllText(System.IO.Path.Combine(dir, "finished.txt"), "ok");
+                        foreach (var w in shown) w.Close();
+                        backdrop.Close();
+                        Application.Current.Shutdown();
+                        return;
+                    }
+                    if (notesMode)
+                    {
+                        // made-up notes in this test process only (read-only: nothing is written over the user's notes)
+                        NotesStore.Notes.Clear();
+                        NotesStore.Notes.AddRange(
+                        [
+                            new Note { Text = "Позвонить маме в воскресенье\nи спросить про дачу", Created = DateTime.Now.AddHours(-2) },
+                            new Note { Text = "Идеи для отпуска: Карпаты, море в сентябре", Created = DateTime.Now.AddDays(-1) },
+                            new Note { Text = "Купить: хлеб, сыр, яблоки, кофе", Created = DateTime.Now.AddDays(-3) },
+                            new Note { Text = "Пароль от Wi-Fi на холодильнике", Created = DateTime.Now.AddDays(-6) },
+                        ]);
+                        _settings.StickyNote = null;
+                        var g = Grids()[0].Grid;
+                        int gc = Math.Max(0, g.Cols / 2 - 6);
+                        var shown = new List<Views.DesktopWidgetWindow>();
+                        void Put(string key, string size, int col)
+                        {
+                            _settings.WidgetSizeOf["notes"] = size;
+                            _settings.WidgetPlaces["notes"] = [g.X0 + (gc + col) * Step, g.Y0 + Step];
+                            ShowWidget("notes");
+                            var w = _widgets["notes"]; _widgets.Remove("notes"); _widgets[key] = w;
+                            _widgetUpdaters[key] = _widgetUpdaters["notes"]; _widgetUpdaters.Remove("notes");
+                            shown.Add(w); w.Front = true; UpdateWidgetGlass(w);
+                        }
+                        foreach (var (size, col) in new[] { ("S", 0), ("M", 2), ("L", 6) }) Put("notes_" + size, size, col);
+                        _widgetTimer.Start();
+                        TickWidgets();
+                        await Task.Delay(1500);
+                        await Shot(wallName + "-notes-sizes");
+                        // no notes yet: the hint, not an empty card
+                        foreach (var w in shown) w.Close();
+                        shown.Clear(); foreach (var k in _widgets.Keys.Where(k => k.StartsWith("notes_")).ToList()) { _widgets.Remove(k); _widgetUpdaters.Remove(k); }
+                        NotesStore.Notes.Clear();
+                        Put("notes_S", "S", 0); Put("notes_M", "M", 2);
+                        TickWidgets();
+                        await Task.Delay(1200);
+                        await Shot(wallName + "-notes-empty");
+                        System.IO.File.WriteAllText(System.IO.Path.Combine(dir, "finished.txt"), "ok");
+                        foreach (var w in shown) w.Close();
+                        backdrop.Close();
+                        Application.Current.Shutdown();
+                        return;
+                    }
+                    if (budgetMode)
+                    {
+                        // a usual desktop: a clock, the weather (rain), photos, music (paused); made-up data only
+                        _weatherFrozen = true;
+                        _photoDemoFolder = System.IO.Path.Combine(dir, "demo-photos");
+                        _photoDemoDates = MakeDemoPhotos(_photoDemoFolder);
+                        _settings.PhotoMode = "folder";
+                        var rainy = DemoWeather(DateTime.Now, DateTime.Now);
+                        _lastWeather = rainy with { Code = 61 };
+                        _lastMedia = new MediaSnapshot("Ночной город", "Demo Artist", "Spotify", "Spotify.exe", null, false, TimeSpan.FromSeconds(84), DateTimeOffset.Now, TimeSpan.FromSeconds(213));
+                        var g = Grids()[0].Grid;
+                        int gc = Math.Max(0, g.Cols / 2 - 6);
+                        var shown = new List<Views.DesktopWidgetWindow>();
+                        void Put(string id, string size, int col, int row)
+                        {
+                            _settings.WidgetSizeOf[id] = size;
+                            _settings.WidgetPlaces[id] = [g.X0 + (gc + col) * Step, g.Y0 + (1 + row) * Step];
+                            ShowWidget(id);
+                            var w = _widgets[id]; shown.Add(w); w.Front = true; UpdateWidgetGlass(w);
+                        }
+                        void Layout()
+                        {
+                            foreach (var w in shown) w.Close();
+                            shown.Clear(); _widgets.Clear(); _widgetUpdaters.Clear();
+                            Put("clock", "S", 0, 0); Put("weather", "M", 2, 0); Put("photos", "S", 6, 0); Put("music", "M", 0, 2);
+                            TickWidgets();
+                        }
+                        async Task<double> Measure(int ms)
+                        {
+                            using var proc = System.Diagnostics.Process.GetCurrentProcess();
+                            var c0 = proc.TotalProcessorTime; var w0 = DateTime.Now;
+                            await Task.Delay(ms);
+                            proc.Refresh();
+                            return (proc.TotalProcessorTime - c0).TotalMilliseconds / (DateTime.Now - w0).TotalMilliseconds / Environment.ProcessorCount * 100;
+                        }
+                        string Memory()
+                        {
+                            GC.Collect(); GC.WaitForPendingFinalizers(); GC.Collect();
+                            using var proc = System.Diagnostics.Process.GetCurrentProcess();
+                            return $"working set {proc.WorkingSet64 / 1048576} MB, private {proc.PrivateMemorySize64 / 1048576} MB, managed {GC.GetTotalMemory(false) / 1048576} MB";
+                        }
+                        await Task.Delay(15000);   // the start's own work (wallpaper caches, first layout) is over
+                        double none = await Measure(15000);
+                        string memNone = Memory();
+                        _settings.ClockSweep = true; _settings.WeatherAtmosphere = true; _settings.PhotoKenBurns = true;
+                        Layout();
+                        _widgetTimer.Start();
+                        await Task.Delay(3000);
+                        await Shot(wallName + "-budget-rain");
+                        double defaults = await Measure(15000);
+                        string mem = Memory();
+                        // snow, for the picture
+                        _lastWeather = rainy with { Code = 73, Temp = -2 };
+                        TickWidgets();
+                        await Task.Delay(1500);
+                        await Shot(wallName + "-budget-snow");
+                        _lastWeather = rainy with { Code = 61 };
+                        _settings.ClockSweep = false; _settings.WeatherAtmosphere = false;
+                        Layout();
+                        await Task.Delay(2000);
+                        double calm = await Measure(15000);
+                        _settings.WidgetsPaused = true;
+                        UpdateWidgetPause();
+                        await Task.Delay(1500);
+                        double paused = await Measure(15000);
+                        _settings.WidgetsPaused = false;
+                        UpdateWidgetPause();
+                        Log.Write($"budget ({Environment.ProcessorCount} threads): no widgets {none:0.00}%, 4 widgets with defaults (sweep, rain, Ken Burns) {defaults:0.00}%, without sweep and rain {calm:0.00}%, paused {paused:0.00}%; memory without widgets: {memNone}; with: {mem}");
+                        System.IO.File.WriteAllText(System.IO.Path.Combine(dir, "finished.txt"), "ok");
+                        foreach (var w in shown) w.Close();
+                        backdrop.Close();
+                        Application.Current.Shutdown();
+                        return;
+                    }
+                    if (photosMode)
+                    {
+                        // made-up pictures in the test folder; the user's photos never appear
+                        _photoDemoFolder = System.IO.Path.Combine(dir, "demo-photos");
+                        _photoDemoDates = MakeDemoPhotos(_photoDemoFolder);
+                        _settings.PhotoMode = "folder"; _settings.PhotoShuffle = false; _settings.PhotoSubfolders = false; _settings.PhotoFocus.Clear();
+                        var g = Grids()[0].Grid;
+                        int gc = Math.Max(0, g.Cols / 2 - 6);
+                        var shown = new List<Views.DesktopWidgetWindow>();
+                        Views.DesktopWidgetWindow Put(string key, string size, int col)
+                        {
+                            _settings.WidgetSizeOf["photos"] = size;
+                            _settings.WidgetPlaces["photos"] = [g.X0 + (gc + col) * Step, g.Y0 + Step];
+                            ShowWidget("photos");
+                            var w = _widgets["photos"]; _widgets.Remove("photos"); _widgets[key] = w;
+                            _widgetUpdaters[key] = _widgetUpdaters["photos"]; _widgetUpdaters.Remove("photos");
+                            shown.Add(w); w.Front = true; UpdateWidgetGlass(w);
+                            return w;
+                        }
+                        void CloseAll() { foreach (var w in shown) { w.Close(); } foreach (var k in _widgets.Keys.Where(k => k.StartsWith("photos_")).ToList()) { _widgets.Remove(k); _widgetUpdaters.Remove(k); } shown.Clear(); }
+                        _photoListKey = "";
+                        foreach (var (size, col) in new[] { ("S", 0), ("M", 2), ("L", 6) }) Put("photos_" + size, size, col);
+                        _widgetTimer.Start();
+                        for (int i = 0; i < 10 && _photoList == null; i++) { TickWidgets(); await Task.Delay(300); }
+                        TickWidgets();
+                        await Task.Delay(1800);
+                        await Shot(wallName + "-photos-sizes");
+                        // the focus point: the wide picture's subject is far right; in the middle it is cut off
+                        CloseAll();
+                        var wide = _photoList![0];
+                        Put("photos_S1", "S", 0);   // without a focus point: the middle of the picture
+                        TickWidgets();
+                        await Task.Delay(1200);
+                        _settings.PhotoFocus[wide] = [0.86, 0.42];
+                        Put("photos_S2", "S", 2);   // with it: the subject
+                        TickWidgets();
+                        await Task.Delay(1500);
+                        await Shot(wallName + "-photos-focus");
+                        // this day: pictures taken on today's date in earlier years
+                        CloseAll();
+                        _settings.PhotoMode = "thisday"; _photoListKey = "";
+                        Put("photos_L", "L", 2);
+                        for (int i = 0; i < 10 && (_photoList == null || _photoListKey.Length == 0); i++) { TickWidgets(); await Task.Delay(300); }
+                        TickWidgets();
+                        await Task.Delay(1800);
+                        await Shot(wallName + "-photos-thisday");
+                        Log.Write($"photos test: this day = {string.Join(", ", (_photoList ?? []).Select(System.IO.Path.GetFileName))}, no memories = {_photoNoMemories}");
+                        System.IO.File.WriteAllText(System.IO.Path.Combine(dir, "finished.txt"), "ok");
+                        CloseAll();
+                        backdrop.Close();
+                        Application.Current.Shutdown();
+                        return;
+                    }
+                    if (clockMode)
+                    {
+                        // made-up alarms and pomodoro count (read-only mode: nothing is saved)
+                        _settings.Alarms = [new Alarm { Time = new TimeSpan(7, 30, 0), Days = AlarmService.Weekdays }, new Alarm { Time = new TimeSpan(10, 0, 0), Days = AlarmService.Weekend, Enabled = false }];
+                        (_settings.PomodoroCountedOn, _settings.PomodoroDone) = (DateTime.Today, 3);
+                        var g = Grids()[0].Grid;
+                        int gc = Math.Max(0, g.Cols / 2 - 6);
+                        var shown = new List<Views.DesktopWidgetWindow>();
+                        Views.DesktopWidgetWindow Put(string key, string size, int col)
+                        {
+                            _settings.WidgetSizeOf["clock"] = size;
+                            _settings.WidgetPlaces["clock"] = [g.X0 + (gc + col) * Step, g.Y0 + Step];
+                            ShowWidget("clock");
+                            var w = _widgets["clock"]; _widgets.Remove("clock"); _widgets[key] = w;
+                            _widgetUpdaters[key] = _widgetUpdaters["clock"]; _widgetUpdaters.Remove("clock");
+                            shown.Add(w); w.Front = true; UpdateWidgetGlass(w);
+                            return w;
+                        }
+                        foreach (var (face, col) in new[] { ("classic", 0), ("minimal", 2), ("digital", 4) })
+                        {
+                            _settings.ClockFace = face;
+                            Put("clock_" + face, "S", col);
+                        }
+                        _settings.ClockFace = "classic";
+                        _widgetTimer.Start();
+                        TickWidgets();
+                        await Task.Delay(1500);
+                        await Shot(wallName + "-clock-faces");
+                        async Task<double> Measure(int ms)
+                        {
+                            using var proc = System.Diagnostics.Process.GetCurrentProcess();
+                            var c0 = proc.TotalProcessorTime; var w0 = DateTime.Now;
+                            await Task.Delay(ms);
+                            proc.Refresh();
+                            return (proc.TotalProcessorTime - c0).TotalMilliseconds / (DateTime.Now - w0).TotalMilliseconds / Environment.ProcessorCount * 100;
+                        }
+                        if (wallName == "dark")
+                        {
+                            double all = await Measure(10000);
+                            // the same without the two sweeping faces: the difference is what the sweep costs
+                            foreach (var key in new[] { "clock_classic", "clock_minimal" }) { var fw = _widgets[key]; fw.Close(); shown.Remove(fw); _widgets.Remove(key); _widgetUpdaters.Remove(key); }
+                            await Task.Delay(1000);
+                            double digitalOnly = await Measure(10000);
+                            Log.Write($"clock cpu ({Environment.ProcessorCount} threads): two sweeping faces + digital {all:0.00}%, digital only {digitalOnly:0.00}%");
+                        }
+                        foreach (var w in shown) w.Close();
+                        shown.Clear();
+                        _timer.SetKind(TimerKind.Timer); _timer.SetDuration(TimeSpan.FromMinutes(10)); _timer.Start();
+                        foreach (var tab in new[] { "clock", "timer", "pomodoro", "alarm" })
+                        {
+                            if (tab == "pomodoro") { _timer.SetKind(TimerKind.Pomodoro); _timer.Start(); }
+                            _settings.ClockTab = tab;
+                            var lw = Put("clock_L", "L", 2);
+                            TickWidgets();
+                            await Task.Delay(1200);
+                            await Shot(wallName + "-clock-" + tab);
+                            lw.Close(); shown.Remove(lw); _widgets.Remove("clock_L"); _widgetUpdaters.Remove("clock_L");
+                        }
+                        _timer.Reset();
+                        System.IO.File.WriteAllText(System.IO.Path.Combine(dir, "finished.txt"), "ok");
+                        backdrop.Close();
+                        Application.Current.Shutdown();
+                        return;
+                    }
+                    if (weatherMode)
+                    {
+                        // S, M and L side by side, then the same an hour without network (marked with its time)
+                        var g = Grids()[0].Grid;
+                        int gc = Math.Max(0, g.Cols / 2 - 6);
+                        var shown = new List<Views.DesktopWidgetWindow>();
+                        foreach (var (letter, col) in new[] { ("S", 0), ("M", 2), ("L", 6) })
+                        {
+                            _settings.WidgetSizeOf["weather"] = letter;
+                            _settings.WidgetPlaces["weather"] = [g.X0 + (gc + col) * Step, g.Y0 + Step];
+                            ShowWidget("weather");
+                            var w = _widgets["weather"]; _widgets.Remove("weather"); _widgets["weather_" + letter] = w;
+                            _widgetUpdaters["weather_" + letter] = _widgetUpdaters["weather"]; _widgetUpdaters.Remove("weather");
+                            shown.Add(w); w.Front = true; UpdateWidgetGlass(w);
+                        }
+                        _widgetTimer.Start();
+                        TickWidgets();
+                        await Task.Delay(1500);
+                        await Shot(wallName + "-weather-sizes");
+                        Log.Write("weather test: advice = " + WeatherAdvice.Build(_lastWeather!, _lastWeather!.PlaceNow));
+                        _lastWeather = DemoWeather(DateTime.Now, DateTime.Now.AddHours(-3));
+                        TickWidgets();
+                        await Task.Delay(800);
+                        await Shot(wallName + "-weather-offline");
+                        System.IO.File.WriteAllText(System.IO.Path.Combine(dir, "finished.txt"), "ok");
+                        foreach (var w in shown) w.Close();
+                        backdrop.Close();
+                        Application.Current.Shutdown();
+                        return;
+                    }
+                    if (gridMode)
+                    {
+                        await Shot(wallName + "-" + mode + "-layout");
+                        EditWidgets(true);
+                        await Task.Delay(900);
+                        await Shot(wallName + "-" + mode + "-edit", 0x40 / 255.0);
+                        // the small clock dropped onto the to-do list: the list moves aside
+                        if (_widgets.TryGetValue("clock", out var ww) && _widgets.TryGetValue("todo", out var cw0))
+                        {
+                            Land(ww, new Rect(cw0.CardX, cw0.CardY, ww.CardW, ww.CardH));
+                            await Task.Delay(1200);
+                            await Shot(wallName + "-" + mode + "-push", 0x40 / 255.0);
+                        }
+                        // the clock's corner dragged out: the large size lights up on the grid, then it becomes large
+                        if (_widgets.TryGetValue("clock", out var cw1))
+                        {
+                            ResizingWidget(cw1, new Point(cw1.CardX + 330, cw1.CardY + 330));
+                            await Task.Delay(500);
+                            await Shot(wallName + "-" + mode + "-resizing", 0x40 / 255.0);
+                            ResizedWidget(cw1);
+                            await Task.Delay(1500);
+                            await Shot(wallName + "-" + mode + "-resized", 0x40 / 255.0);
+                        }
+                        System.IO.File.WriteAllText(System.IO.Path.Combine(dir, "finished.txt"), "ok");
+                        EditWidgets(false);
+                        foreach (var w in _widgets.Values.ToList()) w.Close();
+                        backdrop.Close();
+                        Application.Current.Shutdown();
+                        return;
+                    }
+                    await Shot(wallName + "-" + mode + "-rest");
+                    // hover, without touching the real mouse: the clock is told the pointer is at its upper right
+                    if (_widgets.TryGetValue("clock", out var cw))
+                    {
+                        cw.Card.Hover(true, new Point(cw.CardW * 0.85, cw.CardH * 0.15));
+                        await Task.Delay(900);
+                        await Shot(wallName + "-" + mode + "-hover");
+                        cw.Card.Hover(false, null);
+                    }
+                    // the glass travels with the window: the whole group moves by a bit more than one cell
+                    foreach (var w in _widgets.Values) { w.CardX += Step * 1.4; w.CardY -= Step * 0.6; }   // up, away from the taskbar
+                    await Task.Delay(700);
+                    await Shot(wallName + "-" + mode + "-moved");
+
+                    System.IO.File.WriteAllText(System.IO.Path.Combine(dir, "finished.txt"), "ok");
+                    foreach (var w in _widgets.Values.ToList()) w.Close();
+                    backdrop.Close();
+                    Application.Current.Shutdown();
+                    return;
+                }
+                if (action == "widgettest")   // pictures of every desktop widget on a demo wallpaper, opened widgets, themes, the gallery, the island tab; where they sit in the z-order
+                {
+                    var dir = args.ElementAtOrDefault(r + 2) ?? System.IO.Path.GetTempPath();
+                    Settings.ReadOnly = true;
+                    await Task.Delay(3500);
+                    _stats.Sample(); await Task.Delay(1100); _stats.Sample();
+                    _settings.DesktopWidgets.Clear(); _settings.WidgetPlaces.Clear(); _settings.WidgetThemeOf.Clear(); _settings.WidgetTheme = "liquid";
+                    Log.Write("widgettest: adding");
+                    foreach (var k in WidgetKinds) { AddWidget(k.Id, pop: false); Log.Write("widgettest: added " + k.Id); }
+                    _widgetTimer.Start();
+                    await Task.Delay(2500);
+                    // a made-up colourful wallpaper, so the pictures show what the glass does (the real glass is drawn by Windows and can't be rendered here)
+                    var wall = new System.Windows.Controls.Grid { Width = 900, Height = 700 };
+                    wall.Children.Add(new System.Windows.Shapes.Rectangle { Fill = new LinearGradientBrush(Color.FromRgb(0x1B, 0x26, 0x5C), Color.FromRgb(0x6A, 0x1B, 0x5C), 35) });
+                    foreach (var (x, y, d, c) in new[] { (120.0, 90.0, 380.0, Color.FromRgb(0xFF, 0x7A, 0x45)), (560, 330, 420, Color.FromRgb(0x2E, 0xC4, 0xD8)), (250, 420, 300, Color.FromRgb(0xF2, 0x4B, 0x9B)), (640, 40, 240, Color.FromRgb(0xFF, 0xD2, 0x4A)) })
+                    {
+                        var e = new System.Windows.Shapes.Ellipse { Width = d, Height = d, Fill = new RadialGradientBrush(c, Color.FromArgb(0, c.R, c.G, c.B)), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(x - d / 2 + 100, y - d / 2 + 100, 0, 0) };
+                        wall.Children.Add(e);
+                    }
+                    wall.Measure(new Size(900, 700)); wall.Arrange(new Rect(0, 0, 900, 700));
+                    var wallBmp = new RenderTargetBitmap(900, 700, 96, 96, PixelFormats.Pbgra32); wallBmp.Render(wall); wallBmp.Freeze();
+                    int spot = 0;
+                    void GlassShot(Views.DesktopWidgetWindow w, string name)
+                    {
+                        var el = (FrameworkElement)w.Content;
+                        double cw = el.ActualWidth, ch = el.ActualHeight, pad = 36;
+                        var at = new Point(60 + (spot * 97) % Math.Max(1, 900 - cw - 120), 50 + (spot * 61) % Math.Max(1, 700 - ch - 100)); spot++;
+                        var g = new System.Windows.Controls.Grid { Width = cw + pad * 2, Height = ch + pad * 2, ClipToBounds = true };
+                        g.Children.Add(new System.Windows.Controls.Image { Source = wallBmp, Stretch = Stretch.None, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(-at.X + pad, -at.Y + pad, 0, 0) });
+                        var glass = new System.Windows.Controls.Grid { Width = cw, Height = ch, Clip = new RectangleGeometry(new Rect(0, 0, cw, ch), Views.WidgetCard.Radius, Views.WidgetCard.Radius) };
+                        glass.Children.Add(new System.Windows.Controls.Image { Source = wallBmp, Stretch = Stretch.None, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(-at.X, -at.Y, 0, 0), Effect = new System.Windows.Media.Effects.BlurEffect { Radius = 30 } });
+                        glass.Children.Add(new System.Windows.Shapes.Rectangle { Fill = new VisualBrush(el) { Stretch = Stretch.None } });
+                        var holder = new System.Windows.Controls.Grid { Width = cw, Height = ch, Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 30, ShadowDepth = 8, Direction = 270, Opacity = 0.35 } };
+                        holder.Children.Add(glass);
+                        g.Children.Add(holder);
+                        g.Measure(new Size(g.Width, g.Height)); g.Arrange(new Rect(0, 0, g.Width, g.Height)); g.UpdateLayout();
+                        var rtb = new RenderTargetBitmap((int)(g.Width * 2), (int)(g.Height * 2), 192, 192, PixelFormats.Pbgra32);
+                        rtb.Render(g);
+                        CaptureService.SavePng(rtb, System.IO.Path.Combine(dir, name + ".png"));
+                    }
+                    void Live(Views.DesktopWidgetWindow w) => w.Card.Apply(WidgetThemeOf(w.Id), Views.GlassKind.Live);   // the see-through tint, as on a real desktop
+                    foreach (var w in _widgets.Values) Live(w);
+                    await Task.Delay(300);
+                    Log.Write("widgettest: shooting");
+                    foreach (var (id, w) in _widgets) GlassShot(w, "w-" + id);
+                    Log.Write("widgettest: shot all");
+                    // opened widgets
+                    foreach (var id in new[] { "music", "weather", "month", "todo", "notes", "system", "timer", "worldclock", "stopwatch", "photos", "countdown", "launcher", "reminders", "clipboard", "water" })
+                    {
+                        if (!_widgets.TryGetValue(id, out var w)) continue;
+                        ExpandWidget(id);
+                        await Task.Delay(1400);
+                        Live(w); await Task.Delay(100);
+                        GlassShot(w, "open-" + id);
+                        CollapseWidget(id);
+                        await Task.Delay(900);
+                    }
+                    // themes
+                    foreach (var t in Views.WidgetThemes.All)
+                    {
+                        SetWidgetTheme(null, t.Id);
+                        foreach (var w in _widgets.Values) Live(w);
+                        await Task.Delay(250);
+                        if (_widgets.TryGetValue("todo", out var w1)) GlassShot(w1, "theme-" + t.Id + "-todo");
+                        if (_widgets.TryGetValue("calendar", out var w2)) GlassShot(w2, "theme-" + t.Id + "-calendar");
+                    }
+                    SetWidgetTheme(null, "liquid");
+                    // every widget in every size it has
+                    foreach (var k in WidgetKinds)
+                        foreach (var ch in SizesOf(k))
+                        {
+                            if (ch == Letter(k.Size)) continue;
+                            _settings.WidgetSizeOf[k.Id] = ch.ToString(); RebuildWidget(k.Id);
+                            await Task.Delay(750);
+                            if (_widgets.TryGetValue(k.Id, out var sw)) { Live(sw); await Task.Delay(60); GlassShot(sw, $"size-{k.Id}-{ch}"); }
+                        }
+                    foreach (var id in _settings.WidgetSizeOf.Keys.ToList()) { _settings.WidgetSizeOf.Remove(id); RebuildWidget(id); }
+                    // own colours: an accent, any colour for the glass, deeper glass
+                    _settings.WidgetAccentOf["todo"] = "FF375F"; RebuildWidget("todo");
+                    _settings.WidgetThemeOf["calendar"] = "custom:5E5CE6"; RebuildWidget("calendar");
+                    _settings.WidgetThemeOf["clock"] = "custom:30D158"; _settings.WidgetGlassOf["clock"] = 1; RebuildWidget("clock");
+                    await Task.Delay(800);
+                    foreach (var id in new[] { "todo", "calendar", "clock" }) if (_widgets.TryGetValue(id, out var cw2)) { Live(cw2); cw2.ApplyTheme(WidgetThemeOf(id), GlassOf(id)); cw2.Card.Apply(WidgetThemeOf(id), Views.GlassKind.Live, GlassOf(id)); GlassShot(cw2, "custom-" + id); }
+                    // the editor beside a widget
+                    ShowWidgetEditor("weather");
+                    await Task.Delay(900);
+                    if (_widgetEditor?.Content is FrameworkElement ed)
+                    {
+                        var rtb = new RenderTargetBitmap((int)Math.Ceiling(ed.ActualWidth * 2), (int)Math.Ceiling(ed.ActualHeight * 2), 192, 192, PixelFormats.Pbgra32);
+                        rtb.Render(ed);
+                        CaptureService.SavePng(rtb, System.IO.Path.Combine(dir, "editor.png"));
+                    }
+                    _widgetEditor?.Close();
+                    // the right-click menu of a widget
+                    if (_widgets.TryGetValue("todo", out var mw) && mw.Card.Card.ContextMenu is { } cm)
+                    {
+                        FillWidgetMenu(cm, "todo");
+                        cm.PlacementTarget = mw.Card.Card; cm.IsOpen = true;
+                        await Task.Delay(700);
+                        var rtb = new RenderTargetBitmap((int)Math.Ceiling(cm.ActualWidth * 2), (int)Math.Ceiling(cm.ActualHeight * 2), 192, 192, PixelFormats.Pbgra32);
+                        rtb.Render(cm);
+                        CaptureService.SavePng(rtb, System.IO.Path.Combine(dir, "menu.png"));
+                        cm.IsOpen = false;
+                    }
+                    // where they sit: owned by the desktop and above it
+                    var desktop = Native.FindWindow("Progman", null);
+                    int owned = 0, above = 0;
+                    foreach (var w in _widgets.Values)
+                    {
+                        if (GetWindow(w.Handle, 4) == desktop) owned++;
+                        for (IntPtr h = GetWindow(w.Handle, 2); h != IntPtr.Zero; h = GetWindow(h, 2)) if (h == desktop) { above++; break; }
+                    }
+                    Log.Write($"widgettest: zorder: {owned}/{_widgets.Count} owned by the desktop, {above}/{_widgets.Count} above it");
+                    // the gallery
+                    EditWidgets(true, gallery: true);
+                    await Task.Delay(1500);
+                    if (_gridOverlays.Count > 0 && _gridOverlays[0].Win.Content is FrameworkElement gridEl)
+                    {
+                        var rtb = new RenderTargetBitmap((int)Math.Ceiling(gridEl.ActualWidth), (int)Math.Ceiling(gridEl.ActualHeight), 96, 96, PixelFormats.Pbgra32);
+                        rtb.Render(gridEl);
+                        CaptureService.SavePng(rtb, System.IO.Path.Combine(dir, "grid.png"));
+                    }
+                    if (_widgetBar != null)
+                    {
+                        var el = (FrameworkElement)_widgetBar.Content;
+                        var rtb = new RenderTargetBitmap((int)Math.Ceiling(el.ActualWidth * 2), (int)Math.Ceiling(el.ActualHeight * 2), 192, 192, PixelFormats.Pbgra32);
+                        rtb.Render(el);
+                        CaptureService.SavePng(rtb, System.IO.Path.Combine(dir, "gallery.png"));
+                        Log.Write($"widgettest: gallery at {_widgetBar.Left:0},{_widgetBar.Top:0} {_widgetBar.Width:0}x{_widgetBar.Height:0}");
+                    }
+                    EditWidgets(false);
+                    await Task.Delay(800);
+                    // the island tab
+                    TabWidgets.IsChecked = true; _pinnedOpen = true; Expand();
+                    await Task.Delay(1800);
+                    {
+                        var el = (FrameworkElement)Content;
+                        var rtb = new RenderTargetBitmap((int)Math.Ceiling(el.ActualWidth * 2), (int)Math.Ceiling(el.ActualHeight * 2), 192, 192, PixelFormats.Pbgra32);
+                        rtb.Render(el);
+                        CaptureService.SavePng(rtb, System.IO.Path.Combine(dir, "island-widgets.png"));
+                    }
+                    TabSystem.IsChecked = true;
+                    await Task.Delay(1500);
+                    {
+                        var el = (FrameworkElement)Content;
+                        var rtb = new RenderTargetBitmap((int)Math.Ceiling(el.ActualWidth * 2), (int)Math.Ceiling(el.ActualHeight * 2), 192, 192, PixelFormats.Pbgra32);
+                        rtb.Render(el);
+                        CaptureService.SavePng(rtb, System.IO.Path.Combine(dir, "island-system.png"));
+                    }
+                    Log.Write($"widgettest: {_widgets.Count} widgets");
+                    foreach (var w in _widgets.Values.ToList()) w.Close();
+                    Application.Current.Shutdown();
+                    return;
+                }
+                if (action == "menutest")   // test: the right-click menu stays above the island while the island keeps itself on top
+                {
+                    Settings.ReadOnly = true; _settings.ExpandOnHover = false;
+                    await Task.Delay(2500);
+                    IslandMenu.PlacementTarget = Island;
+                    IslandMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+                    IslandMenu.IsOpen = true;
+                    await Task.Delay(600);
+                    for (int i = 0; i < 6; i++) { WatchFullscreen(); await Task.Delay(300); }
+                    var menuHwnd = PresentationSource.FromVisual(IslandMenu) is System.Windows.Interop.HwndSource src ? src.Handle : IntPtr.Zero;
+                    // walk the z-order from the top: which of the two comes first?
+                    IntPtr h = GetTopWindow(IntPtr.Zero); string first = "neither";
+                    for (int n = 0; h != IntPtr.Zero && n < 5000; n++, h = GetWindow(h, 2))
+                    {
+                        if (h == menuHwnd) { first = "menu"; break; }
+                        if (h == _hwnd) { first = "island"; break; }
+                    }
+                    Log.Write($"menutest: menu open={IslandMenu.IsOpen}, menus counted={_menusOpen}, on top: {first}");
+                    IslandMenu.IsOpen = false;
+                    await Task.Delay(300);
+                    Log.Write($"menutest: after closing, menus counted={_menusOpen}");
                     Application.Current.Shutdown();
                     return;
                 }
@@ -1147,6 +2750,8 @@ public partial class MainWindow : Window
         if (review >= 0) _ = RunReviewAsync(args.ElementAtOrDefault(review + 1) ?? "review");
         int brand = Array.IndexOf(args, "--brand");
         if (brand >= 0) _ = RunBrandAsync(args.ElementAtOrDefault(brand + 1) ?? "brand");
+        if (tiktok >= 0) _ = RunTikTokAsync(args.ElementAtOrDefault(tiktok + 1) ?? "tiktok", screen: false);
+        if (tiktokScreen >= 0) _ = RunTikTokAsync(args.ElementAtOrDefault(tiktokScreen + 1) ?? "tiktok", screen: true);
         if (promo >= 0)
             _ = RunPromoAsync(args.ElementAtOrDefault(promo + 1) ?? "promo", args.ElementAtOrDefault(promo + 2) ?? "ru");
 
@@ -1162,6 +2767,7 @@ public partial class MainWindow : Window
         Native.SetWindowLong(_hwnd, Native.GWL_EXSTYLE, Native.GetWindowLong(_hwnd, Native.GWL_EXSTYLE) | Native.WS_EX_TOOLWINDOW);
 
         HwndSource.FromHwnd(_hwnd)!.AddHook(WndProc);
+        WatchWidgetPause();
         // the frosted glass photographs the screen behind the island: without this the island would
         // photograph itself (the glass turned opaque a second after opening). Also keeps it out of screenshots.
         ApplyCaptureExclusion();
@@ -1216,6 +2822,7 @@ public partial class MainWindow : Window
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
+        if (msg == WidgetPause.WM_POWERBROADCAST && wParam.ToInt32() == WidgetPause.PBT_POWERSETTINGCHANGE) { OnPowerSetting(lParam); return IntPtr.Zero; }
         if (msg == Native.WM_CLIPBOARDUPDATE)
         {
             Dispatcher.BeginInvoke(OnClipboardChanged, DispatcherPriority.Background);
@@ -1355,8 +2962,14 @@ public partial class MainWindow : Window
         _w.Step(dt);
         _h.Step(dt);
         _y.Step(dt);
-        Island.Width = Math.Max(20, _w.Value);
-        Island.Height = Math.Max(8, _h.Value);
+        // volume (Morph island): while the height moves fast the width gives back a little, up to 5 %
+        Island.Width = Math.Max(20, _w.Value * (1 + Math.Clamp(-_h.Velocity / 7000, -0.05, 0.05)));
+        // Morph island's states are small (36…84 px); this island opens to hundreds of pixels, and folding, the same
+        // spring would dip tens of pixels under the pill — for a moment nearly a line. Below its target while
+        // shrinking, the height gives way softly (at most about 8 px, the original's size of dip), never under 20.
+        double shownH = _h.Value;
+        if (_hShrinking && shownH < _h.Target) shownH = _h.Target - 8 * Math.Tanh((_h.Target - shownH) / 8);
+        Island.Height = Math.Max(20, shownH);
         IslandShift.Y = _y.Value + _bodyY.Value;
 
         bool liquid = StepLiquid(dt);
@@ -1456,11 +3069,33 @@ public partial class MainWindow : Window
     private void MorphTo(Size size)
     {
         GrowWindowFor(size);
-        // calm mode: near-critical damping, the size glides without bouncing
-        _w.Damping = _h.Damping = Liquid ? 23 : _settings.Bouncy ? 25 : 31;   // "springy": a small overshoot
-        _w.Stiffness = _h.Stiffness = _settings.FastAnimations ? 560 : 340;
+        MorphSprings(grow: size.Width * size.Height > _w.Target * _h.Target);
         _w.Target = size.Width;
+        _hShrinking = size.Height < _h.Value;
         _h.Target = size.Height;
+        StartRendering();
+    }
+
+    /// <summary>
+    /// The shape's springs, after Morph island (designbookmark.com, tokens.css): width 380 / 24, height 300 / 22.
+    /// The width is stiffer, so every change lands sideways first and then drops into place; shrinking, the
+    /// height is 1.3× stiffer. "Fast" makes both 1.65× stiffer with the same feel (damping by the square root).
+    /// Calm (not bouncy) and Windows' reduced animations: critically damped, as the original does for reduced motion.
+    /// </summary>
+    private void MorphSprings(bool grow)
+    {
+        double k = _settings.FastAnimations ? 1.65 : 1, c = Math.Sqrt(k);
+        double wk = 380 * k, wc = 24 * c, hk = 300 * k * (grow ? 1 : 1.3), hc = 22 * c;
+        if (!_settings.Bouncy || Services.Motion.Reduced) { wc = 2 * Math.Sqrt(wk); hc = 2 * Math.Sqrt(hk); }
+        _w.Stiffness = wk; _w.Damping = wc;
+        _h.Stiffness = hk; _h.Damping = hc;
+    }
+
+    /// <summary>A change of state gives the island a little push (Morph island: more when it grows).</summary>
+    private void MorphPush(bool grow)
+    {
+        if (Services.Motion.Reduced) return;
+        _press.Velocity -= grow ? 160 : 100;
         StartRendering();
     }
 
@@ -1492,9 +3127,9 @@ public partial class MainWindow : Window
         }
     }
 
-    private RadioButton[] Tabs => [TabHome, TabMusic, TabWeather, TabChat, TabTimer, TabClip, TabNotes, TabCalendar, TabSystem, TabSettings];
+    private RadioButton[] Tabs => [TabHome, TabMusic, TabWeather, TabChat, TabTimer, TabClip, TabNotes, TabCalendar, TabSystem, TabWidgets, TabSettings];
 
-    private FrameworkElement[] AllPages => [HomePage, MusicPage, WeatherPage, ChatPage, TimerPage, ClipPage, NotesPage, CalendarPage, SystemPage, SettingsPage];
+    private FrameworkElement[] AllPages => [HomePage, MusicPage, WeatherPage, ChatPage, TimerPage, ClipPage, NotesPage, CalendarPage, SystemPage, WidgetsPage, SettingsPage];
 
     private FrameworkElement CurrentPage
     {
@@ -1547,6 +3182,7 @@ public partial class MainWindow : Window
     {
         var old = _mode;
         _mode = mode;
+        if (mode == Mode.Expanded && old != Mode.Expanded) HomeMissed.Refresh(fold: true);
 
         var views = new Dictionary<Mode, FrameworkElement>
         {
@@ -1562,13 +3198,15 @@ public partial class MainWindow : Window
         {
             if (m == mode || view.Visibility != Visibility.Visible) continue;
             var v = view;
-            Conceal(v, () => { if (_mode != m) v.Visibility = Visibility.Collapsed; });
+            MorphOut(v, () => { if (_mode != m) v.Visibility = Visibility.Collapsed; });
         }
 
         if (old != mode)
         {
+            var to = TargetSize(mode);
+            MorphPush(grow: to.Width * to.Height > _w.Target * _h.Target);
             if (mode != Mode.Compact) PlayChromatic(mode == Mode.Toast ? 5 : 8); // the "print" shimmer when it opens
-            Reveal(views[mode], mode == Mode.Compact ? 0.92 : 0.95, 0, 30);
+            MorphIn(views[mode]);
             Kick(mode == Mode.Compact ? 2.5 : 3.5);
         }
         else
@@ -1593,6 +3231,7 @@ public partial class MainWindow : Window
 
     private void TryCollapse()
     {
+        if (_mode == Mode.Drop && _dropWorking) return;   // the zone is still zipping / converting
         if (_mode == Mode.Drop && !_dragging)
         {
             _dropped = [];
@@ -1623,6 +3262,7 @@ public partial class MainWindow : Window
 
     private void Island_MouseLeave(object sender, MouseEventArgs e)
     {
+        Release();
         _expandDelay.Stop();
         if (!_dragging) Unsquish(0);
         if (_mode is Mode.Expanded) _collapseDelay.Start();
@@ -1663,6 +3303,7 @@ public partial class MainWindow : Window
         else if (TabCalendar.IsChecked == true) RenderCalendar();
         else if (TabTimer.IsChecked == true) RenderTimer();
         else if (TabSystem.IsChecked == true) _ = RefreshSystemAsync(full: true);
+        else if (TabWidgets.IsChecked == true) RenderWidgetsPage();
         Remeasure();
     }
 
@@ -1738,7 +3379,11 @@ public partial class MainWindow : Window
         // from under the cursor before the mouse is released, and the click would be lost. Squeeze only
         // the folded pill, and never when a button was pressed.
         bool interactive = IsInteractive(e.OriginalSource as DependencyObject);
-        if (!interactive && _mode == Mode.Compact) Squish(1 - 0.045 * LiquidK);
+        if (!interactive && _mode == Mode.Compact)
+        {
+            Squish(1 - 0.045 * LiquidK);
+            if (!Services.Motion.Reduced) { _press.Target = 96; StartRendering(); }
+        }
         if (interactive) return;
         _pressed = true;
         _dragging = false;
@@ -1796,6 +3441,7 @@ public partial class MainWindow : Window
 
     private void Island_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
+        Release();
         if (!_pressed)
         {
             Unsquish(1.6);
@@ -1968,6 +3614,9 @@ public partial class MainWindow : Window
     // ================================================================ fullscreen & topmost
 
     private bool _gameMode;
+    private int _menusOpen;
+    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern IntPtr GetTopWindow(IntPtr h);
+    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern IntPtr GetWindow(IntPtr h, uint cmd);   // context menus of ours that are open right now
     private bool? _testFullscreen;   // tests: pretend a full-screen program is (or isn't) in front
 
     private void WatchFullscreen()
@@ -1981,8 +3630,9 @@ public partial class MainWindow : Window
         // meant the game pill never appeared for anyone who chose FPS)
         bool fullscreenApp = (_settings.HideInFullscreen || _settings.GameStats) && _hwnd != IntPtr.Zero && (_testFullscreen ?? Native.IsFullscreenAppActive(_hwnd));
         // game mode: keep a tiny stats pill instead of hiding completely
-        bool game = _demoGame || (fullscreenApp && _settings.GameStats);
-        bool fullscreen = fullscreenApp && _settings.HideInFullscreen;
+        bool game = _demoGame || (fullscreenApp && _settings.GameStats && IsGameWindow(fg));
+        // with the FPS switch on, a full-screen program that isn't a game (a browser video, a slideshow) gets "hide in full screen", which the FPS switch stands in for
+        bool fullscreen = fullscreenApp && (_settings.HideInFullscreen || (_settings.GameStats && !game));
         if (game != _gameMode)
         {
             _gameMode = game;
@@ -2008,7 +3658,8 @@ public partial class MainWindow : Window
                 Kick(3);
             }
         }
-        if (!fs && !_dragging) Native.KeepTopmost(_hwnd);
+        // a menu of ours is open: pulling the island to the very top now would put it over that menu
+        if (!fs && !_dragging && _menusOpen == 0) Native.KeepTopmost(_hwnd);
     }
 
     // ================================================================ clock & eyes
@@ -2153,9 +3804,20 @@ public partial class MainWindow : Window
 
     private Action? _toastAction;
 
-    public void ShowToast(string glyph, string title, string? text, Action? onClick = null, Brush? badge = null, int ms = 2600)
+    private Views.NotificationStack.Item? _toastKept;
+
+    /// <param name="keep">A notification (a message, Claude, a timer, a download…), not an answer to what the user just
+    /// did: it also goes on the Home page's stack, shown or not.</param>
+    public void ShowToast(string glyph, string title, string? text, Action? onClick = null, Brush? badge = null, int ms = 2600, bool keep = false)
     {
+        Views.NotificationStack.Item? kept = null;
+        if (keep)
+        {
+            kept = new(glyph, badge, title, text, DateTime.Now, onClick);
+            HomeMissed.Add(kept);
+        }
         if (_mode == Mode.Claude || _hidden) return;
+        _toastKept = kept;
         ToastIcon.Text = glyph;
         ToastTitle.Text = title;
         ToastText.Text = text ?? "";
@@ -2178,6 +3840,8 @@ public partial class MainWindow : Window
         if (_justDragged) return;
         var a = _toastAction;
         _toastAction = null;
+        if (_toastKept != null) HomeMissed.Forget(_toastKept);   // seen and acted on: not missed
+        _toastKept = null;
         SetMode(Mode.Compact);
         a?.Invoke();
     }
@@ -2232,6 +3896,12 @@ public partial class MainWindow : Window
         _tray.ContextMenuStrip.Items.Add(L.T("Скриншот области  (Ctrl+Alt+S)"), null, (_, _) => RunAction("region"));
         _tray.ContextMenuStrip.Items.Add(L.T("Выровнять по центру"), null, (_, _) => AlignIsland());
         _tray.ContextMenuStrip.Items.Add(L.T("Сменить тему  (Ctrl+Alt+T)"), null, (_, _) => ToggleTheme());
+        _tray.ContextMenuStrip.Items.Add(L.T("Изменить виджеты"), null, (_, _) => EditWidgets(true));
+        _tray.ContextMenuStrip.Items.Add(L.T("Добавить виджет…"), null, (_, _) => EditWidgets(true, gallery: true));
+        var pauseItem = new Forms.ToolStripMenuItem(L.T("Пауза виджетов")) { CheckOnClick = false };
+        pauseItem.Click += (_, _) => ToggleWidgetsPaused();
+        _tray.ContextMenuStrip.Opening += (_, _) => pauseItem.Checked = _settings.WidgetsPaused;
+        _tray.ContextMenuStrip.Items.Add(pauseItem);
         _tray.ContextMenuStrip.Items.Add(L.T("Настройки"), null, (_, _) => OpenTab(TabSettings));
         _tray.ContextMenuStrip.Items.Add(new Forms.ToolStripSeparator());
         _tray.ContextMenuStrip.Items.Add(L.T("Выход"), null, (_, _) => Close());

@@ -303,12 +303,7 @@ public partial class MainWindow
 
             var note = n;
             var buttons = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Top };
-            var copy = new Button { Style = (Style)FindResource("IconButton"), Content = "", Width = 28, Height = 28, FontSize = 12, ToolTip = L.T("Скопировать") };
-            copy.Click += (_, _) =>
-            {
-                try { Clipboard.SetText(note.Text); } catch { }
-                ShowToast("", L.T("Заметка скопирована"), null);
-            };
+            var copy = new Views.CopyButton(null) { Style = (Style)FindResource("IconButton"), Width = 28, Height = 28, FontSize = 12, ToolTip = L.T("Скопировать"), Text = () => note.Text };
             var del = new Button { Style = (Style)FindResource("IconButton"), Content = "", Width = 28, Height = 28, FontSize = 12, ToolTip = L.T("Удалить") };
             del.Click += (_, _) => { NotesStore.Notes.Remove(note); _openNotes.Remove(note); NotesStore.Save(); RenderNotes(); };
             buttons.Children.Add(copy);
@@ -423,7 +418,9 @@ public partial class MainWindow
     private void ShowDropTarget()
     {
         _dropped = [];
-        DropIcon.Text = "";
+        DropCoreView.Reset();
+        DropCoreView.Glyph = "\uE898";   // an arrow up: "in here"
+        DropCoreView.Near(true);
         DropTitle.Text = L.T("Отпустите файл на острове");
         DropSubtitle.Text = L.T("Поделиться, ZIP, конвертировать или сжать картинку");
         DropActions.Visibility = Visibility.Collapsed;
@@ -436,6 +433,7 @@ public partial class MainWindow
     {
         var p = e.GetPosition(Island);
         bool outside = p.X < 0 || p.Y < 0 || p.X > Island.ActualWidth || p.Y > Island.ActualHeight;
+        if (outside) DropCoreView.Near(false);
         if (outside && _dropped.Length == 0 && _mode == Mode.Drop) SetMode(Mode.Compact);
     }
 
@@ -457,7 +455,8 @@ public partial class MainWindow
 
         long size = files.Where(File.Exists).Sum(f => new FileInfo(f).Length);
         bool images = files.All(f => File.Exists(f) && FileDropActions.IsImage(f));
-        DropIcon.Text = images ? "" : files.Any(Directory.Exists) ? "" : "";
+        DropCoreView.Glyph = images ? "" : files.Any(Directory.Exists) ? "" : "";
+        DropCoreView.Gulp();
         DropTitle.Text = files.Length == 1 ? Path.GetFileName(files[0].TrimEnd('\\')) : L.F("{0} файла(ов)", files.Length);
         DropSubtitle.Text = size > 0 ? DownloadWatcher.FormatBytes(size) : L.T("папка");
 
@@ -465,12 +464,12 @@ public partial class MainWindow
         AddDropAction("\uE7B8", L.T("На полку"), () => { AddToShelf(files); Done(L.T("На полке"), L.F("{0} файл(ов) ждут во вкладке «Буфер → Полка»", _settings.Shelf.Count)); });
         AddDropAction("", L.T("Поделиться"), () => FileDropActions.Share(_hwnd, files), keepOpen: true);
         AddDropAction("", L.T("Копировать для вставки"), () => { FileDropActions.CopyFiles(files); Done(L.T("Файлы в буфере"), L.T("Вставьте в Telegram, чат или папку: Ctrl+V")); });
-        AddDropAction("", L.T("В ZIP"), () => Done(L.T("Архив готов"), null, FileDropActions.Zip(files)));
+        AddDropAction("", L.T("В ZIP"), () => WorkOnDrop(files, L.T("Сжимаю в ZIP"), L.T("Архив готов"), p => FileDropActions.Zip(files, p)));
         if (images)
         {
-            AddDropAction("", L.T("В JPG"), () => Done(L.T("Готово"), null, files.Select(f => FileDropActions.ConvertImage(f, "jpg")).Last()));
-            AddDropAction("", L.T("В PNG"), () => Done(L.T("Готово"), null, files.Select(f => FileDropActions.ConvertImage(f, "png")).Last()));
-            AddDropAction("", L.T("Сжать фото"), () => Done(L.T("Фото сжато"), null, files.Select(f => FileDropActions.ConvertImage(f, "jpg", 72, 1920)).Last()));
+            AddDropAction("", L.T("В JPG"), () => WorkOnDrop(files, L.T("Перевожу в JPG"), L.T("Готово"), p => EachImage(files, p, f => FileDropActions.ConvertImage(f, "jpg"))));
+            AddDropAction("", L.T("В PNG"), () => WorkOnDrop(files, L.T("Перевожу в PNG"), L.T("Готово"), p => EachImage(files, p, f => FileDropActions.ConvertImage(f, "png"))));
+            AddDropAction("", L.T("Сжать фото"), () => WorkOnDrop(files, L.T("Сжимаю фото"), L.T("Фото сжато"), p => EachImage(files, p, f => FileDropActions.ConvertImage(f, "jpg", 72, 1920))));
         }
         AddDropAction("", L.T("Копировать путь"), () => { Clipboard.SetText(string.Join(Environment.NewLine, files)); Done(L.T("Путь скопирован"), null); });
         AddDropAction("", L.T("Закрыть"), () => { _dropped = []; SetMode(Mode.Compact); }, keepOpen: true);
@@ -501,6 +500,61 @@ public partial class MainWindow
             finally { Mouse.OverrideCursor = null; }
         };
         DropActions.Children.Add(b);
+    }
+
+    /// <summary>The zone is at work (ZIP, converting): the island stays open until it is done.</summary>
+    private bool _dropWorking;
+
+    /// <summary>
+    /// A slow action on the dropped files (File drop): on a background thread, its progress on the circle's ring
+    /// and in the line under the name ("12 MB of 40 MB"); at the end the circle goes green and the lines roll over
+    /// to the result, and a moment later the usual notice with the file to open.
+    /// </summary>
+    private async void WorkOnDrop(string[] files, string working, string doneTitle, Func<IProgress<double>, string> work)
+    {
+        if (_dropWorking) return;
+        _dropWorking = true;
+        DropActions.Visibility = Visibility.Collapsed;
+        MorphTo(TargetSize(Mode.Drop));
+        long total = await Task.Run(() => FileDropActions.SizeOf(files));
+        DropTitle.Text = working;
+        DropSubtitle.Text = L.F("{0} из {1}", DownloadWatcher.FormatBytes(0), DownloadWatcher.FormatBytes(total));
+        DropCoreView.Begin();
+        var progress = new Progress<double>(p =>
+        {
+            DropCoreView.SetProgress(p);
+            DropSubtitle.Text = L.F("{0} из {1}", DownloadWatcher.FormatBytes(p * total), DownloadWatcher.FormatBytes(total));
+        });
+        string result;
+        try { result = await Task.Run(() => work(progress)); }
+        catch (Exception ex)
+        {
+            Log.Write("drop action: " + ex);
+            _dropWorking = false;
+            DropCoreView.Reset();
+            _dropped = [];
+            ShowToast("\uE783", L.T("Не получилось"), ex.Message);
+            return;
+        }
+        var full = new TaskCompletionSource();
+        DropCoreView.Finish(() =>
+        {
+            DropTitle.Text = doneTitle;
+            DropSubtitle.Text = Path.GetFileName(result) + " · " + DownloadWatcher.FormatBytes(File.Exists(result) ? new FileInfo(result).Length : 0);
+            full.TrySetResult();
+        });
+        await full.Task;
+        await Task.Delay(1400);   // the green and the check, then the notice with the file
+        _dropWorking = false;
+        Done(doneTitle, null, result);
+    }
+
+    /// <summary>Runs one job per image, reporting how many are done; the last result is the one to show.</summary>
+    private static string EachImage(string[] files, IProgress<double> progress, Func<string, string> job)
+    {
+        string last = "";
+        for (int i = 0; i < files.Length; i++) { last = job(files[i]); progress.Report((i + 1.0) / files.Length); }
+        return last;
     }
 
     private void Done(string title, string? text, string? file = null)

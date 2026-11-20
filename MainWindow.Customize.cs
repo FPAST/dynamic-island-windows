@@ -175,9 +175,9 @@ public partial class MainWindow
     // ================================================================ tabs: order and which ones are shown
 
     private static readonly string[] DefaultTabOrder =
-        ["TabHome", "TabMusic", "TabWeather", "TabChat", "TabTimer", "TabClip", "TabNotes", "TabCalendar", "TabSystem"];
+        ["TabHome", "TabMusic", "TabWeather", "TabChat", "TabTimer", "TabClip", "TabNotes", "TabCalendar", "TabSystem", "TabWidgets"];
 
-    private RadioButton[] AllPageTabs => [TabHome, TabMusic, TabWeather, TabChat, TabTimer, TabClip, TabNotes, TabCalendar, TabSystem];
+    private RadioButton[] AllPageTabs => [TabHome, TabMusic, TabWeather, TabChat, TabTimer, TabClip, TabNotes, TabCalendar, TabSystem, TabWidgets];
 
     private RadioButton[]? _pageTabs;
 
@@ -333,15 +333,9 @@ public partial class MainWindow
         // look
         UIElement SliderRow(string label, int min, int max, int step, Func<int> get, Action<int> set, Func<int, string> show)
         {
-            var row = new DockPanel { Margin = new Thickness(0, 0, 0, 8) };
-            var name = new TextBlock { Text = label, FontSize = 13, VerticalAlignment = VerticalAlignment.Center, Width = 170, TextWrapping = TextWrapping.Wrap };
-            name.SetResourceReference(TextBlock.ForegroundProperty, "Fg");
-            var value = new TextBlock { Style = (Style)FindResource("Muted"), Width = 62, TextAlignment = TextAlignment.Right, VerticalAlignment = VerticalAlignment.Center, Text = show(get()) };
-            var slider = new Slider { Style = (Style)FindResource("SoftSlider"), Minimum = min, Maximum = max, TickFrequency = step, IsSnapToTickEnabled = true, Value = Math.Clamp(get(), min, max), VerticalAlignment = VerticalAlignment.Center };
-            slider.ValueChanged += (_, e) => { int v = (int)Math.Round(e.NewValue); value.Text = show(v); set(v); _settings.Save(); ApplyLook(); };
-            DockPanel.SetDock(name, Dock.Left); DockPanel.SetDock(value, Dock.Right);
-            row.Children.Add(name); row.Children.Add(value); row.Children.Add(slider);
-            return row;
+            var slider = new Views.Scrubber { Label = label, Format = v => show((int)Math.Round(v)), Minimum = min, Maximum = max, Step = step, Value = Math.Clamp(get(), min, max), Margin = new Thickness(0, 0, 0, 8) };
+            slider.ValueChanged += (_, e) => { set((int)Math.Round(e.NewValue)); _settings.Save(); ApplyLook(); };
+            return slider;
         }
         CheckBox SwitchRow(string text, Func<bool> get, Action<bool> set)
         {
@@ -354,6 +348,7 @@ public partial class MainWindow
             SliderRow(L.T("Скругление углов"), 0, 100, 5, () => _settings.Roundness, v => _settings.Roundness = v, v => v + "%"),
             SliderRow(L.T("Прозрачность в покое"), 30, 100, 5, () => _settings.IdleOpacity, v => _settings.IdleOpacity = v, v => v >= 100 ? L.T("нет") : v + "%"),
             SwitchRow(L.T("Тень под островом"), () => _settings.ShowShadow, v => _settings.ShowShadow = v),
+            SwitchRow(L.T("Кнопка меню ☰ в заголовке острова"), () => _settings.MenuButton, v => _settings.MenuButton = v),
             Choice(L.T("Шрифт"), "IslandFont", fonts, () => _settings.Font, v => { _settings.Font = v; ApplyLook(); })));
 
         host.Children.Add(Tile(L.T("ЧАСЫ, РАСКРЫТИЕ, ЗВУК"),
@@ -361,6 +356,13 @@ public partial class MainWindow
             SwitchRow(L.T("Показывать секунды"), () => _settings.ClockSeconds, v => _settings.ClockSeconds = v),
             SliderRow(L.T("Задержка раскрытия при наведении"), 0, 800, 50, () => _settings.HoverDelay, v => _settings.HoverDelay = v, v => L.F("{0} мс", v)),
             SwitchRow(L.T("Звук таймера и напоминаний"), () => _settings.Sounds, v => _settings.Sounds = v)));
+
+        // desktop widgets
+        var widgets = new Button { Style = (Style)FindResource("AccentPill"), Content = L.T("Изменить виджеты"), Padding = new Thickness(14, 7, 14, 7), HorizontalAlignment = HorizontalAlignment.Left };
+        widgets.Click += (_, _) => EditWidgets(true);
+        host.Children.Add(Tile(L.T("ВИДЖЕТЫ НА РАБОЧЕМ СТОЛЕ"),
+            Hint(L.T("Стеклянные карточки на рабочем столе: музыка, погода, часы, календарь, таймер, заметки, загрузка процессора, видеокарты, памяти, диска и сети. Добавляйте их и двигайте в режиме изменения.")),
+            widgets));
 
         // tabs
         var tabs = OrderedTabs().Select(t => new StripItem(t.Name, (string)t.Content, !_settings.HiddenTabs.Contains(t.Name) || t == TabHome, t == TabHome));
@@ -396,6 +398,7 @@ public partial class MainWindow
     private void ApplyLook()
     {
         IslandShadowPath.Visibility = _settings.ShowShadow ? Visibility.Visible : Visibility.Hidden;
+        MenuButton.Visibility = _settings.MenuButton ? Visibility.Visible : Visibility.Collapsed;
         _expandDelay.Interval = TimeSpan.FromMilliseconds(Math.Clamp(_settings.HoverDelay, 0, 800) + 1);
         var font = new FontFamily((_settings.Font.Length > 0 ? _settings.Font + ", " : "") + "Segoe UI Variable Text, Segoe UI");
         if (!Equals(FontFamily.Source, font.Source))
@@ -469,5 +472,24 @@ public partial class MainWindow
         }
         _pillBattery.Text = battery + "%";
         _pillBattery.Visibility = playing ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    /// <summary>The ☰ button: the same menu as a right click on the island, under the button; its lines cross while it is open.</summary>
+    private void MenuButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (IslandMenu.IsOpen) { IslandMenu.IsOpen = false; return; }
+        IslandMenu.PlacementTarget = MenuButton;
+        IslandMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+        MenuToggle.Open = true;
+        RoutedEventHandler? closed = null;
+        closed = (_, _) =>
+        {
+            IslandMenu.Closed -= closed;
+            MenuToggle.Open = false;
+            IslandMenu.ClearValue(System.Windows.Controls.ContextMenu.PlacementTargetProperty);   // the right click places it again
+            IslandMenu.ClearValue(System.Windows.Controls.ContextMenu.PlacementProperty);
+        };
+        IslandMenu.Closed += closed;
+        IslandMenu.IsOpen = true;
     }
 }

@@ -16,7 +16,7 @@ public partial class MainWindow
     private readonly DispatcherTimer _updateTimer = new() { Interval = TimeSpan.FromHours(6) };
 
     internal static bool IsToolRun => Environment.GetCommandLineArgs()
-        .Any(a => a is "--snapshot" or "--promo" or "--review" or "--brand" or "--live-demo" or "--cover");
+        .Any(a => a is "--snapshot" or "--promo" or "--tiktok" or "--tiktok-screen" or "--review" or "--brand" or "--live-demo" or "--cover");
 
     private void InitUpdates()
     {
@@ -45,7 +45,7 @@ public partial class MainWindow
             if (found != null && (manual || isNew))
                 ShowToast("", L.F("Доступна версия {0}", found.Version.ToString(3)),
                     Updater.CanSelfUpdate ? L.T("Нажмите, чтобы обновить") : L.T("Нажмите, чтобы скачать"),
-                    StartUpdate, (Brush)FindResource("AccentBlue"), ms: 9000);
+                    StartUpdate, (Brush)FindResource("AccentBlue"), ms: 9000, keep: true);
         }
         catch (Exception ex)
         {

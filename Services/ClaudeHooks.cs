@@ -10,7 +10,9 @@ namespace DynamicIsland.Services;
 /// </summary>
 public static class ClaudeHooks
 {
-    private static readonly string[] Events = ["PermissionRequest", "Notification", "Stop"];
+    // PostToolUse only for the task list tools, in the background (async): Claude never waits for the island
+    private static readonly string[] Events = ["PermissionRequest", "Notification", "Stop", "PostToolUse"];
+    private const string PlanTools = "TaskCreate|TaskUpdate|TodoWrite";
     private const string Marker = "claude-hook.ps1";
 
     private static string SettingsPath => Path.Combine(
@@ -47,6 +49,8 @@ public static class ClaudeHooks
             File.Copy(Path.Combine(AppContext.BaseDirectory, "Assets", Marker), ScriptPath, overwrite: true);
             // hooks set up before 1.8.1 run the script from %LOCALAPPDATA%: point them at the new copy
             if (claude && !PointsHere(File.ReadAllText(SettingsPath))) { Install(); Log.Write("claude hooks: moved to " + ScriptPath); }
+            // hooks set up before 2.0 have no PostToolUse: add it, so the island can show Claude's plan
+            else if (claude && !HasPlanHook()) { Install(); Log.Write("claude hooks: added PostToolUse for the task list"); }
             if (codex && !CodexHooks.PointsHere()) { CodexHooks.Install(); Log.Write("codex hooks: moved to " + ScriptPath); }
         }
         catch (Exception e) { Log.Write("claude hooks: refresh failed: " + e.Message); }
@@ -67,20 +71,24 @@ public static class ClaudeHooks
             var list = hooks[evt] as JsonArray ?? new JsonArray();
             hooks[evt] = list;
             RemoveOurs(list);
-            list.Add(new JsonObject
+            var hook = new JsonObject
             {
-                ["hooks"] = new JsonArray
-                {
-                    new JsonObject
-                    {
-                        ["type"] = "command",
-                        ["command"] = $"powershell -NoProfile -ExecutionPolicy Bypass -File \"{ScriptPath}\" {evt}",
-                        ["timeout"] = evt == "PermissionRequest" ? 120 : 10,
-                    },
-                },
-            });
+                ["type"] = "command",
+                ["command"] = $"powershell -NoProfile -ExecutionPolicy Bypass -File \"{ScriptPath}\" {evt}",
+                ["timeout"] = evt == "PermissionRequest" ? 120 : 10,
+            };
+            var entry = new JsonObject();
+            if (evt == "PostToolUse") { entry["matcher"] = PlanTools; hook["async"] = true; }
+            entry["hooks"] = new JsonArray { hook };
+            list.Add(entry);
         }
         Save(root);
+    }
+
+    private static bool HasPlanHook()
+    {
+        try { return Load()["hooks"] is JsonObject h && h["PostToolUse"]?.ToJsonString().Contains(Marker) == true; }
+        catch (Exception e) { Log.Write("claude hooks: read: " + e.Message); return true; }
     }
 
     public static void Uninstall()

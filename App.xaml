@@ -20,6 +20,12 @@
     <SolidColorBrush x:Key="Fg3" Color="#6E6E73"/>
     <SolidColorBrush x:Key="TrackBg" Color="#33FFFFFF"/>
     <SolidColorBrush x:Key="ChipBg" Color="#1FFFFFFF"/>
+    <!-- widget text and fills (each widget card overrides them with its theme) -->
+    <SolidColorBrush x:Key="MenuBg" Color="#F21E1E22"/>
+    <SolidColorBrush x:Key="WFg" Color="#FFFFFFFF"/>
+    <SolidColorBrush x:Key="WDim" Color="#B0FFFFFF"/>
+    <SolidColorBrush x:Key="WFill" Color="#2EFFFFFF"/>
+    <SolidColorBrush x:Key="WTrack" Color="#33FFFFFF"/>
     <SolidColorBrush x:Key="PlayBg" Color="#FFFFFF"/>
     <SolidColorBrush x:Key="PlayFg" Color="#000000"/>
     <SolidColorBrush x:Key="Accent" Color="#30D158"/>
@@ -44,10 +50,11 @@
       <Setter Property="Padding" Value="14,12"/>
     </Style>
 
+    <!-- section headers: title-style capitalisation (MainWindow turns old ALL-CAPS text into it), a size you can read -->
     <Style x:Key="Caption" TargetType="TextBlock">
-      <Setter Property="FontSize" Value="10.5"/>
+      <Setter Property="FontSize" Value="12.5"/>
       <Setter Property="FontWeight" Value="SemiBold"/>
-      <Setter Property="Foreground" Value="{DynamicResource Fg3}"/>
+      <Setter Property="Foreground" Value="{DynamicResource Fg2}"/>
     </Style>
 
     <Style x:Key="Body" TargetType="TextBlock">
@@ -323,7 +330,15 @@
               <Grid.RenderTransform>
                 <ScaleTransform x:Name="S"/>
               </Grid.RenderTransform>
-              <Border x:Name="Sel" Background="{DynamicResource ChipBg}" CornerRadius="16" Opacity="0"/>
+              <Border x:Name="Sel" Background="{DynamicResource ChipBg}" CornerRadius="16" Opacity="0" BorderThickness="1">
+                <Border.BorderBrush>
+                  <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                    <GradientStop Color="#66FFFFFF" Offset="0"/>
+                    <GradientStop Color="#10FFFFFF" Offset="0.5"/>
+                    <GradientStop Color="#30FFFFFF" Offset="1"/>
+                  </LinearGradientBrush>
+                </Border.BorderBrush>
+              </Border>
               <Border x:Name="Hover" Background="{DynamicResource Fg}" CornerRadius="16" Opacity="0"/>
               <Border Background="Transparent" CornerRadius="16" Padding="10,7" MinWidth="34">
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
@@ -688,6 +703,96 @@
     </Style>
 
     <!-- drop-down list in the same soft style: rounded field, floating rounded menu with a soft shadow -->
+    <!-- menus (right click on the island, voices, apps, themes): a dark rounded panel like macOS, icons on the left,
+         shortcuts on the right, a soft highlight under the pointer -->
+    <Style TargetType="ContextMenu">
+      <Setter Property="OverridesDefaultStyle" Value="True"/>
+      <Setter Property="HasDropShadow" Value="False"/>
+      <Setter Property="Foreground" Value="#FFFFFFFF"/>
+      <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI"/>
+      <Setter Property="FontSize" Value="13"/>
+      <Setter Property="Grid.IsSharedSizeScope" Value="True"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ContextMenu">
+            <!-- Liquid Glass: the window behind is blurred live (MainWindow: menu opened), this is the tint over it;
+                 corners concentric with the rows (16 = 10 + 6 of padding) -->
+            <Border Padding="6" CornerRadius="16" MinWidth="230" Background="{DynamicResource MenuBg}" BorderThickness="1">
+              <Border.BorderBrush>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                  <GradientStop Color="#80FFFFFF" Offset="0"/>
+                  <GradientStop Color="#18FFFFFF" Offset="0.45"/>
+                  <GradientStop Color="#40FFFFFF" Offset="1"/>
+                </LinearGradientBrush>
+              </Border.BorderBrush>
+              <Grid>
+                <Border CornerRadius="10" IsHitTestVisible="False" VerticalAlignment="Top" Height="40">
+                  <Border.Background>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                      <GradientStop Color="#16FFFFFF" Offset="0"/>
+                      <GradientStop Color="#00FFFFFF" Offset="1"/>
+                    </LinearGradientBrush>
+                  </Border.Background>
+                </Border>
+                <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle"/>
+              </Grid>
+            </Border>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <Style TargetType="Separator">
+      <Setter Property="OverridesDefaultStyle" Value="True"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Separator">
+            <Border Height="1" Margin="10,5" Background="#24FFFFFF"/>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <Style TargetType="MenuItem">
+      <Setter Property="OverridesDefaultStyle" Value="True"/>
+      <Setter Property="Foreground" Value="#FFFFFFFF"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="MenuItem">
+            <Border x:Name="Row" CornerRadius="10" Padding="9,0,12,0" Height="34" Background="Transparent">
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="28"/>
+                  <ColumnDefinition Width="*"/>
+                  <ColumnDefinition Width="Auto" SharedSizeGroup="Shortcut"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock x:Name="Check" Text="&#xE73E;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="11"
+                           VerticalAlignment="Center" Visibility="Collapsed"/>
+                <ContentPresenter x:Name="IconHost" ContentSource="Icon" VerticalAlignment="Center" TextBlock.FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                  TextBlock.FontSize="14" Opacity="0.85"/>
+                <ContentPresenter Grid.Column="1" ContentSource="Header" RecognizesAccessKey="True" VerticalAlignment="Center"/>
+                <TextBlock Grid.Column="2" Text="{TemplateBinding InputGestureText}" Margin="18,0,0,0" VerticalAlignment="Center" Foreground="#99FFFFFF" FontSize="12"/>
+              </Grid>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsHighlighted" Value="True">
+                <Setter TargetName="Row" Property="Background" Value="#0A84FF"/>
+                <Setter TargetName="IconHost" Property="Opacity" Value="1"/>
+              </Trigger>
+              <Trigger Property="IsChecked" Value="True">
+                <Setter TargetName="Check" Property="Visibility" Value="Visible"/>
+                <Setter TargetName="IconHost" Property="Visibility" Value="Collapsed"/>
+              </Trigger>
+              <Trigger Property="IsEnabled" Value="False">
+                <Setter TargetName="Row" Property="Opacity" Value="0.4"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
     <Style x:Key="SoftPasswordBox" TargetType="PasswordBox">
       <Setter Property="Foreground" Value="{DynamicResource Fg}"/>
       <Setter Property="FontSize" Value="12.5"/>

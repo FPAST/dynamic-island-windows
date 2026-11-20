@@ -177,11 +177,8 @@ public partial class MainWindow
             paste.Click += (_, _) => { try { if (Clipboard.ContainsText()) TextToolsBox.Text = Clipboard.GetText(); } catch { } };
             TextToolButtons.Children.Add(paste);
 
-            var copy = new Button { Style = (Style)FindResource("AccentPill"), Content = L.T("Копировать"), Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(0, 0, 6, 6) };
-            copy.Click += (_, _) =>
-            {
-                try { Clipboard.SetText(TextToolsBox.Text); TextToolsStatus.Text = L.T("Скопировано"); } catch { }
-            };
+            var copy = new Views.CopyButton(L.T("Копировать")) { Style = (Style)FindResource("AccentPill"), Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(0, 0, 6, 6), Text = () => TextToolsBox.Text };
+            copy.DoneBrush = copy.Foreground;   // on the accent colour its own text colour reads, green would not
             TextToolButtons.Children.Add(copy);
         }
 

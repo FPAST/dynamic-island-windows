@@ -16,6 +16,9 @@ public sealed record MediaSnapshot(
     DateTimeOffset PositionUpdatedAt,
     TimeSpan Duration)
 {
+    /// <summary>The album, when the player tells it (lyrics are found more exactly with it).</summary>
+    public string Album { get; init; } = "";
+
     public TimeSpan CurrentPosition
     {
         get
@@ -40,7 +43,7 @@ public sealed class MediaService
     private GlobalSystemMediaTransportControlsSessionManager? _manager;
     private GlobalSystemMediaTransportControlsSession? _session;
 
-    private string _title = "", _artist = "", _source = "", _appId = "";
+    private string _title = "", _artist = "", _source = "", _appId = "", _album = "";
     private LegacyPlayers.Track? _legacy;
     private BitmapImage? _art;
     private bool _playing;
@@ -48,6 +51,39 @@ public sealed class MediaService
     private DateTimeOffset _positionAt;
 
     public event Action? Changed;
+
+    /// <summary>A session the user picked: followed even while another one plays (until it goes away).</summary>
+    private string _chosen = "";
+
+    /// <summary>Every app reporting to Windows media controls now: its media id, a name to show, whether it plays.</summary>
+    public IReadOnlyList<(string AppId, string Name, bool Playing)> Sessions()
+    {
+        if (_manager == null) return [];
+        try
+        {
+            return _manager.GetSessions().Select(s => (s.SourceAppUserModelId ?? "", PrettyAppName(s.SourceAppUserModelId ?? ""),
+                s.GetPlaybackInfo().PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing)).ToList();
+        }
+        catch (Exception e) { Log.Write("media sessions: " + e.Message); return []; }
+    }
+
+    /// <summary>Follow this app's session (the widget's switcher).</summary>
+    public void Choose(string appId)
+    {
+        var s = _manager?.GetSessions().FirstOrDefault(x => x.SourceAppUserModelId == appId);
+        if (s == null) return;
+        _chosen = appId;
+        Attach(s);
+    }
+
+    /// <summary>The next session after the one shown (wraps around).</summary>
+    public void ChooseNext()
+    {
+        var list = Sessions();
+        if (list.Count < 2) return;
+        int i = list.ToList().FindIndex(x => x.AppId == _appId);
+        Choose(list[(i + 1) % list.Count].AppId);
+    }
 
     public MediaSnapshot? Current
     {
@@ -62,7 +98,7 @@ public sealed class MediaService
                         : new MediaSnapshot(l.Title, l.Artist, l.App, l.App, null, l.Playing,
                             TimeSpan.Zero, default, TimeSpan.Zero);
                 }
-                return new MediaSnapshot(_title, _artist, _source, _appId, _art, _playing, _position, _positionAt, _duration);
+                return new MediaSnapshot(_title, _artist, _source, _appId, _art, _playing, _position, _positionAt, _duration) { Album = _album };
             }
         }
     }
@@ -71,7 +107,12 @@ public sealed class MediaService
     public void PollLegacy()
     {
         // Windows' "current" session can be a paused tab while another app plays - follow the one that plays
-        if (_manager != null && !_playing)
+        if (_chosen.Length > 0 && _manager != null)
+        {
+            try { if (_manager.GetSessions().All(x => x.SourceAppUserModelId != _chosen)) _chosen = ""; }
+            catch { _chosen = ""; }
+        }
+        if (_manager != null && !_playing && _chosen.Length == 0)
         {
             try
             {
@@ -101,6 +142,7 @@ public sealed class MediaService
         {
             // don't jump away from something that plays to a paused session
             var cur = m.GetCurrentSession();
+            if (_chosen.Length > 0 && _session != null && cur?.SourceAppUserModelId != _chosen) return;
             if (_playing && _session != null && cur != null && cur != _session &&
                 cur.GetPlaybackInfo().PlaybackStatus != GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing) return;
             Attach(cur);
@@ -120,7 +162,7 @@ public sealed class MediaService
             }
 
             _session = session;
-            _title = _artist = _source = _appId = "";
+            _title = _artist = _source = _appId = _album = "";
             _art = null;
             _playing = false;
             _position = _duration = TimeSpan.Zero;
@@ -155,6 +197,19 @@ public sealed class MediaService
     {
         lock (_lock) { if (s == _session) ReadTimeline(s); }
         Changed?.Invoke();
+    }
+
+    /// <summary>Diagnostics: what the player reports right now, untouched.</summary>
+    public string RawTimeline()
+    {
+        var s = _session;
+        if (s == null) return "no session";
+        try
+        {
+            var t = s.GetTimelineProperties();
+            return $"app={s.SourceAppUserModelId} pos={t.Position.TotalSeconds:0.000} start={t.StartTime.TotalSeconds:0.0} updated={(DateTimeOffset.Now - t.LastUpdatedTime).TotalSeconds:0.000}s ago";
+        }
+        catch (Exception e) { return e.Message; }
     }
 
     private Windows.Media.MediaPlaybackAutoRepeatMode? _repeat;
@@ -232,6 +287,7 @@ public sealed class MediaService
                 if (s != _session) return;
                 _title = props.Title ?? "";
                 _artist = props.Artist ?? "";
+                _album = props.AlbumTitle ?? "";
                 _art = art;
             }
             Changed?.Invoke();
@@ -252,7 +308,7 @@ public sealed class MediaService
             var bmp = new BitmapImage();
             bmp.BeginInit();
             bmp.CacheOption = BitmapCacheOption.OnLoad;
-            bmp.DecodePixelWidth = 200;
+            bmp.DecodePixelWidth = 400;   // fills a whole small widget at 150 %
             bmp.StreamSource = ms;
             bmp.EndInit();
             bmp.Freeze();

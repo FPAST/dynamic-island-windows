@@ -13,8 +13,12 @@ public partial class MainWindow
 
     private void InitClaude()
     {
+        ClaudeCopyButton.Label = L.T("Копировать");
+        PerfReportButton.Label = L.T("Скопировать отчёт о плавности");
         _bridge.PermissionRequested += req => Dispatcher.BeginInvoke(() => EnqueuePermission(req));
         _bridge.Notified += n => Dispatcher.BeginInvoke(() => OnClaudeNotice(n));
+        _bridge.PlanChanged += p => Dispatcher.BeginInvoke(() => ShowClaudePlan(p));
+        _planFade.Tick += (_, _) => { _planFade.Stop(); ClaudePlanTile.Visibility = Visibility.Collapsed; RefitIsland(); };
         _bridge.Start();
         // test and picture runs leave the user's ~/.claude and ~/.codex alone
         if (!App.TestRun) ClaudeHooks.RefreshScript();
@@ -86,7 +90,7 @@ public partial class MainWindow
 
         _claudeInfoText = n.Message;
         ShowToast(codex ? "◎" : "✳", title, project + (preview.Length > 0 ? preview : L.T("готово")), () => ShowClaudeMessage(n),
-            codex ? CodexGreen : (System.Windows.Media.Brush)FindResource("ClaudeOrange"), ms: 6000);
+            codex ? CodexGreen : (System.Windows.Media.Brush)FindResource("ClaudeOrange"), ms: 6000, keep: true);
     }
 
     private void ShowClaudeMessage(ClaudeBridge.Notice n)
@@ -117,9 +121,9 @@ public partial class MainWindow
 
     private void ClaudeCopy_Click(object sender, RoutedEventArgs e)
     {
-        try { Clipboard.SetText(_claudeInfoText); } catch { }
-        SetMode(Mode.Compact);
-        ShowToast("", L.T("Скопировано"), null);
+        try { Clipboard.SetText(_claudeInfoText); } catch (Exception ex) { Log.Write("claude copy: " + ex.Message); return; }
+        ClaudeCopyButton.Done();   // the button says it worked; the island folds a moment later
+        _ = Dispatcher.InvokeAsync(async () => { await Task.Delay(900); if (_mode == Mode.Claude) SetMode(Mode.Compact); });
     }
 
     private void ClaudeClose_Click(object sender, RoutedEventArgs e) => SetMode(Mode.Compact);
@@ -176,5 +180,27 @@ public partial class MainWindow
         }
         RefreshClaudeHooksUi();
         Remeasure();
+    }
+
+    // a finished plan stays on Home for a while, then goes
+    private readonly System.Windows.Threading.DispatcherTimer _planFade = new() { Interval = TimeSpan.FromMinutes(10) };
+
+    /// <summary>Claude Code's plan on the Home page: what it is doing now, what is done ("3/5").</summary>
+    private void ShowClaudePlan(ClaudePlan.Snapshot plan)
+    {
+        _planFade.Stop();
+        if (plan.Tasks.Count == 0) { ClaudePlanTile.Visibility = Visibility.Collapsed; RefitIsland(); return; }
+        ClaudePlanList.Title = string.IsNullOrEmpty(plan.Project) ? "Claude Code" : "Claude Code · " + plan.Project;
+        ClaudePlanList.Set(plan.Tasks.Select(t => new Views.TaskListView.Step(t.Id,
+            t.Status == ClaudePlan.Status.InProgress && !string.IsNullOrWhiteSpace(t.ActiveForm) ? t.ActiveForm! : t.Subject,
+            t.Status switch
+            {
+                ClaudePlan.Status.InProgress => Views.TaskListView.State.Running,
+                ClaudePlan.Status.Completed => Views.TaskListView.State.Done,
+                _ => Views.TaskListView.State.Pending,
+            })).ToList());
+        ClaudePlanTile.Visibility = Visibility.Visible;
+        if (plan.Tasks.All(t => t.Status == ClaudePlan.Status.Completed)) _planFade.Start();
+        RefitIsland();
     }
 }

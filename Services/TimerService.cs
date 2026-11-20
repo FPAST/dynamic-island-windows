@@ -21,7 +21,13 @@ public sealed class TimerService
     // pomodoro
     public bool PomodoroWork { get; private set; } = true;
     public int PomodoroRound { get; private set; } = 1;
-    public static readonly TimeSpan Work = TimeSpan.FromMinutes(25), ShortBreak = TimeSpan.FromMinutes(5), LongBreak = TimeSpan.FromMinutes(15);
+    /// <summary>Phase lengths (the clock widget lets the user change them; 25 / 5 / 15 by default).</summary>
+    public static TimeSpan Work { get; set; } = TimeSpan.FromMinutes(25);
+    public static TimeSpan ShortBreak { get; set; } = TimeSpan.FromMinutes(5);
+    public static TimeSpan LongBreak { get; set; } = TimeSpan.FromMinutes(15);
+
+    /// <summary>A work session of the pomodoro was finished (for the count of the day).</summary>
+    public event Action? WorkDone;
 
     /// <summary>Raised when a countdown reaches zero: (title, text).</summary>
     public event Action<string, string>? Finished;
@@ -113,14 +119,15 @@ public sealed class TimerService
             PomodoroWork = false;
             _duration = longBreak ? LongBreak : ShortBreak;
             if (longBreak) PomodoroRound = 5;
-            Finished?.Invoke(L.T("Время отдохнуть"), longBreak ? L.T("Длинный перерыв · 15 мин") : L.T("Перерыв · 5 мин"));
+            WorkDone?.Invoke();
+            Finished?.Invoke(L.T("Время отдохнуть"), longBreak ? L.F("Длинный перерыв · {0} мин", (int)LongBreak.TotalMinutes) : L.F("Перерыв · {0} мин", (int)ShortBreak.TotalMinutes));
         }
         else
         {
             PomodoroRound = PomodoroRound >= 4 ? 1 : PomodoroRound + 1;
             PomodoroWork = true;
             _duration = Work;
-            Finished?.Invoke(L.T("За работу"), L.F("Помодоро {0}/4 · 25 мин", PomodoroRound));
+            Finished?.Invoke(L.T("За работу"), L.F("Помодоро {0}/4 · {1} мин", PomodoroRound, (int)Work.TotalMinutes));
         }
         _endsAt = DateTime.Now + _duration;
     }

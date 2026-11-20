@@ -35,6 +35,29 @@ internal static class Native
     public const uint MOD_ALT = 0x1, MOD_CONTROL = 0x2, MOD_NOREPEAT = 0x4000;
 
     [DllImport("user32.dll")] public static extern bool GetCursorPos(out POINT p);
+    [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
+    [DllImport("user32.dll")] private static extern short GetAsyncKeyState(int vKey);
+
+    [DllImport("kernel32.dll", SetLastError = true)] private static extern IntPtr OpenProcess(uint access, bool inherit, int pid);
+    [DllImport("kernel32.dll")] private static extern bool CloseHandle(IntPtr h);
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] private static extern int GetPackageFamilyName(IntPtr process, ref uint length, StringBuilder? name);
+
+    /// <summary>The package family of a Store app's process ("" for an ordinary program).</summary>
+    public static string PackageFamilyOf(int pid)
+    {
+        var h = OpenProcess(0x1000, false, pid);   // PROCESS_QUERY_LIMITED_INFORMATION
+        if (h == IntPtr.Zero) return "";
+        try
+        {
+            uint len = 0;
+            if (GetPackageFamilyName(h, ref len, null) != 122 || len == 0) return "";   // ERROR_INSUFFICIENT_BUFFER: it has one
+            var sb = new StringBuilder((int)len);
+            return GetPackageFamilyName(h, ref len, sb) == 0 ? sb.ToString() : "";
+        }
+        finally { CloseHandle(h); }
+    }
+    /// <summary>Is this key held down right now (whichever window has the keyboard)?</summary>
+    public static bool KeyDown(int vKey) => (GetAsyncKeyState(vKey) & 0x8000) != 0;
     [DllImport("user32.dll")] public static extern int GetWindowLong(IntPtr h, int i);
     [DllImport("user32.dll")] public static extern int SetWindowLong(IntPtr h, int i, int v);
     [DllImport("user32.dll")] public static extern bool RegisterHotKey(IntPtr h, int id, uint mods, uint vk);
@@ -200,15 +223,13 @@ internal static class Native
     // ------------------------------------------------------------------ where a process runs from
 
     private const uint PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
-    [DllImport("kernel32.dll", SetLastError = true)] private static extern IntPtr OpenProcess(uint access, bool inherit, uint pid);
-    [DllImport("kernel32.dll")] private static extern bool CloseHandle(IntPtr h);
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern bool QueryFullProcessImageName(IntPtr process, uint flags, StringBuilder name, ref int size);
 
     /// <summary>The full path of a process's program, or "" (limited rights are enough, also for most elevated ones).</summary>
     public static string ProcessPath(uint pid)
     {
-        var h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid);
+        var h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, (int)pid);
         if (h == IntPtr.Zero) return "";
         try
         {

@@ -100,7 +100,7 @@ float4 main(float2 uv : TEXCOORD) : COLOR
         uint flags1, uint flags2,
         out ID3DBlob? code, out ID3DBlob? errors);
 
-    private static byte[] Compile(string source, string entry, string target)
+    internal static byte[] Compile(string source, string entry, string target)
     {
         var src = Encoding.ASCII.GetBytes(source);
         const uint OptimizationLevel3 = 1 << 15;

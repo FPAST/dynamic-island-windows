@@ -72,6 +72,9 @@ public sealed class ClaudeBridge
     /// <summary>Raised on a background thread.</summary>
     public event Action<PermissionRequest>? PermissionRequested;
     public event Action<Notice>? Notified;
+    /// <summary>Claude Code's task list changed (raised on a background thread).</summary>
+    public event Action<ClaudePlan.Snapshot>? PlanChanged;
+    private readonly ClaudePlan _plan = new();
 
     public bool IsRunning => _listener?.IsListening == true;
 
@@ -162,7 +165,13 @@ public sealed class ClaudeBridge
                 case "/notify":
                 {
                     var evt = json["hook_event_name"]?.GetValue<string>() ?? "";
-                    if (evt == "Stop")
+                    if (evt == "PostToolUse")
+                    {
+                        ClaudePlan.Snapshot? plan;
+                        lock (_plan) plan = _plan.Apply(json, project);
+                        if (plan != null) PlanChanged?.Invoke(plan);
+                    }
+                    else if (evt == "Stop")
                     {
                         var last = json["last_assistant_message"]?.GetValue<string>() ?? "";
                         Notified?.Invoke(new Notice("stop", agent == "Codex" ? L.T("Codex закончил") : L.T("Claude Code закончил"), last, project, agent));

@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.IO;
 using System.Net.Http;
 using System.Text.Json;
 
@@ -7,6 +8,14 @@ namespace DynamicIsland.Services;
 public sealed record Place(double Lat, double Lon, string Name);
 
 public sealed record HourForecast(DateTime Time, double Temp, int Code, bool IsDay);
+
+/// <summary>One hour of the forecast (the place's local time): mm of rain/snow, % chance, m/s.</summary>
+public sealed record WeatherHour(DateTime Time, double Temp, double Precip, double Chance, double Wind, double Uv, int Code, bool IsDay);
+
+/// <summary>A quarter of an hour: mm of precipitation in it.</summary>
+public sealed record WeatherQuarter(DateTime Time, double Precip);
+
+public sealed record WeatherDay(DateTime Date, double Min, double Max, int Code, double Chance);
 
 public sealed record WeatherData(
     string Place,
@@ -26,7 +35,25 @@ public sealed record WeatherData(
     double PrecipNow,
     double PrecipToday,
     double PrecipChance,
-    IReadOnlyList<HourForecast> Hours);
+    IReadOnlyList<HourForecast> Hours)
+{
+    /// <summary>Hourly forecast from the start of today, about 7 days.</summary>
+    public IReadOnlyList<WeatherHour> Hourly { get; init; } = [];
+    /// <summary>The next hours in 15-minute steps (Open-Meteo only).</summary>
+    public IReadOnlyList<WeatherQuarter> Minutely { get; init; } = [];
+    public IReadOnlyList<WeatherDay> Days { get; init; } = [];
+    /// <summary>European air quality index and PM2.5, µg/m³ (null when unknown).</summary>
+    public double? Aqi { get; init; }
+    public double? Pm25 { get; init; }
+    /// <summary>When it was fetched (this PC's clock).</summary>
+    public DateTime FetchedAt { get; init; } = DateTime.Now;
+    /// <summary>The place's offset from UTC: its "now" is UtcNow + this.</summary>
+    public TimeSpan UtcOffset { get; init; } = TimeZoneInfo.Local.GetUtcOffset(DateTime.Now);
+    /// <summary>The city typed in the settings this was fetched for.</summary>
+    public string City { get; init; } = "";
+
+    public DateTime PlaceNow => DateTime.UtcNow + UtcOffset;
+}
 
 /// <summary>
 /// Weather from Open-Meteo (free, no API key). Where Open-Meteo can't be reached (some providers in Russia
@@ -127,11 +154,35 @@ public sealed class WeatherService
             "https://api.open-meteo.com/v1/forecast?latitude=" + place.Lat.ToString(Inv) +
             "&longitude=" + place.Lon.ToString(Inv) +
             "&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,is_day,surface_pressure,wind_speed_10m,wind_direction_10m,uv_index,precipitation" +
-            "&hourly=temperature_2m,weather_code,is_day" +
-            "&daily=sunrise,sunset,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max" +
-            "&timezone=auto&forecast_days=2&wind_speed_unit=ms";
+            "&minutely_15=precipitation&forecast_minutely_15=24" +
+            "&hourly=temperature_2m,weather_code,is_day,precipitation,precipitation_probability,wind_speed_10m,uv_index" +
+            "&daily=weather_code,sunrise,sunset,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max" +
+            "&timezone=auto&forecast_days=7&wind_speed_unit=ms";
+        var w = ParseOpenMeteo(await Http.GetStringAsync(url), place.Name);
+        try
+        {
+            // air quality is a separate service: without it the weather is still shown
+            var aq = "https://air-quality-api.open-meteo.com/v1/air-quality?latitude=" + place.Lat.ToString(Inv) + "&longitude=" + place.Lon.ToString(Inv) + "&current=european_aqi,pm2_5&timezone=auto";
+            var (aqi, pm) = ParseAirQuality(await Http.GetStringAsync(aq));
+            w = w with { Aqi = aqi, Pm25 = pm };
+        }
+        catch (Exception e) { Log.Write("weather: air quality: " + e.Message); }
+        return w;
+    }
 
-        using var doc = JsonDocument.Parse(await Http.GetStringAsync(url));
+    /// <summary>The air quality answer: European AQI and PM2.5 (null where missing).</summary>
+    public static (double? Aqi, double? Pm25) ParseAirQuality(string json)
+    {
+        using var doc = JsonDocument.Parse(json);
+        if (!doc.RootElement.TryGetProperty("current", out var c)) return (null, null);
+        static double? N(JsonElement o, string n) => o.TryGetProperty(n, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetDouble() : null;
+        return (N(c, "european_aqi"), N(c, "pm2_5"));
+    }
+
+    /// <summary>The forecast answer to <see cref="WeatherData"/>. Times stay in the place's own time zone.</summary>
+    public static WeatherData ParseOpenMeteo(string json, string placeName)
+    {
+        using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
         var cur = root.GetProperty("current");
         var daily = root.GetProperty("daily");
@@ -151,8 +202,24 @@ public sealed class WeatherService
             hours.Add(new HourForecast(t, temps[i].GetDouble(), codes[i].GetInt32(), days[i].GetInt32() == 1));
         }
 
+        var hourly7 = new List<WeatherHour>();
+        for (int i = 0; i < times.GetArrayLength(); i++)
+            hourly7.Add(new WeatherHour(DateTime.Parse(times[i].GetString()!, Inv), Num(hourly, "temperature_2m", i), Num(hourly, "precipitation", i),
+                                        Num(hourly, "precipitation_probability", i), Num(hourly, "wind_speed_10m", i), Num(hourly, "uv_index", i),
+                                        (int)Num(hourly, "weather_code", i), Num(hourly, "is_day", i) == 1));
+        var quarters = new List<WeatherQuarter>();
+        if (root.TryGetProperty("minutely_15", out var m15) && m15.TryGetProperty("time", out var qt))
+            for (int i = 0; i < qt.GetArrayLength(); i++)
+                quarters.Add(new WeatherQuarter(DateTime.Parse(qt[i].GetString()!, Inv), Num(m15, "precipitation", i)));
+        var days7 = new List<WeatherDay>();
+        var dt = daily.GetProperty("time");
+        for (int i = 0; i < dt.GetArrayLength(); i++)
+            days7.Add(new WeatherDay(DateTime.Parse(dt[i].GetString()!, Inv), Num(daily, "temperature_2m_min", i), Num(daily, "temperature_2m_max", i),
+                                     (int)Num(daily, "weather_code", i), Num(daily, "precipitation_probability_max", i)));
+        var offset = TimeSpan.FromSeconds(root.TryGetProperty("utc_offset_seconds", out var off) && off.ValueKind == JsonValueKind.Number ? off.GetDouble() : 0);
+
         return new WeatherData(
-            place.Name,
+            placeName,
             cur.GetProperty("temperature_2m").GetDouble(),
             cur.GetProperty("apparent_temperature").GetDouble(),
             cur.GetProperty("weather_code").GetInt32(),
@@ -169,7 +236,34 @@ public sealed class WeatherService
             Num(cur, "precipitation"),
             Num(daily, "precipitation_sum", 0),
             Num(daily, "precipitation_probability_max", 0),
-            hours);
+            hours) { Hourly = hourly7, Minutely = quarters, Days = days7, UtcOffset = offset };
+    }
+
+    // ------------------------------------------------------------------ the last weather, on disk (shown offline)
+
+    private static readonly string CacheFile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "DynamicIsland", "weather.json");
+
+    public static void Save(WeatherData w)
+    {
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(CacheFile)!);
+            File.WriteAllText(CacheFile + ".tmp", JsonSerializer.Serialize(w));
+            File.Move(CacheFile + ".tmp", CacheFile, overwrite: true);
+        }
+        catch (Exception e) { Log.Write("weather cache write: " + e.Message); }
+    }
+
+    /// <summary>The weather saved last time for this city, however old (the widgets say how old).</summary>
+    public static WeatherData? LoadSaved(string city)
+    {
+        try
+        {
+            if (!File.Exists(CacheFile)) return null;
+            var w = JsonSerializer.Deserialize<WeatherData>(File.ReadAllText(CacheFile));
+            return w != null && string.Equals(w.City, city.Trim(), StringComparison.OrdinalIgnoreCase) ? w : null;
+        }
+        catch (Exception e) { Log.Write("weather cache read: " + e.Message); return null; }
     }
 
     // ------------------------------------------------------------------ MET Norway (the fallback)
@@ -190,7 +284,9 @@ public sealed class WeatherService
         bool IsDay(DateTime t) => (t.TimeOfDay >= rise.TimeOfDay && t.TimeOfDay < set.TimeOfDay) || rise == set;
 
         double max = double.MinValue, min = double.MaxValue, precipToday = 0;
+        var byDay = new Dictionary<DateTime, List<(double T, int Code)>>();
         var hours = new List<HourForecast>();
+        var hourly = new List<WeatherHour>();
         int codeNow = 3;
         var now = DateTime.Now;
         foreach (var item in series.EnumerateArray())
@@ -210,15 +306,21 @@ public sealed class WeatherService
             if (item.GetProperty("time").GetString() == series[0].GetProperty("time").GetString()) codeNow = code;
             if (t.Date == today) { max = Math.Max(max, tt); min = Math.Min(min, tt); precipToday += precip; }
             if (t > now && hours.Count < 6) hours.Add(new HourForecast(t, tt, code, IsDay(t)));
-            if (t.Date > today && hours.Count >= 6) break;
+            // MET Norway gives hours for about two days, then 6-hour steps: the chart takes the hourly part
+            if (data.TryGetProperty("next_1_hours", out _))
+                hourly.Add(new WeatherHour(t, tt, precip, 0, Num(data.GetProperty("instant").GetProperty("details"), "wind_speed"), 0, code, IsDay(t)));
+            byDay.TryAdd(t.Date, []);
+            byDay[t.Date].Add((tt, code));
         }
+        var days = byDay.Where(p => p.Value.Count >= 2).OrderBy(p => p.Key).Take(7)
+                        .Select(p => new WeatherDay(p.Key, p.Value.Min(x => x.T), p.Value.Max(x => x.T), p.Value.Max(x => x.Code), 0)).ToList();
         if (max == double.MinValue) { max = temp; min = temp; }
         double precipNow = first.TryGetProperty("next_1_hours", out var nn) && nn.TryGetProperty("details", out var nd) ? Num(nd, "precipitation_amount") : 0;
 
         return new WeatherData(
             place.Name, temp, FeelsLike(temp, wind), codeNow, IsDay(now),
             Num(d, "relative_humidity"), Num(d, "air_pressure_at_sea_level") * 0.750062, wind, Num(d, "wind_from_direction"),
-            rise, set, max, min, 0, precipNow, precipToday, 0, hours);
+            rise, set, max, min, 0, precipNow, precipToday, 0, hours) { Hourly = hourly, Days = days };
     }
 
     /// <summary>MET Norway symbol ("lightrainshowers_day") to the WMO code Open-Meteo uses.</summary>

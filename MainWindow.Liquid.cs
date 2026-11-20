@@ -279,8 +279,9 @@ public partial class MainWindow
         _sx.Step(dt);
         _sy.Step(dt);
         _skew.Step(dt);
-        IslandScale.ScaleX = _sx.Value;
-        IslandScale.ScaleY = _sy.Value;
+        _press.Step(dt);
+        IslandScale.ScaleX = _sx.Value * _press.Value / 100;
+        IslandScale.ScaleY = _sy.Value * _press.Value / 100;
         IslandSkew.AngleX = _skew.Value;
 
         if (_posActive)
@@ -332,12 +333,12 @@ public partial class MainWindow
                         (playing || _audioLevel > 0 || !_reach.IsSettled || _reach.Value > 0.01 || !_lean.IsSettled || PullMoving || PullVisible);
         UpdateShape(shapeMoving);
 
-        return shapeMoving || reactive || _posActive || !(_sx.IsSettled && _sy.IsSettled && _skew.IsSettled);
+        return shapeMoving || reactive || _posActive || !(_sx.IsSettled && _sy.IsSettled && _skew.IsSettled && _press.IsSettled);
     }
 
     private double Radius(double h)
     {
-        double full = _settings.Docked ? Math.Min(h / 2, h <= 60 ? 15 : 28) : Math.Min(h / 2, 30);
+        double full = _settings.Docked ? Math.Min(h / 2, h <= 60 ? 15 : 28) : Math.Min(h / 2, 32);   // 32: Morph island's largest radius
         // the user's choice, from a pill down to nearly square corners
         return Math.Max(Math.Min(4, h / 2), full * Math.Clamp(_settings.Roundness, 0, 100) / 100.0);
     }
@@ -585,6 +586,69 @@ public partial class MainWindow
         };
         unblur.Completed += (_, _) => { if (el.Effect == blur) el.Effect = null; };
         blur.BeginAnimation(BlurEffect.RadiusProperty, unblur);
+    }
+
+    /// <summary>The press lets go: the island springs back to full size.</summary>
+    private void Release()
+    {
+        if (_press.Target == 100) return;
+        _press.Target = 100;
+        StartRendering();
+    }
+
+    // CSS "ease" and Morph island's content curve, cubic-bezier(.16, 1, .3, 1)
+    private static readonly Views.CubicBezierEase CssEase = new(0.25, 0.1, 0.25, 1), ContentEase = new(0.16, 1, 0.3, 1);
+
+    /// <summary>
+    /// Morph island's content swap, leaving: 0.14 s to transparent and 6 px of blur, 0.2 s down to 0.9.
+    /// No blur with light graphics; with Windows' reduced animations it just goes.
+    /// </summary>
+    private void MorphOut(FrameworkElement el, Action done)
+    {
+        if (Services.Motion.Reduced) { el.BeginAnimation(OpacityProperty, null); el.Opacity = 0; done(); return; }
+        var st = MorphScale(el);
+        var fade = new DoubleAnimation(0, TimeSpan.FromMilliseconds(140)) { EasingFunction = CssEase };
+        fade.Completed += (_, _) => done();
+        el.BeginAnimation(OpacityProperty, fade);
+        var shrink = new DoubleAnimation(0.9, TimeSpan.FromMilliseconds(200)) { EasingFunction = CssEase };
+        st.BeginAnimation(ScaleTransform.ScaleXProperty, shrink);
+        st.BeginAnimation(ScaleTransform.ScaleYProperty, shrink);
+        if (Lite) { el.Effect = null; return; }
+        var blur = new BlurEffect { Radius = 0, RenderingBias = RenderingBias.Performance };
+        el.Effect = blur;
+        blur.BeginAnimation(BlurEffect.RadiusProperty, new DoubleAnimation(0, 6, TimeSpan.FromMilliseconds(140)) { EasingFunction = CssEase });
+    }
+
+    /// <summary>
+    /// Morph island's content swap, arriving 0.09 s later: 0.35 s from transparent and 6 px of blur, and from
+    /// 0.9 to full size over 0.6 s on cubic-bezier(.16, 1, .3, 1) — it glides in while the shape morphs.
+    /// </summary>
+    private void MorphIn(FrameworkElement el)
+    {
+        el.Visibility = Visibility.Visible;
+        if (Services.Motion.Reduced) { el.BeginAnimation(OpacityProperty, null); el.Opacity = 1; el.Effect = null; return; }
+        var st = MorphScale(el);
+        var begin = TimeSpan.FromMilliseconds(90);
+        el.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(350)) { BeginTime = begin, EasingFunction = CssEase });
+        var grow = new DoubleAnimation(0.9, 1, TimeSpan.FromMilliseconds(600)) { BeginTime = begin, EasingFunction = ContentEase };
+        st.BeginAnimation(ScaleTransform.ScaleXProperty, grow);
+        st.BeginAnimation(ScaleTransform.ScaleYProperty, grow);
+        if (Lite) { el.Effect = null; return; }
+        var blur = new BlurEffect { Radius = 6, RenderingBias = RenderingBias.Performance };
+        el.Effect = blur;
+        var unblur = new DoubleAnimation(6, 0, TimeSpan.FromMilliseconds(350)) { BeginTime = begin, EasingFunction = CssEase };
+        unblur.Completed += (_, _) => { if (el.Effect == blur) el.Effect = null; };
+        blur.BeginAnimation(BlurEffect.RadiusProperty, unblur);
+    }
+
+    /// <summary>The view's scale, about its middle (Reveal's slide is kept in the same group for the tabs).</summary>
+    private static ScaleTransform MorphScale(FrameworkElement el)
+    {
+        el.RenderTransformOrigin = new Point(0.5, 0.5);
+        if (el.RenderTransform is TransformGroup { Children.Count: > 0 } g && g.Children[0] is ScaleTransform st && !st.IsFrozen) return st;
+        st = new ScaleTransform(1, 1);
+        el.RenderTransform = new TransformGroup { Children = { st, new TranslateTransform() } };
+        return st;
     }
 
     /// <summary>Disappear: quick fade with a little blur and shrink.</summary>

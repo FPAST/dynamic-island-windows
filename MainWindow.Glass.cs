@@ -16,6 +16,9 @@ namespace DynamicIsland;
 /// </summary>
 public partial class MainWindow
 {
+    /// <summary>The island's glass: on in settings and not turned off for everything in Windows (Transparency effects).</summary>
+    private bool IslandGlass => _settings.Glass && !Services.Motion.NoTransparency;
+
     private readonly DispatcherTimer _frostTimer = new() { Interval = TimeSpan.FromMilliseconds(700) };
     private const double FrostMargin = 28;      // a little of the screen around the island, for the blur to pull in
     private double _frostHalf = 200, _frostHeight = 80;
@@ -66,8 +69,8 @@ public partial class MainWindow
     {
         UpdateGlassFill();
         ApplyCaptureExclusion();
-        FrostHost.Visibility = _settings.Glass && !_dragging ? Visibility.Visible : Visibility.Collapsed;
-        if (_settings.Glass) CaptureFrost();
+        FrostHost.Visibility = IslandGlass && !_dragging ? Visibility.Visible : Visibility.Collapsed;
+        if (IslandGlass) CaptureFrost();
         UpdateAuraVisibility();
     }
 
@@ -78,7 +81,7 @@ public partial class MainWindow
         bool expanded = _mode != Mode.Compact;
         bool photo = PhotoHost.Visibility == Visibility.Visible;
         // see-through only over a picture: the frost (when it covers the island) or your photo
-        bool overPicture = photo || (_settings.Glass && !Lite && _frostCovers);
+        bool overPicture = photo || (IslandGlass && !Lite && _frostCovers);
         double tint = overPicture && !photo ? Math.Clamp(_settings.GlassTint, 20, 100) / 100.0 : 1;
         if (overPicture && !photo && LiquidGlass) tint = Math.Min(tint, 0.58);
         // the folded pill stays readable: never thinner than 80 %
@@ -167,7 +170,7 @@ public partial class MainWindow
 
     private void CaptureFrost()
     {
-        if (!_settings.Glass || Lite || !FrostCanGrab || _hidden || _fullscreenHidden || !IsLoaded || !Island.IsVisible) { if (Lite || !FrostCanGrab) FrostHost.Opacity = 0; SetFrostCovers(false); return; }
+        if (!IslandGlass || Lite || !FrostCanGrab || _hidden || _fullscreenHidden || !IsLoaded || !Island.IsVisible) { if (Lite || !FrostCanGrab) FrostHost.Opacity = 0; SetFrostCovers(false); return; }
         if (_dragging || _posActive) { FrostHost.Opacity = 0; SetFrostCovers(false); return; }
         // grabbing the screen makes Windows finish composing first: never while the size is changing
         if (_rendering && !(_w.IsSettled && _h.IsSettled)) return;
@@ -183,7 +186,7 @@ public partial class MainWindow
     /// </summary>
     private bool PrecaptureFrost(Size coming)
     {
-        if (!_settings.Glass || Lite || !FrostCanGrab || _hidden || _fullscreenHidden || !IsLoaded || !Island.IsVisible || _dragging || _posActive) return false;
+        if (!IslandGlass || Lite || !FrostCanGrab || _hidden || _fullscreenHidden || !IsLoaded || !Island.IsVisible || _dragging || _posActive) return false;
         double iw = Math.Max(coming.Width, Island.ActualWidth), ih = Math.Max(coming.Height, Island.ActualHeight);
         if (_frostCovers && iw / 2 + FrostMargin <= _frostHalf + 0.5 && ih + FrostMargin <= _frostHeight + 0.5) return true;   // already big enough
         // waits briefly for the picture: opening without it would show the island solid (grey) for a moment
@@ -236,7 +239,7 @@ public partial class MainWindow
                 _frostBusy = false;
                 if (t.IsFaulted) { Log.Write("glass: grab failed: " + t.Exception?.InnerException?.Message); return; }
                 // the island may have been dragged, hidden or switched to solid while the picture was taken
-                if (t.Result is not { } later || !_settings.Glass || Lite || _shutDown || _hidden || _fullscreenHidden || _dragging || _posActive) return;
+                if (t.Result is not { } later || !IslandGlass || Lite || _shutDown || _hidden || _fullscreenHidden || _dragging || _posActive) return;
                 Measure("frost show", () => ShowFrost(later, w, h, half, height, islandW, islandH));
             }, TaskScheduler.FromCurrentSynchronizationContext());
             return false;

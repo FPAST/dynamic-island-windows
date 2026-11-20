@@ -95,6 +95,20 @@ public sealed class FpsMeter : IDisposable
         }
     }
 
+    /// <summary>Full-screen programs that are never games: a full-screen video or a slideshow must not get the FPS pill (Yandex Browser runs as browser.exe).</summary>
+    public static readonly string[] NotGames = ["chrome", "msedge", "firefox", "opera", "brave", "vivaldi", "yandex", "browser", "explorer", "DynamicIsland"];
+
+    /// <summary>
+    /// Does this program get the FPS pill while it is full-screen in front? <paramref name="processName"/> is the exe
+    /// name without .exe, <paramref name="path"/> its full path; either is "" when unknown. <paramref name="listed"/>
+    /// holds names, program paths and folders (<see cref="AppList"/>).
+    /// </summary>
+    public static bool CountsAsGame(string processName, string path, bool onlyListed, IEnumerable<string> listed)
+    {
+        if (NotGames.Contains(processName, StringComparer.OrdinalIgnoreCase)) return false;
+        return !onlyListed || AppList.Contains(listed, processName, path);
+    }
+
     /// <summary>FPS of every process presenting right now (for the helper).</summary>
     public Dictionary<int, int> All()
     {

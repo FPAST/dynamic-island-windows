@@ -163,15 +163,19 @@ public partial class MainWindow
         _settingsLoading = true;
         DarkSwitch.IsChecked = _settings.DarkTheme;
         LiquidSwitch.IsChecked = _settings.LiquidWaves;
+        // the scrubbers say what they set and show the value inside
+        ScaleSlider.Label = L.T("Размер острова"); LiquidSlider.Label = L.T("Сила волн"); VoiceVolumeSlider.Label = L.T("Громкость ИИ-ассистента");
+        ScaleSlider.Format = LiquidSlider.Format = VoiceVolumeSlider.Format = v => $"{v:0}%";
         LiquidSlider.Value = Math.Clamp(_settings.LiquidStrength, 10, 100);
-        LiquidValue.Text = $"{_settings.LiquidStrength}%";
-        LiquidRow.Visibility = _settings.LiquidWaves ? Visibility.Visible : Visibility.Collapsed;
+        LiquidSlider.Visibility = _settings.LiquidWaves ? Visibility.Visible : Visibility.Collapsed;
         RefreshLookControls();
         ReactiveSwitch.IsChecked = _settings.Reactive;
         ClaudeGlowSwitch.IsChecked = _settings.ClaudeGlow;
         CleanDesktopSwitch.IsChecked = _settings.CleanDesktop;
         HandDrawnSwitch.IsChecked = _settings.HandDrawn;
         GameStatsSwitch.IsChecked = _settings.GameStats;
+        GameOnlyListedSwitch.IsChecked = _settings.GameStatsOnlyListed;
+        RefreshGameAppsBlock();
         LockSwitch.IsChecked = _settings.LockPosition;
         SmartSwitch.IsChecked = _settings.SmartIsland;
         FillHideAppPicker();
@@ -184,13 +188,13 @@ public partial class MainWindow
         if (CheckHost.IsVisible) _ = RunSelfCheckAsync();
         DiscordSideSwitch.IsChecked = _settings.DiscordSidePill;
         DiscordShowSwitch.IsChecked = _settings.ShowDiscordCall;
-        GeminiVoiceApiKeyBox.Password = _settings.GeminiVoiceApiKey;
+        // only when it differs: setting it again on every refresh used to wipe a key that was being typed in
+        if (GeminiVoiceApiKeyBox.Password != _settings.GeminiVoiceApiKey && !GeminiVoiceApiKeyBox.IsKeyboardFocusWithin)
+            GeminiVoiceApiKeyBox.Password = _settings.GeminiVoiceApiKey;
         VoiceVolumeSlider.Value = Math.Clamp(_settings.GeminiVoiceVolume, 0, 100);
-        VoiceVolumeValue.Text = $"{_settings.GeminiVoiceVolume}%";
         DiscordSideSwitch.IsEnabled = _settings.ShowDiscordCall;
         CaptureSwitch.IsChecked = HideFromCapture;
         ScaleSlider.Value = Math.Clamp(_settings.IslandScale, 80, 130);
-        ScaleValue.Text = $"{_settings.IslandScale}%";
         LiteSwitch.IsChecked = Lite;
         if (OpenHotkeyBox.Items.Count == 0)
         {
@@ -250,7 +254,7 @@ public partial class MainWindow
     {
         _settings.LiquidWaves = LiquidSwitch.IsChecked == true;
         _settings.Save();
-        LiquidRow.Visibility = _settings.LiquidWaves ? Visibility.Visible : Visibility.Collapsed;
+        LiquidSlider.Visibility = _settings.LiquidWaves ? Visibility.Visible : Visibility.Collapsed;
         Remeasure();
         if (_settings.LiquidWaves) Kick(5);
         else
@@ -295,6 +299,9 @@ public partial class MainWindow
         _settings.ExpandOnHover = HoverSwitch.IsChecked == true;
         _settings.HideInFullscreen = FullscreenSwitch.IsChecked == true;
         _settings.GameStats = GameStatsSwitch.IsChecked == true;
+        _settings.GameStatsOnlyListed = GameOnlyListedSwitch.IsChecked == true;
+        RefreshGameAppsBlock();
+        Remeasure();
         _settings.LockPosition = LockSwitch.IsChecked == true;
         _settings.SmartIsland = SmartSwitch.IsChecked == true;
         _settings.ShowCapsLock = CapsSwitch.IsChecked == true;
@@ -317,6 +324,12 @@ public partial class MainWindow
         RefreshNotifyHint();
         _settings.MirrorAllApps = NotifyAllSwitch.IsChecked == true;
         _settings.Save();
+    }
+
+    private void RefreshGameAppsBlock()
+    {
+        GameAppsBlock.Visibility = _settings.GameStats ? Visibility.Visible : Visibility.Collapsed;
+        GameAppsList.Visibility = _settings.GameStatsOnlyListed ? Visibility.Visible : Visibility.Collapsed;
     }
 
     /// <summary>Why messages may not show up: the notification center is off, or no access.</summary>
@@ -359,7 +372,6 @@ public partial class MainWindow
     {
         if (_settingsLoading || !IsLoaded) return;
         _settings.LiquidStrength = (int)Math.Round(LiquidSlider.Value);
-        LiquidValue.Text = $"{_settings.LiquidStrength}%";
         _settings.Save();
         Kick(4);   // a wave to show the new strength
     }
@@ -368,7 +380,6 @@ public partial class MainWindow
     {
         if (_settingsLoading || !IsLoaded) return;
         _settings.IslandScale = (int)Math.Round(ScaleSlider.Value);
-        ScaleValue.Text = $"{_settings.IslandScale}%";
         _settings.Save();
         ApplyIslandScale();
     }
@@ -411,11 +422,13 @@ public partial class MainWindow
         _settings.Save();
     }
 
-    private void GeminiVoiceApiKeyBox_LostFocus(object sender, RoutedEventArgs e)
+    /// <summary>The key is kept the moment it is pasted (spaces and quotes around it are dropped).</summary>
+    private void GeminiVoiceApiKeyBox_Changed(object sender, RoutedEventArgs e)
     {
         if (_settingsLoading) return;
-        _settings.GeminiVoiceApiKey = GeminiVoiceApiKeyBox.Password.Trim();
-        GeminiVoiceApiKeyBox.Password = _settings.GeminiVoiceApiKey;
+        var key = GeminiVoiceApiKeyBox.Password.Trim().Trim('"', '\'').Trim();
+        if (key == _settings.GeminiVoiceApiKey) return;
+        _settings.GeminiVoiceApiKey = key;
         _settings.Save();
     }
 }

@@ -19,6 +19,14 @@ public partial class MainWindow
         DrawPressureArc(PressureArcBg, 1);
         _weatherRefresh.Tick += async (_, _) => await RefreshWeatherAsync();
         _weatherRefresh.Start();
+        // the last weather at once (marked with its time if old), the fresh one when the network answers
+        if (_lastWeather == null && WeatherService.LoadSaved(_settings.City) is { } saved) ApplyWeather(saved);
+        // after sleep the weather is hours old: ask again as soon as the network is back
+        Microsoft.Win32.SystemEvents.PowerModeChanged += (_, e) =>
+        {
+            if (e.Mode != Microsoft.Win32.PowerModes.Resume) return;
+            Dispatcher.BeginInvoke(async () => { await Task.Delay(5000); _weatherFailures = 0; await RefreshWeatherAsync(); });
+        };
         await RefreshWeatherAsync();
     }
 
@@ -38,7 +46,9 @@ public partial class MainWindow
                 _weatherRefresh.Interval = TimeSpan.FromMinutes(15);
                 return;
             }
-            ApplyWeather(await _weather.GetAsync(place));
+            var fresh = await _weather.GetAsync(place) with { City = _settings.City.Trim(), FetchedAt = DateTime.Now };
+            ApplyWeather(fresh);
+            if (!Settings.ReadOnly) WeatherService.Save(fresh);
             WeatherStatus.Text = L.T("Обновлено в ") + DateTime.Now.ToString("HH:mm");
             _weatherLoaded = true;
             _weatherFailures = 0;
@@ -57,8 +67,13 @@ public partial class MainWindow
         }
     }
 
+    /// <summary>Tests: the weather on screen is made up; real updates (the user's city) must not replace it.</summary>
+    private bool _weatherFrozen;
+
     private void ApplyWeather(WeatherData w)
     {
+        if (_weatherFrozen) return;
+        _lastWeather = w;
         string glyph = WeatherService.Glyph(w.Code, w.IsDay);
         string desc = WeatherService.Describe(w.Code);
         Brush iconBrush = glyph is "☀" or "⛅"

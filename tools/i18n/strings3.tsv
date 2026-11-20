@@ -166,7 +166,6 @@ VPN не подключился	VPN didn't connect	VPN не підключивс
 Название приложения…	App name…	Назва застосунку…	Nombre de la app…	App-Name…	Nome do app…	应用名称…
 Ничего не найдено	Nothing found	Нічого не знайдено	No se encontró nada	Nichts gefunden	Nada encontrado	未找到
 В играх показывать FPS и нагрузку вместо полного скрытия	In games, show FPS and load instead of hiding	В іграх показувати FPS і навантаження замість повного приховування	En juegos, mostrar FPS y carga en vez de ocultarse	In Spielen FPS und Auslastung zeigen statt auszublenden	Em jogos, mostrar FPS e carga em vez de ocultar	游戏中显示 FPS 和负载，而不是完全隐藏
-Разрешить	Allow	Дозволити	Permitir	Erlauben	Permitir	允许
 Поверх игр в «эксклюзивном полноэкранном» режиме ничего показать нельзя — выберите «Оконный без рамки».	Nothing can be shown over games in exclusive full-screen mode — choose "Borderless window".	Поверх ігор у «ексклюзивному повноекранному» режимі нічого показати не можна — оберіть «Вікно без рамки».	No se puede mostrar nada sobre juegos en pantalla completa exclusiva: elige «Ventana sin bordes».	Über Spielen im exklusiven Vollbild kann nichts angezeigt werden – wähle „Randloses Fenster“.	Nada pode aparecer sobre jogos em tela cheia exclusiva — escolha “Janela sem bordas”.	独占全屏的游戏上无法显示任何内容，请选择“无边框窗口”。
 Счётчик FPS работает: в играх он появится в пилюле	FPS counter is ready: it shows in the pill while you play	Лічильник FPS працює: в іграх він з'явиться в пігулці	El contador de FPS está listo: aparecerá en la píldora al jugar	FPS-Zähler bereit: er erscheint beim Spielen in der Pille	Contador de FPS pronto: aparece na pílula enquanto você joga	FPS 计数器已就绪：游戏时会显示在胶囊中
 Чтобы видеть FPS в играх, нужно один раз разрешить доступ	To see FPS in games, allow access once	Щоб бачити FPS в іграх, треба один раз дозволити доступ	Para ver los FPS en juegos, permite el acceso una vez	Um FPS in Spielen zu sehen, einmal Zugriff erlauben	Para ver o FPS nos jogos, permita o acesso uma vez	要在游戏中查看 FPS，需要授权一次
@@ -444,6 +443,347 @@ Atoll {0} — что нового	Atoll {0} — what's new	Atoll {0} — що н
 API-ключ Gemini	Gemini API key	API-ключ Gemini	Clave de API de Gemini	Gemini-API-Schlüssel	Chave de API do Gemini	Gemini API 密钥
 Если поле пустое, используется GEMINI_API_KEY.	If empty, GEMINI_API_KEY is used.	Якщо поле порожнє, використовується GEMINI_API_KEY.	Si está vacío, se usa GEMINI_API_KEY.	Wenn leer, wird GEMINI_API_KEY verwendet.	Se estiver vazio, é usada a GEMINI_API_KEY.	留空则使用 GEMINI_API_KEY。
 Громкость ИИ-ассистента	AI assistant volume	Гучність ШІ-асистента	Volumen del asistente de IA	Lautstärke des KI-Assistenten	Volume do assistente de IA	AI 助手音量
+Виджеты на рабочем столе	Desktop widgets	Віджети на робочому столі	Widgets del escritorio	Desktop-Widgets	Widgets da área de trabalho	桌面小组件
+Изменить виджеты	Edit widgets	Змінити віджети	Editar widgets	Widgets bearbeiten	Editar widgets	编辑小组件
+ВИДЖЕТЫ НА РАБОЧЕМ СТОЛЕ	DESKTOP WIDGETS	ВІДЖЕТИ НА РОБОЧОМУ СТОЛІ	WIDGETS DEL ESCRITORIO	DESKTOP-WIDGETS	WIDGETS DA ÁREA DE TRABALHO	桌面小组件
+Стеклянные карточки на рабочем столе: музыка, погода, часы, календарь, таймер, заметки, загрузка процессора, видеокарты, памяти, диска и сети. Добавляйте их и двигайте в режиме изменения.	Glass cards on the desktop: music, weather, clock, calendar, timer, notes, and the load of the processor, graphics card, memory, disk and network. Add them and move them around in edit mode.	Скляні картки на робочому столі: музика, погода, годинник, календар, таймер, нотатки, завантаження процесора, відеокарти, пам'яті, диска й мережі. Додавайте їх і пересувайте в режимі змін.	Tarjetas de cristal en el escritorio: música, tiempo, reloj, calendario, temporizador, notas y la carga del procesador, la tarjeta gráfica, la memoria, el disco y la red. Añádelas y muévelas en el modo de edición.	Glaskarten auf dem Desktop: Musik, Wetter, Uhr, Kalender, Timer, Notizen sowie die Auslastung von Prozessor, Grafikkarte, Speicher, Laufwerk und Netzwerk. Im Bearbeitungsmodus hinzufügen und verschieben.	Cartões de vidro na área de trabalho: música, meteorologia, relógio, calendário, temporizador, notas e a carga do processador, da placa gráfica, da memória, do disco e da rede. Adicione-os e mova-os no modo de edição.	桌面上的玻璃卡片：音乐、天气、时钟、日历、计时器、笔记，以及处理器、显卡、内存、磁盘和网络的负载。在编辑模式下添加和移动它们。
+Часы	Clock	Годинник	Reloj	Uhr	Relógio	时钟
+Диск	Disk	Диск	Disco	Laufwerk	Disco	磁盘
+Сеть	Network	Мережа	Red	Netzwerk	Rede	网络
+Ощущается {0}°	Feels like {0}°	Відчувається {0}°	Sensación {0}°	Gefühlt {0}°	Sensação {0}°	体感 {0}°
+Нет событий	No events	Немає подій	Sin eventos	Keine Termine	Sem eventos	没有活动
+весь день	all day	увесь день	todo el día	ganztägig	dia inteiro	全天
+Таймер идёт	Timer running	Таймер іде	Temporizador en marcha	Timer läuft	Temporizador a correr	计时中
+Пока пусто	Nothing yet	Поки порожньо	Aún vacío	Noch leer	Ainda vazio	暂无内容
+{0} свободно	{0} free	{0} вільно	{0} libre	{0} frei	{0} livre	可用 {0}
+заряжается	charging	заряджається	cargando	lädt	a carregar	充电中
+Виджеты на рабочем столе…	Desktop widgets…	Віджети на робочому столі…	Widgets del escritorio…	Desktop-Widgets…	Widgets da área de trabalho…	桌面小组件…
+Что играет, обложка и кнопки	What's playing, cover and buttons	Що грає, обкладинка й кнопки	Lo que suena, portada y botones	Was läuft, Cover und Tasten	O que está a tocar, capa e botões	正在播放、封面和按钮
+Главное	Essentials	Головне	Lo esencial	Wichtigstes	Essencial	常用
+Сейчас и на ближайшие часы	Now and the next hours	Зараз і на найближчі години	Ahora y las próximas horas	Jetzt und die nächsten Stunden	Agora e nas próximas horas	当前及未来几小时
+Циферблат со стрелками	A clock face with hands	Циферблат зі стрілками	Esfera con agujas	Zifferblatt mit Zeigern	Mostrador com ponteiros	带指针的表盘
+Сегодня и ближайшее событие	Today and the next event	Сьогодні й найближча подія	Hoy y el próximo evento	Heute und der nächste Termin	Hoje e o próximo evento	今天和下一个活动
+Мировое время	World clock	Світовий час	Reloj mundial	Weltuhr	Relógio mundial	世界时钟
+Время в трёх городах	The time in three cities	Час у трьох містах	La hora en tres ciudades	Die Uhrzeit in drei Städten	A hora em três cidades	三个城市的时间
+Восход, закат и долгота дня	Sunrise, sunset and day length	Схід, захід і тривалість дня	Amanecer, atardecer y duración del día	Sonnenaufgang, -untergang und Tageslänge	Nascer, pôr do sol e duração do dia	日出、日落和白昼时长
+Запуск в один клик: 5, 10, 25 минут	One click: 5, 10, 25 minutes	Запуск в один клік: 5, 10, 25 хвилин	Un clic: 5, 10, 25 minutos	Ein Klick: 5, 10, 25 Minuten	Um clique: 5, 10, 25 minutos	一键启动：5、10、25 分钟
+Дела	Tasks	Справи	Tareas	Erledigen	Tarefas	事务
+Напоминания	Reminders	Нагадування	Recordatorios	Erinnerungen	Lembretes	提醒事项
+Что впереди сегодня и завтра	What's ahead today and tomorrow	Що попереду сьогодні й завтра	Lo que viene hoy y mañana	Was heute und morgen ansteht	O que vem hoje e amanhã	今天和明天的安排
+Последние заметки	Latest notes	Останні нотатки	Últimas notas	Neueste Notizen	Últimas notas	最近的笔记
+Последнее скопированное — клик копирует снова	Recently copied — a click copies again	Останнє скопійоване — клік копіює знову	Lo último copiado: un clic lo vuelve a copiar	Zuletzt kopiert – ein Klick kopiert erneut	O último copiado — um clique copia de novo	最近复制的内容——点击再次复制
+Тишина на 30 минут, 1 или 2 часа	Quiet for 30 minutes, 1 or 2 hours	Тиша на 30 хвилин, 1 або 2 години	Silencio 30 minutos, 1 o 2 horas	Ruhe für 30 Minuten, 1 oder 2 Stunden	Silêncio por 30 minutos, 1 ou 2 horas	静音 30 分钟、1 或 2 小时
+Скриншот, запись, текст с экрана, пипетка	Screenshot, recording, text from screen, colour picker	Знімок, запис, текст з екрана, піпетка	Captura, grabación, texto de pantalla, cuentagotas	Screenshot, Aufnahme, Text vom Bildschirm, Pipette	Captura, gravação, texto do ecrã, conta-gotas	截图、录屏、屏幕文字、取色器
+Процессор, видеокарта и память кольцами	Processor, graphics and memory as rings	Процесор, відеокарта й пам'ять кільцями	Procesador, gráfica y memoria en anillos	Prozessor, Grafik und Speicher als Ringe	Processador, gráfica e memória em anéis	以圆环显示处理器、显卡和内存
+Компьютер	Computer	Комп'ютер	Equipo	Computer	Computador	电脑
+Загрузка процессора	Processor load	Завантаження процесора	Carga del procesador	Prozessorauslastung	Carga do processador	处理器负载
+Загрузка видеокарты	Graphics card load	Завантаження відеокарти	Carga de la gráfica	Grafikkartenauslastung	Carga da placa gráfica	显卡负载
+Сколько занято	How much is in use	Скільки зайнято	Cuánto está en uso	Wie viel belegt ist	Quanto está em uso	已用多少
+Сколько свободно на системном диске	Free space on the system disk	Скільки вільно на системному диску	Espacio libre en el disco del sistema	Freier Platz auf dem Systemlaufwerk	Espaço livre no disco do sistema	系统盘剩余空间
+Скорость загрузки и отдачи	Download and upload speed	Швидкість завантаження й віддачі	Velocidad de bajada y subida	Download- und Upload-Geschwindigkeit	Velocidade de transferência e envio	下载和上传速度
+Заряд ноутбука	Laptop charge	Заряд ноутбука	Carga del portátil	Akkustand des Laptops	Carga do portátil	笔记本电量
+Виджеты	Widgets	Віджети	Widgets	Widgets	Widgets	小组件
+Нажмите «+», чтобы добавить на рабочий стол. Виджеты на столе можно перетаскивать, «−» убирает.	Click "+" to add to the desktop. Drag widgets on the desktop to move them; "−" removes one.	Натисніть «+», щоб додати на робочий стіл. Віджети на столі можна перетягувати, «−» прибирає.	Pulsa «+» para añadir al escritorio. Arrastra los widgets para moverlos; «−» quita uno.	Klicken Sie auf „+“, um es zum Desktop hinzuzufügen. Widgets lassen sich verschieben, „−“ entfernt eines.	Clique em «+» para adicionar à área de trabalho. Arraste os widgets para os mover; «−» remove.	点“+”添加到桌面。拖动桌面上的小组件可移动，点“−”移除。
+Макс.: {0}°, мин.: {1}°	H: {0}°, L: {1}°	Макс.: {0}°, мін.: {1}°	Máx.: {0}°, mín.: {1}°	H: {0}°, T: {1}°	Máx.: {0}°, mín.: {1}°	最高 {0}°，最低 {1}°
+на этой неделе	this week	цього тижня	esta semana	diese Woche	esta semana	本周
+Вчера	Yesterday	Учора	Ayer	Gestern	Ontem	昨天
+ч	h	год	h	Std.	h	小时
+День {0} ч {1} мин	Day {0} h {1} min	День {0} год {1} хв	Día {0} h {1} min	Tag {0} Std. {1} Min.	Dia {0} h {1} min	白昼 {0} 小时 {1} 分
+Ничего не запланировано	Nothing planned	Нічого не заплановано	Nada previsto	Nichts geplant	Nada planeado	暂无安排
+Скопируйте что-нибудь	Copy something	Скопіюйте щось	Copia algo	Kopieren Sie etwas	Copie algo	复制点什么
+сейчас	now	зараз	ahora	jetzt	agora	刚刚
+{0} ч	{0} h	{0} год	{0} h	{0} Std.	{0} h	{0} 小时
+Фокус выключен	Focus is off	Фокус вимкнено	Concentración desactivada	Fokus ist aus	Foco desligado	专注已关闭
+до {0:HH:mm}	until {0:HH:mm}	до {0:HH:mm}	hasta las {0:HH:mm}	bis {0:HH:mm}	até às {0:HH:mm}	至 {0:HH:mm}
+уведомления видны	notifications show	сповіщення видно	las notificaciones se ven	Mitteilungen sichtbar	as notificações aparecem	通知可见
+Загрузка	Down	Завантаження	Bajada	Download	Transferência	下载
+Отдача	Up	Віддача	Subida	Upload	Envio	上传
+загрузка	load	завантаження	carga	Auslastung	carga	负载
+из {0:0} ГБ	of {0:0} GB	з {0:0} ГБ	de {0:0} GB	von {0:0} GB	de {0:0} GB	共 {0:0} GB
+от батареи	on battery	від батареї	con batería	Akkubetrieb	na bateria	使用电池
+Нью-Йорк	New York	Нью-Йорк	Nueva York	New York	Nova Iorque	纽约
+Токио	Tokyo	Токіо	Tokio	Tokio	Tóquio	东京
+1ч	1h	1 год	1 h	1 Std.	1 h	1小时
+2ч	2h	2 год	2 h	2 Std.	2 h	2小时
+Инструменты	Tools	Інструменти	Herramientas	Werkzeuge	Ferramentas	工具
+Для души	Wellbeing	Для душі	Bienestar	Wohlbefinden	Bem-estar	身心
+Месяц	Month	Місяць	Mes	Monat	Mês	月历
+Весь месяц, дни с событиями отмечены	The whole month, days with events marked	Увесь місяць, дні з подіями позначено	Todo el mes, con los días con eventos marcados	Der ganze Monat, Tage mit Terminen markiert	O mês inteiro, dias com eventos marcados	整月视图，标出有活动的日子
+Фото	Photos	Фото	Fotos	Fotos	Fotos	照片
+Ваши снимки из папки «Изображения», по очереди	Your pictures from the Pictures folder, one after another	Ваші знімки з теки «Зображення», по черзі	Tus fotos de la carpeta Imágenes, una tras otra	Ihre Bilder aus dem Ordner „Bilder“, eins nach dem anderen	As suas fotos da pasta Imagens, uma de cada vez	依次显示“图片”文件夹中的照片
+Список дел	To-do list	Список справ	Lista de tareas	Aufgabenliste	Lista de tarefas	待办清单
+Отмечайте сделанное, добавляйте новое	Tick off what's done, add what's new	Позначайте зроблене, додавайте нове	Marca lo hecho, añade lo nuevo	Erledigtes abhaken, Neues hinzufügen	Marque o que fez, adicione o que falta	勾选已完成，添加新事项
+Последние заметки, новая — прямо с рабочего стола	Latest notes; write a new one right from the desktop	Останні нотатки, нова — просто з робочого столу	Últimas notas; escribe una nueva desde el escritorio	Neueste Notizen – neue direkt vom Desktop	Últimas notas; escreva uma nova a partir da área de trabalho	最近的笔记，可直接在桌面写新笔记
+Обратный отсчёт	Countdown	Зворотний відлік	Cuenta atrás	Countdown	Contagem decrescente	倒数日
+Сколько дней осталось до важной даты	How many days are left until an important date	Скільки днів лишилося до важливої дати	Cuántos días faltan para una fecha importante	Wie viele Tage bis zu einem wichtigen Datum bleiben	Quantos dias faltam para uma data importante	距重要日子还有几天
+С кругами, точный до десятых	With laps, to a tenth of a second	З колами, точний до десятих	Con vueltas, a la décima de segundo	Mit Runden, auf die Zehntelsekunde genau	Com voltas, ao décimo de segundo	支持计圈，精确到十分之一秒
+Калькулятор	Calculator	Калькулятор	Calculadora	Rechner	Calculadora	计算器
+Настоящий калькулятор прямо на столе	A real calculator right on the desktop	Справжній калькулятор просто на столі	Una calculadora de verdad en el escritorio	Ein echter Rechner direkt auf dem Desktop	Uma calculadora a sério na área de trabalho	桌面上的真正计算器
+Ведите по карточке вверх и вниз	Drag up and down on the card	Ведіть по картці вгору й униз	Desliza arriba y abajo sobre la tarjeta	Auf der Karte nach oben und unten ziehen	Arraste para cima e para baixo no cartão	在卡片上上下拖动
+Ваши приложения из дока острова	Your apps from the island's dock	Ваші застосунки з доку острова	Tus apps del dock de la isla	Ihre Apps aus dem Dock der Insel	As suas apps da dock da ilha	灵动岛程序坞里的应用
+Процессы	Processes	Процеси	Procesos	Prozesse	Processos	进程
+Кто занимает больше всего памяти	What uses the most memory	Хто займає найбільше пам'яті	Lo que más memoria usa	Was den meisten Speicher belegt	O que usa mais memória	占用内存最多的程序
+Вода	Water	Вода	Agua	Wasser	Água	喝水
+Стаканы за день: нажмите, когда выпили	Glasses a day: tap when you've had one	Склянки за день: натисніть, коли випили	Vasos al día: pulsa cuando bebas uno	Gläser pro Tag: tippen, wenn Sie eins getrunken haben	Copos por dia: toque quando beber um	每天几杯水：喝完点一下
+Дыхание	Breathe	Дихання	Respirar	Atmen	Respirar	呼吸
+Минута спокойного дыхания	A minute of calm breathing	Хвилина спокійного дихання	Un minuto de respiración tranquila	Eine Minute ruhiges Atmen	Um minuto de respiração calma	一分钟平静呼吸
+Фаза луны и до полнолуния	The moon's phase and days to full moon	Фаза місяця і до повні	Fase lunar y días hasta la luna llena	Mondphase und Tage bis Vollmond	Fase da lua e dias até à lua cheia	月相及距满月天数
+Нажмите на виджет или перетащите его на рабочий стол. Правый клик по виджету — темы и настройки.	Click a widget or drag it onto the desktop. Right-click a widget for themes and settings.	Натисніть на віджет або перетягніть його на робочий стіл. Правий клік по віджету — теми й налаштування.	Pulsa un widget o arrástralo al escritorio. Clic derecho en un widget: temas y ajustes.	Klicken Sie auf ein Widget oder ziehen Sie es auf den Desktop. Rechtsklick: Designs und Einstellungen.	Clique num widget ou arraste-o para a área de trabalho. Clique direito: temas e definições.	点击小组件或拖到桌面。右键点击小组件可选主题和设置。
+Тема	Theme	Тема	Tema	Design	Tema	主题
+Свернуть	Close	Згорнути	Cerrar	Schließen	Fechar	收起
+Как у всех ({0})	Same as the others ({0})	Як у всіх ({0})	Igual que los demás ({0})	Wie die anderen ({0})	Igual aos outros ({0})	与其他相同（{0}）
+Изменить виджеты…	Edit widgets…	Змінити віджети…	Editar widgets…	Widgets bearbeiten…	Editar widgets…	编辑小组件…
+Убрать виджет	Remove widget	Прибрати віджет	Quitar widget	Widget entfernen	Remover widget	移除小组件
+Ощущается	Feels like	Відчувається	Sensación	Gefühlt	Sensação	体感
+{0:0} м/с	{0:0} m/s	{0:0} м/с	{0:0} m/s	{0:0} m/s	{0:0} m/s	{0:0} 米/秒
+{0:0} мм	{0:0} mm	{0:0} мм	{0:0} mm	{0:0} mm	{0:0} mm	{0:0} 毫米
+Новая заметка — Enter, чтобы сохранить	New note — Enter to save	Нова нотатка — Enter, щоб зберегти	Nota nueva: Intro para guardar	Neue Notiz – Eingabe zum Speichern	Nova nota — Enter para guardar	新笔记——按 Enter 保存
+Без перезагрузки	Up time	Без перезавантаження	Tiempo encendido	Laufzeit	Tempo ligado	运行时间
+{0:0.0} из {1:0} ГБ	{0:0.0} of {1:0} GB	{0:0.0} з {1:0} ГБ	{0:0.0} de {1:0} GB	{0:0.0} von {1:0} GB	{0:0.0} de {1:0} GB	{0:0.0} / {1:0} GB
+{0} д {1} ч	{0} d {1} h	{0} д {1} год	{0} d {1} h	{0} T. {1} Std.	{0} d {1} h	{0} 天 {1} 小时
+{0} ч {1} мин	{0} h {1} min	{0} год {1} хв	{0} h {1} min	{0} Std. {1} Min.	{0} h {1} min	{0} 小时 {1} 分
+Ошибка	Error	Помилка	Error	Fehler	Erro	错误
+Круг	Lap	Коло	Vuelta	Runde	Volta	计圈
+Круг {0}	Lap {0}	Коло {0}	Vuelta {0}	Runde {0}	Volta {0}	第 {0} 圈
+норма выполнена	goal reached	норму виконано	objetivo cumplido	Ziel erreicht	objetivo cumprido	已达标
+из {0} стаканов	of {0} glasses	з {0} склянок	de {0} vasos	von {0} Gläsern	de {0} copos	共 {0} 杯
+Отправить отчёт	Send the report	Надіслати звіт	Enviar el informe	Bericht senden	Enviar o relatório	发送报告
+Купить подарок	Buy a present	Купити подарунок	Comprar un regalo	Geschenk kaufen	Comprar um presente	买礼物
+Записаться к врачу	Book a doctor	Записатися до лікаря	Pedir cita con el médico	Arzttermin machen	Marcar médico	预约医生
+Полить цветы	Water the plants	Полити квіти	Regar las plantas	Blumen gießen	Regar as plantas	浇花
+Новое дело — Enter, чтобы добавить	New task — Enter to add	Нова справа — Enter, щоб додати	Tarea nueva: Intro para añadir	Neue Aufgabe – Eingabe zum Hinzufügen	Nova tarefa — Enter para adicionar	新事项——按 Enter 添加
+Убрать сделанные	Clear done	Прибрати виконані	Quitar hechas	Erledigte entfernen	Limpar feitas	清除已完成
+Нажмите, чтобы добавить дела	Click to add tasks	Натисніть, щоб додати справи	Pulsa para añadir tareas	Klicken, um Aufgaben hinzuzufügen	Clique para adicionar tarefas	点击添加事项
+Новый год	New Year	Новий рік	Año Nuevo	Neujahr	Ano Novo	新年
+дн.	days	дн.	días	Tage	dias	天
+Сегодня!	Today!	Сьогодні!	¡Hoy!	Heute!	Hoje!	就是今天！
+Название события	Event name	Назва події	Nombre del evento	Name des Ereignisses	Nome do evento	活动名称
+Дата, например 31.12.2026	Date, e.g. 31.12.2026	Дата, наприклад 31.12.2026	Fecha, p. ej. 31.12.2026	Datum, z. B. 31.12.2026	Data, p. ex. 31.12.2026	日期，例如 31.12.2026
+Через неделю	In a week	Через тиждень	En una semana	In einer Woche	Daqui a uma semana	一周后
+Через месяц	In a month	Через місяць	En un mes	In einem Monat	Daqui a um mês	一个月后
+Без звука	Muted	Без звуку	Silencio	Stumm	Sem som	静音
+Добавьте приложения в док острова — они появятся здесь	Add apps to the island's dock and they'll show up here	Додайте застосунки в док острова — вони з'являться тут	Añade apps al dock de la isla y aparecerán aquí	Fügen Sie Apps zum Dock der Insel hinzu – sie erscheinen hier	Adicione apps à dock da ilha e aparecem aqui	把应用加入灵动岛程序坞，它们会显示在这里
+Открыть док	Open the dock	Відкрити док	Abrir el dock	Dock öffnen	Abrir a dock	打开程序坞
+Положите фото в папку «Изображения»	Put photos in the Pictures folder	Покладіть фото в теку «Зображення»	Pon fotos en la carpeta Imágenes	Legen Sie Fotos in den Ordner „Bilder“	Coloque fotos na pasta Imagens	把照片放进“图片”文件夹
+Новолуние	New moon	Новий місяць	Luna nueva	Neumond	Lua nova	新月
+Растущий серп	Waxing crescent	Молодий місяць	Luna creciente	Zunehmende Sichel	Crescente	娥眉月
+Первая четверть	First quarter	Перша чверть	Cuarto creciente	Erstes Viertel	Quarto crescente	上弦月
+Растущая луна	Waxing gibbous	Зростаючий місяць	Gibosa creciente	Zunehmender Mond	Crescente gibosa	盈凸月
+Полнолуние	Full moon	Повня	Luna llena	Vollmond	Lua cheia	满月
+Убывающая луна	Waning gibbous	Спадний місяць	Gibosa menguante	Abnehmender Mond	Minguante gibosa	亏凸月
+Последняя четверть	Last quarter	Остання чверть	Cuarto menguante	Letztes Viertel	Quarto minguante	下弦月
+Убывающий серп	Waning crescent	Старий місяць	Luna menguante	Abnehmende Sichel	Minguante	残月
+освещена на {0:0}%	{0:0}% lit	освітлено на {0:0}%	iluminada al {0:0}%	zu {0:0}% beleuchtet	{0:0}% iluminada	照亮 {0:0}%
+сегодня полнолуние	full moon today	сьогодні повня	hoy hay luna llena	heute Vollmond	hoje é lua cheia	今天满月
+до полнолуния {0:0} дн.	{0:0} days to full moon	до повні {0:0} дн.	{0:0} días para la luna llena	{0:0} Tage bis Vollmond	{0:0} dias até à lua cheia	距满月 {0:0} 天
+Нажмите, чтобы начать	Click to start	Натисніть, щоб почати	Pulsa para empezar	Zum Starten klicken	Clique para começar	点击开始
+Вдох	Breathe in	Вдих	Inspira	Einatmen	Inspire	吸气
+Выдох	Breathe out	Видих	Espira	Ausatmen	Expire	呼气
+ТЕМА ВИДЖЕТОВ	WIDGET THEME	ТЕМА ВІДЖЕТІВ	TEMA DE LOS WIDGETS	WIDGET-DESIGN	TEMA DOS WIDGETS	小组件主题
+Живое стекло	Live glass	Живе скло	Cristal en vivo	Live-Glas	Vidro ao vivo	实时玻璃
+Скрыть с рабочего стола	Hide from the desktop	Сховати з робочого столу	Ocultar del escritorio	Vom Desktop ausblenden	Ocultar da área de trabalho	从桌面隐藏
+на столе: {0}	on the desktop: {0}	на столі: {0}	en el escritorio: {0}	auf dem Desktop: {0}	na área de trabalho: {0}	桌面上：{0}
+НА РАБОЧЕМ СТОЛЕ	ON THE DESKTOP	НА РОБОЧОМУ СТОЛІ	EN EL ESCRITORIO	AUF DEM DESKTOP	NA ÁREA DE TRABALHO	桌面上的小组件
+Галерея и расположение…	Gallery and layout…	Галерея і розташування…	Galería y disposición…	Galerie und Anordnung…	Galeria e disposição…	图库与布局…
+Убрать все	Remove all	Прибрати всі	Quitar todos	Alle entfernen	Remover todos	全部移除
+Дымка	Smoke	Серпанок	Humo	Dunst	Fumo	烟雾
+Бумага	Paper	Папір	Papel	Papier	Papel	纸白
+Париж	Paris	Париж	París	Paris	Paris	巴黎
+Дубай	Dubai	Дубай	Dubái	Dubai	Dubai	迪拜
+Сидней	Sydney	Сідней	Sídney	Sydney	Sydney	悉尼
+Предыдущий трек	Previous track	Попередній трек	Pista anterior	Vorheriger Titel	Faixa anterior	上一首
+Пауза или воспроизведение	Play or pause	Пауза або відтворення	Reproducir o pausar	Wiedergabe oder Pause	Reproduzir ou pausar	播放或暂停
+Следующий трек	Next track	Наступний трек	Pista siguiente	Nächster Titel	Faixa seguinte	下一首
+Стереть	Delete	Стерти	Borrar	Löschen	Apagar	删除
+Добавить стакан	Add a glass	Додати склянку	Añadir un vaso	Ein Glas hinzufügen	Adicionar um copo	加一杯
+Убрать стакан	Remove a glass	Прибрати склянку	Quitar un vaso	Ein Glas entfernen	Remover um copo	减一杯
+Предыдущее фото	Previous photo	Попереднє фото	Foto anterior	Vorheriges Foto	Foto anterior	上一张
+Следующее фото	Next photo	Наступне фото	Foto siguiente	Nächstes Foto	Foto seguinte	下一张
+Готовые наборы	Ready-made sets	Готові набори	Conjuntos listos	Fertige Sets	Conjuntos prontos	现成组合
+ГОТОВЫЕ НАБОРЫ	READY-MADE SETS	ГОТОВІ НАБОРИ	CONJUNTOS LISTOS	FERTIGE SETS	CONJUNTOS PRONTOS	现成组合
+Как у всех	Same as the others	Як у всіх	Como los demás	Wie die anderen	Igual aos outros	与其他相同
+Как у всех: {0}	Same as the others: {0}	Як у всіх: {0}	Como los demás: {0}	Wie die anderen: {0}	Igual aos outros: {0}	与其他相同：{0}
+Свой цвет	Own colour	Свій колір	Color propio	Eigene Farbe	Cor própria	自定义颜色
+«{0}» убран	“{0}” removed	«{0}» прибрано	«{0}» quitado	„{0}“ entfernt	«{0}» removido	已移除“{0}”
+Нажмите, чтобы вернуть	Click to bring it back	Натисніть, щоб повернути	Pulsa para recuperarlo	Klicken zum Wiederherstellen	Clique para repor	点击恢复
+Виджет не загрузился — правый клик, чтобы убрать	The widget didn't load — right-click to remove it	Віджет не завантажився — правий клік, щоб прибрати	El widget no se cargó: clic derecho para quitarlo	Widget nicht geladen – Rechtsklick zum Entfernen	O widget não carregou — clique direito para remover	小组件未能加载——右键点击移除
+Настроить виджет…	Edit widget…	Налаштувати віджет…	Editar widget…	Widget bearbeiten…	Editar widget…	编辑小组件…
+Маленький	Small	Малий	Pequeño	Klein	Pequeno	小
+Средний	Medium	Середній	Mediano	Mittel	Médio	中
+Большой	Large	Великий	Grande	Groß	Grande	大
+Нажмите, чтобы написать первую заметку	Click to write your first note	Натисніть, щоб написати першу нотатку	Pulsa para escribir tu primera nota	Klicken, um die erste Notiz zu schreiben	Clique para escrever a primeira nota	点击写下第一条笔记
+Не получилось скопировать	Couldn't copy	Не вдалося скопіювати	No se pudo copiar	Kopieren fehlgeschlagen	Não foi possível copiar	复制失败
+Буфер обмена занят другой программой	Another program is using the clipboard	Буфер обміну зайнятий іншою програмою	Otro programa está usando el portapapeles	Ein anderes Programm verwendet die Zwischenablage	Outro programa está a usar a área de transferência	剪贴板正被其他程序占用
+Перетаскивайте виджеты по сетке • нажмите на виджет, чтобы настроить • клик по пустому месту — готово	Drag widgets along the grid • click a widget to edit it • click an empty spot when done	Перетягуйте віджети по сітці • натисніть на віджет, щоб налаштувати • клік по порожньому місцю — готово	Arrastra los widgets por la cuadrícula • pulsa uno para editarlo • pulsa un hueco para terminar	Widgets im Raster ziehen • Widget anklicken zum Bearbeiten • freie Stelle anklicken zum Beenden	Arraste os widgets pela grelha • clique num widget para o editar • clique num espaço vazio para terminar	沿网格拖动小组件 • 点击小组件进行编辑 • 点击空白处完成
+Размер	Size	Розмір	Tamaño	Größe	Tamanho	尺寸
+Насыщенность стекла	Glass depth	Насиченість скла	Intensidad del cristal	Glastiefe	Intensidade do vidro	玻璃浓度
+Прозрачнее	Clearer	Прозоріше	Más claro	Klarer	Mais claro	更通透
+Насыщеннее	Deeper	Насиченіше	Más intenso	Kräftiger	Mais intenso	更浓
+Свой	Own	Свій	Propio	Eigene	Próprio	默认
+Параметры	Options	Параметри	Opciones	Optionen	Opções	选项
+{0} стаканов в день	{0} glasses a day	{0} склянок на день	{0} vasos al día	{0} Gläser pro Tag	{0} copos por dia	每天 {0} 杯
+Меньше	Fewer	Менше	Menos	Weniger	Menos	减少
+Больше	More	Більше	Más	Mehr	Mais	增加
+Первые три видны на среднем виджете, до шести — на большом	The first three show on the medium widget, up to six on the large one	Перші три видно на середньому віджеті, до шести — на великому	Las tres primeras se ven en el mediano, hasta seis en el grande	Die ersten drei zeigt das mittlere Widget, bis zu sechs das große	As três primeiras no médio, até seis no grande	中号显示前三个，大号最多六个
+Изменить событие и дату…	Change the event and date…	Змінити подію і дату…	Cambiar evento y fecha…	Ereignis und Datum ändern…	Mudar evento e data…	更改活动和日期…
+Выбрать приложения в доке острова…	Choose apps in the island's dock…	Вибрати застосунки в доку острова…	Elegir apps en el dock de la isla…	Apps im Dock der Insel wählen…	Escolher apps na dock da ilha…	在灵动岛程序坞中选择应用…
+Мой день	My day	Мій день	Mi día	Mein Tag	O meu dia	我的一天
+Время, погода, месяц, дела и музыка	Time, weather, month, to-dos and music	Час, погода, місяць, справи й музика	Hora, tiempo, mes, tareas y música	Zeit, Wetter, Monat, Aufgaben und Musik	Hora, tempo, mês, tarefas e música	时间、天气、月历、待办和音乐
+Работа	Work	Робота	Trabajo	Arbeit	Trabalho	工作
+Календарь, напоминания, заметки, таймер, фокус	Calendar, reminders, notes, timer, focus	Календар, нагадування, нотатки, таймер, фокус	Calendario, recordatorios, notas, temporizador, concentración	Kalender, Erinnerungen, Notizen, Timer, Fokus	Calendário, lembretes, notas, temporizador, foco	日历、提醒、笔记、计时器、专注
+Нагрузка, память, сеть и процессы	Load, memory, network and processes	Навантаження, пам'ять, мережа й процеси	Carga, memoria, red y procesos	Auslastung, Speicher, Netzwerk und Prozesse	Carga, memória, rede e processos	负载、内存、网络和进程
+Спокойствие	Calm	Спокій	Calma	Ruhe	Calma	平静
+Фото, вода, дыхание, луна и солнце	Photos, water, breathing, moon and sun	Фото, вода, дихання, місяць і сонце	Fotos, agua, respiración, luna y sol	Fotos, Wasser, Atmen, Mond und Sonne	Fotos, água, respiração, lua e sol	照片、喝水、呼吸、月亮和太阳
+Добавить набор на рабочий стол	Add the set to the desktop	Додати набір на робочий стіл	Añadir el conjunto al escritorio	Set zum Desktop hinzufügen	Adicionar o conjunto à área de trabalho	将组合添加到桌面
+Виджет на рабочем столе	A widget on your desktop	Віджет на робочому столі	Un widget en el escritorio	Ein Widget auf dem Desktop	Um widget na área de trabalho	桌面上的小组件
+Нажмите — раскроется. Правый клик — размер, цвет и настройки.	Click to open it. Right-click for size, colour and settings.	Натисніть — розкриється. Правий клік — розмір, колір і налаштування.	Púlsalo para abrirlo. Clic derecho: tamaño, color y ajustes.	Klicken zum Öffnen. Rechtsklick: Größe, Farbe und Einstellungen.	Clique para abrir. Clique direito: tamanho, cor e definições.	点击展开。右键可调尺寸、颜色和设置。
+Убрано виджетов: {0}	Widgets removed: {0}	Прибрано віджетів: {0}	Widgets quitados: {0}	Entfernte Widgets: {0}	Widgets removidos: {0}	已移除小组件：{0}
+Лос-Анджелес	Los Angeles	Лос-Анджелес	Los Ángeles	Los Angeles	Los Angeles	洛杉矶
+Берлин	Berlin	Берлін	Berlín	Berlin	Berlim	柏林
+Москва	Moscow	Москва	Moscú	Moskau	Moscovo	莫斯科
+Киев	Kyiv	Київ	Kiev	Kyjiw	Kiev	基辅
+Стамбул	Istanbul	Стамбул	Estambul	Istanbul	Istambul	伊斯坦布尔
+Дели	Delhi	Делі	Delhi	Delhi	Deli	德里
+Пекин	Beijing	Пекін	Pekín	Peking	Pequim	北京
+Сингапур	Singapore	Сінгапур	Singapur	Singapur	Singapura	新加坡
+Преломление	Refraction	Заломлення	Refracción	Lichtbrechung	Refração	折射
+Размытие	Blur	Розмиття	Desenfoque	Unschärfe	Desfoque	模糊
+Добавить виджет	Add a widget	Додати віджет	Añadir widget	Widget hinzufügen	Adicionar widget	添加小组件
+Перетащите виджет по сетке • потяните за угол, чтобы сменить размер • нажмите на виджет, чтобы настроить	Drag a widget along the grid • pull its corner to change the size • click a widget to edit it	Перетягніть віджет по сітці • потягніть за кут, щоб змінити розмір • натисніть на віджет, щоб налаштувати	Arrastra un widget por la cuadrícula • tira de la esquina para cambiar el tamaño • pulsa un widget para editarlo	Widget im Raster ziehen • an der Ecke ziehen für eine andere Größe • Widget anklicken zum Bearbeiten	Arraste um widget pela grelha • puxe o canto para mudar o tamanho • clique num widget para o editar	沿网格拖动小组件 • 拖动角落更改尺寸 • 点击小组件进行编辑
+Потяните, чтобы сменить размер	Drag to change the size	Потягніть, щоб змінити розмір	Arrastra para cambiar el tamaño	Ziehen, um die Größe zu ändern	Arraste para mudar o tamanho	拖动以更改尺寸
+Следующий источник	Next source	Наступне джерело	Siguiente fuente	Nächste Quelle	Fonte seguinte	下一个来源
+Волна	Wave	Хвиля	Onda	Welle	Onda	波浪
+Столбики	Bars	Стовпчики	Barras	Balken	Barras	柱状
+Кольцо	Ring	Кільце	Anillo	Ring	Anel	环形
+Без визуализации	No visualiser	Без візуалізації	Sin visualizador	Ohne Visualisierung	Sem visualizador	不显示
+Визуализация звука	Sound visualiser	Візуалізація звуку	Visualizador de sonido	Klangvisualisierung	Visualizador de som	声音可视化
+Инструментальная композиция	Instrumental	Інструментальна композиція	Instrumental	Instrumental	Instrumental	纯音乐
+Здесь появится текст песни	Song lyrics will appear here	Тут з'явиться текст пісні	Aquí aparecerá la letra	Hier erscheint der Songtext	A letra aparecerá aqui	歌词将显示在这里
+Ищу текст…	Looking for lyrics…	Шукаю текст…	Buscando la letra…	Suche Songtext…	Procurando a letra…	正在查找歌词…
+Без сдвига	No shift	Без зсуву	Sin desfase	Kein Versatz	Sem ajuste	无偏移
+{0} с	{0} s	{0} с	{0} s	{0} s	{0} s	{0} 秒
+Текст позже	Lyrics later	Текст пізніше	Letra más tarde	Text später	Letra depois	歌词延后
+Текст раньше	Lyrics earlier	Текст раніше	Letra antes	Text früher	Letra antes	歌词提前
+Сдвиг текста песни	Lyrics timing	Зсув тексту пісні	Ajuste de la letra	Songtext-Timing	Ajuste da letra	歌词时间偏移
+Эквалайзер	Equalizer	Еквалайзер	Ecualizador	Equalizer	Equalizador	均衡器
+Нужен Equalizer APO	Equalizer APO is needed	Потрібен Equalizer APO	Se necesita Equalizer APO	Equalizer APO wird benötigt	É preciso o Equalizer APO	需要 Equalizer APO
+Программа сама не может менять звук других приложений. Это делает бесплатный Equalizer APO: он встраивается в звук Windows, а виджет управляет им.	An app can't change other apps' sound by itself. The free Equalizer APO does it: it plugs into Windows audio, and the widget controls it.	Програма сама не може змінювати звук інших застосунків. Це робить безкоштовний Equalizer APO: він вбудовується у звук Windows, а віджет ним керує.	Una app no puede cambiar el sonido de otras por sí sola. Lo hace el Equalizer APO gratuito: se integra en el audio de Windows y el widget lo controla.	Eine App kann den Klang anderer Apps nicht selbst ändern. Das macht das kostenlose Equalizer APO: Es klinkt sich in den Windows-Sound ein, und das Widget steuert es.	Um app não consegue mudar sozinho o som de outros apps. O Equalizer APO gratuito faz isso: ele se integra ao áudio do Windows e o widget o controla.	应用本身无法改变其他应用的声音。免费的 Equalizer APO 可以做到：它接入 Windows 音频，由小组件来控制。
+При установке отметь устройство, через которое слушаешь музыку (наушники или колонки), и перезагрузи компьютер.	During setup, tick the device you listen on (headphones or speakers), then restart the computer.	Під час встановлення познач пристрій, через який слухаєш музику (навушники чи колонки), і перезавантаж комп'ютер.	Al instalarlo, marca el dispositivo con el que escuchas (auriculares o altavoces) y reinicia el equipo.	Wähle bei der Installation das Gerät, über das du hörst (Kopfhörer oder Lautsprecher), und starte den Computer neu.	Na instalação, marque o dispositivo em que você ouve (fones ou caixas de som) e reinicie o computador.	安装时勾选你用来听音乐的设备（耳机或音箱），然后重启电脑。
+Скачать Equalizer APO	Download Equalizer APO	Завантажити Equalizer APO	Descargar Equalizer APO	Equalizer APO herunterladen	Baixar o Equalizer APO	下载 Equalizer APO
+Нет прав на запись в папку Equalizer APO.	No permission to write to the Equalizer APO folder.	Немає прав на запис у теку Equalizer APO.	Sin permiso para escribir en la carpeta de Equalizer APO.	Keine Schreibrechte für den Equalizer-APO-Ordner.	Sem permissão para gravar na pasta do Equalizer APO.	没有写入 Equalizer APO 文件夹的权限。
+Не получилось сохранить настройки эквалайзера.	Couldn't save the equalizer settings.	Не вдалося зберегти налаштування еквалайзера.	No se pudieron guardar los ajustes del ecualizador.	Die Equalizer-Einstellungen konnten nicht gespeichert werden.	Não foi possível salvar o equalizador.	无法保存均衡器设置。
+Правый клик — удалить	Right-click to delete	Правий клік — видалити	Clic derecho para eliminar	Rechtsklick zum Löschen	Clique direito para excluir	右键删除
+Мой {0}	My {0}	Мій {0}	Mío {0}	Eigenes {0}	Meu {0}	我的 {0}
+Обойти	Bypass	Обійти	Omitir	Umgehen	Ignorar	旁通
+Временно выключить эквалайзер, не сбрасывая полосы	Turn the equalizer off for now without resetting the bands	Тимчасово вимкнути еквалайзер, не скидаючи смуги	Desactivar el ecualizador por ahora sin restablecer las bandas	Equalizer vorübergehend ausschalten, ohne die Bänder zurückzusetzen	Desligar o equalizador por enquanto sem zerar as faixas	暂时关闭均衡器，不重置频段
+Разрешить запись	Allow writing	Дозволити запис	Permitir escritura	Schreiben erlauben	Permitir gravação	允许写入
+Подтверди запрос Windows…	Confirm the Windows prompt…	Підтверди запит Windows…	Confirma el aviso de Windows…	Bestätige die Windows-Abfrage…	Confirme o aviso do Windows…	请确认 Windows 提示…
+Права не выданы.	Permission was not granted.	Права не надано.	No se concedió el permiso.	Berechtigung wurde nicht erteilt.	A permissão não foi concedida.	未授予权限。
+Первое изменение подключит виджет к Equalizer APO (одна строка в config.txt, с копией).	The first change connects the widget to Equalizer APO (one line in config.txt, backed up first).	Перша зміна підключить віджет до Equalizer APO (один рядок у config.txt, з копією).	El primer cambio conecta el widget con Equalizer APO (una línea en config.txt, con copia).	Die erste Änderung verbindet das Widget mit Equalizer APO (eine Zeile in config.txt, vorher gesichert).	A primeira mudança conecta o widget ao Equalizer APO (uma linha no config.txt, com cópia).	首次更改会把小组件接入 Equalizer APO（在 config.txt 中加一行，并先备份）。
+Плоский	Flat	Рівний	Plano	Linear	Plano	平直
+Бас	Bass	Бас	Graves	Bass	Graves	低音
+Вокал	Vocal	Вокал	Voz	Gesang	Vocal	人声
+Рок	Rock	Рок	Rock	Rock	Rock	摇滚
+Синти-поп	Synth-pop	Синті-поп	Synth-pop	Synthpop	Synth-pop	合成器流行
+Воздух (AQI)	Air (AQI)	Повітря (AQI)	Aire (AQI)	Luft (AQI)	Ar (AQI)	空气 (AQI)
+{0:0.#} мкг/м³	{0:0.#} µg/m³	{0:0.#} мкг/м³	{0:0.#} µg/m³	{0:0.#} µg/m³	{0:0.#} µg/m³	{0:0.#} 微克/立方米
+данные на {0}	as of {0}	дані на {0}	datos de las {0}	Stand {0}	dados das {0}	{0} 的数据
+хороший	good	добре	buena	gut	boa	良好
+приемлемый	fair	прийнятне	aceptable	akzeptabel	razoável	尚可
+средний	moderate	середнє	moderada	mäßig	moderada	中等
+плохой	poor	погане	mala	schlecht	ruim	较差
+очень плохой	very poor	дуже погане	muy mala	sehr schlecht	muito ruim	很差
+опасный	hazardous	небезпечне	peligrosa	gefährlich	perigosa	危险
+Снег надолго, до конца дня	Snow for a long while, until the end of the day	Сніг надовго, до кінця дня	Nieve para rato, hasta el final del día	Schnee für lange, bis zum Ende des Tages	Neve por bastante tempo, até o fim do dia	雪会持续很久，直到今天结束
+Дождь надолго, до конца дня	Rain for a long while, until the end of the day	Дощ надовго, до кінця дня	Lluvia para rato, hasta el final del día	Regen für lange, bis zum Ende des Tages	Chuva por bastante tempo, até o fim do dia	雨会持续很久，直到今天结束
+Снег начнётся в ближайшие минуты	Snow starting in the next few minutes	Сніг почнеться найближчими хвилинами	Nevará en los próximos minutos	Schnee in den nächsten Minuten	Neve nos próximos minutos	几分钟内开始下雪
+Дождь начнётся в ближайшие минуты	Rain starting in the next few minutes	Дощ почнеться найближчими хвилинами	Lloverá en los próximos minutos	Regen in den nächsten Minuten	Chuva nos próximos minutos	几分钟内开始下雨
+Возможен снег около {0}	Snow possible around {0}	Можливий сніг близько {0}	Posible nieve hacia las {0}	Schnee möglich gegen {0}	Possível neve por volta das {0}	{0} 左右可能下雪
+Возможен дождь около {0}	Rain possible around {0}	Можливий дощ близько {0}	Posible lluvia hacia las {0}	Regen möglich gegen {0}	Possível chuva por volta das {0}	{0} 左右可能下雨
+Ветер усилится до {0} м/с после {1}	Wind picking up to {0} m/s after {1}	Вітер посилиться до {0} м/с після {1}	El viento subirá a {0} m/s después de las {1}	Wind frischt nach {1} auf {0} m/s auf	O vento chega a {0} m/s depois das {1}	{1} 之后风力增强至 {0} 米/秒
+Сухо до утра	Dry until morning	Сухо до ранку	Seco hasta la mañana	Trocken bis zum Morgen	Seco até de manhã	早上之前无降水
+Сухо весь день	Dry all day	Сухо весь день	Seco todo el día	Den ganzen Tag trocken	Seco o dia todo	全天无降水
+Сухо до ночи	Dry until night	Сухо до ночі	Seco hasta la noche	Trocken bis zur Nacht	Seco até a noite	入夜前无降水
+Снег начнётся около {0}	Snow starting around {0}	Сніг почнеться близько {0}	Empezará a nevar hacia las {0}	Schnee ab etwa {0}	Neve a partir das {0}	{0} 左右开始下雪
+Дождь начнётся около {0}	Rain starting around {0}	Дощ почнеться близько {0}	Empezará a llover hacia las {0}	Regen ab etwa {0}	Chuva a partir das {0}	{0} 左右开始下雨
+Снег закончится около {0}	Snow stopping around {0}	Сніг закінчиться близько {0}	Dejará de nevar hacia las {0}	Schnee hört gegen {0} auf	A neve para por volta das {0}	{0} 左右雪停
+Дождь закончится около {0}	Rain stopping around {0}	Дощ закінчиться близько {0}	Dejará de llover hacia las {0}	Regen hört gegen {0} auf	A chuva para por volta das {0}	{0} 左右雨停
+Будильник	Alarm	Будильник	Alarma	Wecker	Alarme	闹钟
+до полуночи {0} ч {1} мин	{0} h {1} min until midnight	до півночі {0} год {1} хв	{0} h {1} min hasta medianoche	noch {0} Std. {1} Min. bis Mitternacht	{0} h {1} min até a meia-noite	距午夜 {0} 小时 {1} 分钟
+таймер	timer	таймер	temporizador	Timer	timer	计时器
+помодоро	pomodoro	помодоро	pomodoro	Pomodoro	pomodoro	番茄钟
+Сегодня ещё ни одной сессии	No sessions yet today	Сьогодні ще жодної сесії	Aún no hay sesiones hoy	Heute noch keine Sitzung	Nenhuma sessão hoje ainda	今天还没有完成番茄
+Сегодня сессий: {0}	Sessions today: {0}	Сьогодні сесій: {0}	Sesiones hoy: {0}	Sitzungen heute: {0}	Sessões hoje: {0}	今日番茄：{0}
+Старт или пауза	Start or pause	Старт або пауза	Iniciar o pausar	Start oder Pause	Iniciar ou pausar	开始或暂停
+Включить или выключить	Turn on or off	Увімкнути або вимкнути	Activar o desactivar	Ein- oder ausschalten	Ligar ou desligar	开启或关闭
+Будни	Weekdays	Будні	Laborables	Werktage	Dias úteis	工作日
+Выходные	Weekend	Вихідні	Fin de semana	Wochenende	Fim de semana	周末
+Каждый день	Every day	Щодня	Todos los días	Jeden Tag	Todos os dias	每天
+Однократно	Once	Одноразово	Una vez	Einmalig	Uma vez	仅一次
+Будильник {0}	Alarm {0}	Будильник {0}	Alarma {0}	Wecker {0}	Alarme {0}	闹钟{0}
+Будильников пока нет	No alarms yet	Будильників поки немає	Aún no hay alarmas	Noch keine Wecker	Nenhum alarme ainda	还没有闹钟
+Все будильники выключены	All alarms are off	Усі будильники вимкнено	Todas las alarmas están apagadas	Alle Wecker sind aus	Todos os alarmes estão desligados	所有闹钟已关闭
+Классика	Classic	Класика	Clásico	Klassisch	Clássico	经典
+Минимал	Minimal	Мінімал	Mínimo	Minimal	Mínimo	极简
+Цифровой	Digital	Цифровий	Digital	Digital	Digital	数字
+Циферблат	Clock face	Циферблат	Esfera	Zifferblatt	Mostrador	表盘
+меньше чем через минуту	in less than a minute	менш ніж за хвилину	en menos de un minuto	in weniger als einer Minute	em menos de um minuto	不到一分钟后
+через {0} мин	in {0} min	за {0} хв	en {0} min	in {0} Min.	em {0} min	{0} 分钟后
+через {0} ч	in {0} h	за {0} год	en {0} h	in {0} Std.	em {0} h	{0} 小时后
+через {0} ч {1} мин	in {0} h {1} min	за {0} год {1} хв	en {0} h {1} min	in {0} Std. {1} Min.	em {0} h {1} min	{0} 小时 {1} 分钟后
+По будням	On weekdays	У будні	Entre semana	An Werktagen	Nos dias úteis	工作日
+По выходным	On weekends	У вихідні	Los fines de semana	Am Wochenende	Nos fins de semana	周末
+Длинный перерыв · {0} мин	Long break · {0} min	Довга перерва · {0} хв	Descanso largo · {0} min	Lange Pause · {0} Min.	Pausa longa · {0} min	长休息 · {0} 分钟
+Перерыв · {0} мин	Break · {0} min	Перерва · {0} хв	Descanso · {0} min	Pause · {0} Min.	Pausa · {0} min	休息 · {0} 分钟
+Помодоро {0}/4 · {1} мин	Pomodoro {0}/4 · {1} min	Помодоро {0}/4 · {1} хв	Pomodoro {0}/4 · {1} min	Pomodoro {0}/4 · {1} Min.	Pomodoro {0}/4 · {1} min	番茄 {0}/4 · {1} 分钟
+Плавная секундная стрелка	Smooth seconds hand	Плавна секундна стрілка	Segundero suave	Sanfter Sekundenzeiger	Ponteiro de segundos suave	平滑秒针
+Красивее, но заметно нагружает процессор; выключенная стрелка шагает раз в секунду	Nicer, but uses noticeably more CPU; when off, the hand steps once a second	Гарніше, але помітно навантажує процесор; вимкнена стрілка крокує раз на секунду	Más bonito, pero usa bastante más CPU; desactivado, avanza una vez por segundo	Schöner, braucht aber spürbar mehr CPU; aus springt der Zeiger einmal pro Sekunde	Mais bonito, mas usa bem mais CPU; desligado, o ponteiro avança a cada segundo	更美观，但明显占用更多 CPU；关闭后每秒跳一格
+Открыть файл	Open file	Відкрити файл	Abrir archivo	Datei öffnen	Abrir arquivo	打开文件
+Перетащите фото на виджет	Drop a photo on the widget	Перетягніть фото на віджет	Arrastra una foto al widget	Zieh ein Foto auf das Widget	Arraste uma foto para o widget	把照片拖到小组件上
+Здесь нет фото — перетащите папку или фото на виджет	No photos here — drop a folder or a photo on the widget	Тут немає фото — перетягніть теку або фото на віджет	No hay fotos — arrastra una carpeta o una foto al widget	Keine Fotos — zieh einen Ordner oder ein Foto auf das Widget	Sem fotos aqui — arraste uma pasta ou foto para o widget	这里没有照片——把文件夹或照片拖到小组件上
+Сегодня воспоминаний нет	No memories today	Сьогодні спогадів немає	Hoy no hay recuerdos	Heute keine Erinnerungen	Nenhuma lembrança hoje	今天没有回忆
+Источник	Source	Джерело	Origen	Quelle	Origem	来源
+Папка	Folder	Тека	Carpeta	Ordner	Pasta	文件夹
+Одно фото	One photo	Одне фото	Una foto	Ein Foto	Uma foto	单张照片
+Этот день	This day	Цей день	Este día	Dieser Tag	Este dia	那年今日
+фото не выбрано	no photo chosen	фото не вибрано	ninguna foto elegida	kein Foto gewählt	nenhuma foto escolhida	未选择照片
+Выбрать фото…	Choose a photo…	Вибрати фото…	Elegir foto…	Foto wählen…	Escolher foto…	选择照片…
+Выбрать папку…	Choose a folder…	Вибрати теку…	Elegir carpeta…	Ordner wählen…	Escolher pasta…	选择文件夹…
+Менять фото	Change the photo	Змінювати фото	Cambiar la foto	Foto wechseln	Trocar a foto	更换照片
+каждую минуту	every minute	щохвилини	cada minuto	jede Minute	a cada minuto	每分钟
+каждые 5 мин	every 5 min	кожні 5 хв	cada 5 min	alle 5 Min.	a cada 5 min	每 5 分钟
+каждые 30 мин	every 30 min	кожні 30 хв	cada 30 min	alle 30 Min.	a cada 30 min	每 30 分钟
+каждый час	every hour	щогодини	cada hora	jede Stunde	a cada hora	每小时
+раз в день	once a day	раз на день	una vez al día	einmal am Tag	uma vez por dia	每天一次
+Перемешивать	Shuffle	Перемішувати	Aleatorio	Zufällig	Embaralhar	随机
+С подпапками	With subfolders	З підтеками	Con subcarpetas	Mit Unterordnern	Com subpastas	包括子文件夹
+Медленное приближение	Slow zoom	Повільне наближення	Zoom lento	Langsamer Zoom	Zoom lento	缓慢放大
+Главное на фото — нажмите туда	Click the main thing in the photo	Головне на фото — натисніть туди	Haz clic en lo principal de la foto	Klick auf das Wichtigste im Foto	Clique no principal da foto	点击照片中的主体
+Авто (по лицам)	Auto (by faces)	Авто (за обличчями)	Auto (por caras)	Auto (nach Gesichtern)	Auto (por rostos)	自动（按人脸）
+год назад	a year ago	рік тому	hace un año	vor einem Jahr	há um ano	一年前
+{0} год назад	{0} years ago	{0} рік тому	hace {0} años	vor {0} Jahren	há {0} anos	{0} 年前
+{0} года назад	{0} years ago	{0} роки тому	hace {0} años	vor {0} Jahren	há {0} anos	{0} 年前
+{0} лет назад	{0} years ago	{0} років тому	hace {0} años	vor {0} Jahren	há {0} anos	{0} 年前
+Добавить виджет…	Add a widget…	Додати віджет…	Añadir widget…	Widget hinzufügen…	Adicionar widget…	添加小组件…
+Пауза виджетов	Pause widgets	Пауза віджетів	Pausar widgets	Widgets pausieren	Pausar widgets	暂停小组件
+Поверх всех окон	On top of all windows	Поверх усіх вікон	Encima de todas las ventanas	Über allen Fenstern	Acima de todas as janelas	置于所有窗口之上
+Живой фон по погоде	Living background by the weather	Живий фон за погодою	Fondo animado según el tiempo	Lebendiger Hintergrund nach Wetter	Fundo animado conforme o tempo	随天气变化的动态背景
+Едва заметная дымка, капли, снег или тёплый блик — по погоде за окном	A barely visible mist, drops, snow or a warm glare — as the weather outside	Ледь помітний серпанок, краплі, сніг або теплий відблиск — за погодою за вікном	Una bruma apenas visible, gotas, nieve o un brillo cálido, según el tiempo	Kaum sichtbarer Dunst, Tropfen, Schnee oder warmes Licht — je nach Wetter	Uma névoa quase invisível, gotas, neve ou um brilho quente, conforme o tempo	若隐若现的雾气、雨滴、雪花或暖光——随窗外天气而变
+Заметка	Note	Нотатка	Nota	Notiz	Nota	便签
+Новая заметка	New note	Нова нотатка	Nota nueva	Neue Notiz	Nova nota	新便签
+Текст заметки	Note text	Текст нотатки	Texto de la nota	Notiztext	Texto da nota	便签内容
+Нажмите и пишите — сохранится само	Click and type — it saves by itself	Натисніть і пишіть — збережеться саме	Haz clic y escribe: se guarda solo	Klicken und schreiben — speichert sich selbst	Clique e escreva — salva sozinho	点击即可输入，自动保存
+Видеокарта перегрета	The graphics card is overheating	Відеокарта перегріта	La tarjeta gráfica se está sobrecalentando	Die Grafikkarte überhitzt	A placa de vídeo está superaquecendo	显卡过热
+{0:0}° уже полминуты — проверьте охлаждение	{0:0}° for half a minute — check the cooling	{0:0}° уже пів хвилини — перевірте охолодження	{0:0}° durante medio minuto: revisa la refrigeración	Seit einer halben Minute {0:0}° — Kühlung prüfen	{0:0}° há meio minuto — verifique o resfriamento	已持续半分钟 {0:0}°，请检查散热
+видеокарта {0:0}°	graphics {0:0}°	відеокарта {0:0}°	gráfica {0:0}°	Grafik {0:0}°	vídeo {0:0}°	显卡 {0:0}°
+память {0:0.0} из {1:0} ГБ	memory {0:0.0} of {1:0} GB	пам'ять {0:0.0} з {1:0} ГБ	memoria {0:0.0} de {1:0} GB	Speicher {0:0.0} von {1:0} GB	memória {0:0.0} de {1:0} GB	内存 {0:0.0} / {1:0} GB
+Больше всего нагружают процессор	Using the processor most	Найбільше навантажують процесор	Lo que más usa el procesador	Belasten den Prozessor am meisten	Usam mais o processador	占用处理器最多的程序
+Видеокарта: {0:0}°, {1}	Graphics: {0:0}°, {1}	Відеокарта: {0:0}°, {1}	Gráfica: {0:0}°, {1}	Grafik: {0:0}°, {1}	Vídeo: {0:0}°, {1}	显卡：{0:0}°，{1}
+Считаю…	Counting…	Рахую…	Calculando…	Zähle…	Calculando…	统计中…
+Перегрев {0:0}°	Overheating {0:0}°	Перегрів {0:0}°	Sobrecalentamiento {0:0}°	Überhitzung {0:0}°	Superaquecimento {0:0}°	过热 {0:0}°
+Только в выбранных программах	Only in the programs I choose	Лише у вибраних програмах	Solo en los programas que elija	Nur in ausgewählten Programmen	Só nos programas que eu escolher	仅在所选程序中
+Браузеры и Проводник никогда не считаются играми: поверх них во весь экран остров просто прячется	Browsers and File Explorer never count as games: when they are full screen, the island simply hides	Браузери й Провідник ніколи не вважаються іграми: поверх них на весь екран острів просто ховається	Los navegadores y el Explorador de archivos nunca cuentan como juegos: si están a pantalla completa, la isla simplemente se oculta	Browser und der Explorer zählen nie als Spiele: Im Vollbild blendet sich die Insel einfach aus	Navegadores e o Explorador de Arquivos nunca contam como jogos: em tela cheia, a ilha simplesmente se esconde	浏览器和文件资源管理器永远不算作游戏：它们全屏时，灵动岛会直接隐藏
+Все файлы	All files	Усі файли	Todos los archivos	Alle Dateien	Todos os arquivos	所有文件
 безопасный режим	safe mode	безпечний режим	modo seguro	abgesicherter Modus	modo seguro	安全模式
 Безопасный режим	Safe mode	Безпечний режим	Modo seguro	Abgesicherter Modus	Modo seguro	安全模式
 Atoll запущен с --safe: новое из 1.8.0 (громкость и яркость, прогресс программ, караоке, голосовой ассистент, стекло при записи экрана, свой вид острова) выключено на этот запуск. Ваши настройки не изменены.	Atoll was started with --safe: what 1.8.0 added (volume and brightness, program progress, karaoke, the voice assistant, glass while the screen is recorded, your own island look) is off for this run. Your settings are unchanged.	Atoll запущено з --safe: нове з 1.8.0 (гучність і яскравість, прогрес програм, караоке, голосовий асистент, скло під час запису екрана, власний вигляд острова) вимкнено на цей запуск. Ваші налаштування не змінено.	Atoll se inició con --safe: lo nuevo de 1.8.0 (volumen y brillo, progreso de programas, karaoke, asistente de voz, cristal al grabar la pantalla, tu propio aspecto de la isla) está desactivado en esta ejecución. Tus ajustes no cambian.	Atoll wurde mit --safe gestartet: Neues aus 1.8.0 (Lautstärke und Helligkeit, Fortschritt von Programmen, Karaoke, Sprachassistent, Glas bei Bildschirmaufnahme, eigenes Aussehen der Insel) ist für diesen Start aus. Deine Einstellungen bleiben unverändert.	O Atoll foi iniciado com --safe: o que a 1.8.0 trouxe (volume e brilho, progresso de programas, karaokê, assistente de voz, vidro durante a gravação da tela, aparência própria da ilha) está desligado nesta execução. Suas configurações não mudaram.	Atoll 以 --safe 启动：1.8.0 新增的功能（音量和亮度、程序进度、卡拉 OK、语音助手、录屏时的玻璃效果、自定义岛样式）在本次运行中关闭。你的设置未被更改。
@@ -451,7 +791,6 @@ Atoll запущен с --safe: новое из 1.8.0 (громкость и я�
 Попробовать снова	Try again	Спробувати знову	Intentar de nuevo	Erneut versuchen	Tentar novamente	重试
 Прошлый запуск не удался, поэтому эффекты выключены. Вернуть: Настройки → Поведение.	The last start failed, so the effects are off. To bring them back: Settings → Behavior.	Минулий запуск не вдався, тому ефекти вимкнено. Повернути: Налаштування → Поведінка.	El último inicio falló, así que los efectos están desactivados. Para recuperarlos: Ajustes → Comportamiento.	Der letzte Start ist fehlgeschlagen, daher sind die Effekte aus. Wieder einschalten: Einstellungen → Verhalten.	A última inicialização falhou, então os efeitos estão desligados. Para voltar: Configurações → Comportamento.	上次启动失败，因此效果已关闭。恢复方法：设置 → 行为。
 Добавить файл или программу	Add a file or program	Додати файл або програму	Añadir un archivo o programa	Datei oder Programm hinzufügen	Adicionar um arquivo ou programa	添加文件或程序
-Все файлы	All files	Усі файли	Todos los archivos	Alle Dateien	Todos os arquivos	所有文件
 Добавить папку	Add a folder	Додати папку	Añadir una carpeta	Ordner hinzufügen	Adicionar uma pasta	添加文件夹
 Перед какой программой прятать остров	Hide the island in front of which program	Перед якою програмою ховати острів	Ocultar la isla delante de qué programa	Vor welchem Programm die Insel ausblenden	Ocultar a ilha na frente de qual programa	在哪个程序前隐藏岛
 Программы	Programs	Програми	Programas	Programme	Programas	程序
@@ -463,3 +802,21 @@ Atoll запущен с --safe: новое из 1.8.0 (громкость и я�
 Программа…	Program…	Програма…	Programa…	Programm…	Programa…	程序…
 Любой .exe — даже если программа сейчас не запущена	Any .exe — even if the program isn't running now	Будь-який .exe — навіть якщо програма зараз не запущена	Cualquier .exe, aunque el programa no esté abierto ahora	Jede .exe – auch wenn das Programm gerade nicht läuft	Qualquer .exe — mesmo que o programa não esteja aberto agora	任意 .exe——即使该程序当前未运行
 Всё, что запускается из этой папки (например, папка с игрой)	Everything started from this folder (a game's folder, for example)	Усе, що запускається з цієї папки (наприклад, папка з грою)	Todo lo que se inicia desde esta carpeta (por ejemplo, la carpeta de un juego)	Alles, was aus diesem Ordner gestartet wird (zum Beispiel ein Spieleordner)	Tudo o que é iniciado desta pasta (por exemplo, a pasta de um jogo)	从此文件夹启动的所有程序（例如游戏文件夹）
+Для какой программы показывать FPS	Which program gets the FPS counter	Для якої програми показувати FPS	Para qué programa mostrar los FPS	Für welches Programm FPS anzeigen	Para qual programa mostrar o FPS	为哪个程序显示 FPS
+Для программ из какой папки показывать FPS	Programs from which folder get the FPS counter	Для програм з якої папки показувати FPS	Para los programas de qué carpeta mostrar los FPS	Für Programme aus welchem Ordner FPS anzeigen	Para programas de qual pasta mostrar o FPS	为哪个文件夹中的程序显示 FPS
+Добавьте свои игры: выберите запущенную игру в списке или найдите её .exe или папку на диске — подойдёт любая игра	Add your games: pick a running game in the list, or find its .exe or folder on disk — any game will do	Додайте свої ігри: виберіть запущену гру у списку або знайдіть її .exe чи папку на диску — підійде будь-яка гра	Añada sus juegos: elija un juego abierto en la lista o busque su .exe o su carpeta en el disco; vale cualquier juego	Fügen Sie Ihre Spiele hinzu: ein laufendes Spiel in der Liste wählen oder seine .exe bzw. seinen Ordner auf der Festplatte suchen – jedes Spiel geht	Adicione seus jogos: escolha um jogo aberto na lista ou encontre o .exe ou a pasta dele no disco — qualquer jogo serve	添加你的游戏：在列表中选择正在运行的游戏，或在磁盘上找到它的 .exe 或文件夹——任何游戏都可以
+Найти	Find	Знайти	Buscar	Suchen	Buscar	查找
+Файл	File	Файл	Archivo	Datei	Arquivo	文件
+Загрузки	Downloads	Завантаження	Descargas	Downloads	Downloads	下载
+Уже есть: {0}	Already there: {0}	Вже є: {0}	Ya está: {0}	Schon da: {0}	Já está: {0}	已存在：{0}
+Добавлено: {0}	Added: {0}	Додано: {0}	Añadido: {0}	Hinzugefügt: {0}	Adicionado: {0}	已添加：{0}
+Сжимаю в ZIP	Zipping	Стискаю в ZIP	Comprimiendo en ZIP	Packe als ZIP	Compactando em ZIP	正在压缩为 ZIP
+Перевожу в JPG	Converting to JPG	Перетворюю в JPG	Convirtiendo a JPG	Wandle in JPG um	Convertendo para JPG	正在转换为 JPG
+Перевожу в PNG	Converting to PNG	Перетворюю в PNG	Convirtiendo a PNG	Wandle in PNG um	Convertendo para PNG	正在转换为 PNG
+Сжимаю фото	Shrinking photos	Стискаю фото	Reduciendo fotos	Verkleinere Fotos	Reduzindo fotos	正在压缩照片
+{0} из {1}	{0} of {1}	{0} з {1}	{0} de {1}	{0} von {1}	{0} de {1}	{0} / {1}
+Кнопка меню ☰ в заголовке острова	Menu button ☰ in the island header	Кнопка меню ☰ у заголовку острова	Botón de menú ☰ en la cabecera de la isla	Menütaste ☰ in der Inselkopfzeile	Botão de menu ☰ no cabeçalho da ilha	岛屿标题栏中的菜单按钮 ☰
+Меню острова	Island menu	Меню острова	Menú de la isla	Inselmenü	Menu da ilha	岛屿菜单
+Уведомления	Notifications	Сповіщення	Notificaciones	Mitteilungen	Notificações	通知
+Показать все	Show all	Показати всі	Mostrar todo	Alle anzeigen	Mostrar tudo	显示全部
+Время вышло: 25:00	Time is up: 25:00	Час вийшов: 25:00	Se acabó el tiempo: 25:00	Zeit ist um: 25:00	O tempo acabou: 25:00	时间到：25:00

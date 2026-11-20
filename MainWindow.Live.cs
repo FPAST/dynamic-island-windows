@@ -33,6 +33,14 @@ public partial class MainWindow
     private void InitExtras()
     {
         FocusMode.RecoverAfterCrash();
+        TimerService.Work = TimeSpan.FromMinutes(Math.Clamp(_settings.PomodoroWorkMin, 5, 90));
+        TimerService.ShortBreak = TimeSpan.FromMinutes(Math.Clamp(_settings.PomodoroBreakMin, 5, 30));
+        TimerService.LongBreak = TimeSpan.FromMinutes(Math.Clamp(_settings.PomodoroLongMin, 10, 45));
+        _timer.WorkDone += () =>
+        {
+            (_settings.PomodoroCountedOn, _settings.PomodoroDone) = PomodoroCount.Add(_settings.PomodoroCountedOn, _settings.PomodoroDone, DateTime.Now);
+            if (!Settings.ReadOnly) _settings.Save();
+        };
         _timer.Finished += (title, text) =>
         {
             PlayChime();
@@ -41,20 +49,21 @@ public partial class MainWindow
                 if (_timer.PomodoroWork) { FocusMode.Start(TimerService.Work); _focusByPomodoro = true; }
                 else if (_focusByPomodoro) { FocusMode.End(); _focusByPomodoro = false; }
             }
-            ShowToast("", title, text, () => OpenTab(TabTimer), (Brush)FindResource("Accent"), ms: 6000);
+            ShowToast("", title, text, () => OpenTab(TabTimer), (Brush)FindResource("Accent"), ms: 6000, keep: true);
             RenderTimer();
         };
         _downloads.Completed += path => Dispatcher.BeginInvoke(() => ShowToast("", L.T("Загрузка завершена"), Path.GetFileName(path),
             () => Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{path}\"") { UseShellExecute = true }),
-            (Brush)FindResource("AccentBlue"), ms: 5000));
+            (Brush)FindResource("AccentBlue"), ms: 5000, keep: true));
 
         _progress.Finished += app =>
         {
             if (_settings.ShowProgress && !FocusMode.IsOn)
-                ShowToast("\uE73E", L.T("Готово"), ProgressWatcher.Friendly(app), null, (Brush)FindResource("Accent"), ms: 4000);
+                ShowToast("\uE73E", L.T("Готово"), ProgressWatcher.Friendly(app), null, (Brush)FindResource("Accent"), ms: 4000, keep: true);
         };
         Safely("shell hook", InitShellHook);
         Safely("check page", InitSelfCheck);
+        Safely("widgets", InitWidgets);
         Safely("welcome", InitWelcome);
 
         Safely("timer page", InitTimerPage);
@@ -146,7 +155,7 @@ public partial class MainWindow
         {
             Karaoke.Visibility = kara ? Visibility.Visible : Visibility.Collapsed;
             CompactTime.Visibility = kara ? Visibility.Collapsed : Visibility.Visible;
-            if (!kara) { _w.Stiffness = 340; _w.Damping = 31; }   // back to the island's usual, calmer width spring
+            if (!kara) MorphSprings(grow: true);   // back to the island's usual width spring
         }
         if (kara) Karaoke.Tint = _albumColor;
         else if (text != null)
@@ -224,6 +233,8 @@ public partial class MainWindow
 
     private async void SlowTick()
     {
+        CheckAlarms();
+        UpdateWidgetPause();
         _slowCount++;
         FocusMode.Tick();
         UiStep("slow tick");
@@ -318,7 +329,7 @@ public partial class MainWindow
             var msg = m;
             // the smart island holds messages while you type and shows them at the first pause
             WhenNotTyping(() => ShowToast(msg.Logo != null ? "" : "", msg.Title, string.IsNullOrEmpty(msg.Body) ? msg.App : msg.Body,
-                () => FocusApp(msg.App), badge, ms: 5000));
+                () => FocusApp(msg.App), badge, ms: 5000, keep: true));
         }
     }
 
@@ -347,12 +358,12 @@ public partial class MainWindow
             Action open = link != null ? () => SafeShell.OpenUrl(link) : () => OpenTab(TabCalendar);
             string sub = link != null ? e.Title + " · " + L.T("нажмите, чтобы войти") : e.Title;
             if (!e.IsReminder && left <= TimeSpan.FromMinutes(10) && left > TimeSpan.Zero && _eventNotified.Add(key + "10"))
-                ShowToast(link != null ? "\uE714" : "", L.F("Через {0} мин", (int)Math.Ceiling(left.TotalMinutes)), sub, open, ms: link != null ? 9000 : 6000);
+                ShowToast(link != null ? "\uE714" : "", L.F("Через {0} мин", (int)Math.Ceiling(left.TotalMinutes)), sub, open, ms: link != null ? 9000 : 6000, keep: true);
             if (left <= TimeSpan.Zero && left > TimeSpan.FromMinutes(-2) && _eventNotified.Add(key + "0"))
             {
                 PlayChime();
                 ShowToast(e.IsReminder ? "" : link != null ? "\uE714" : "", e.IsReminder ? L.T("Напоминание") : L.T("Начинается"), sub,
-                    open, (Brush)FindResource("Warm"), ms: link != null ? 12000 : 8000);
+                    open, (Brush)FindResource("Warm"), ms: link != null ? 12000 : 8000, keep: true);
             }
         }
 

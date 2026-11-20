@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.IO;
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
@@ -58,28 +59,44 @@ public partial class MainWindow
         Dispatcher.BeginInvoke(() => { if (_mode == Mode.Expanded) MorphTo(TargetSize(Mode.Expanded)); }, System.Windows.Threading.DispatcherPriority.Loaded);
     }
 
+    private Views.GooMenu? _goo;
+
+    /// <summary>
+    /// The "+" at the end of the row: a goo menu (Find, File, Folder, Downloads) that pours out bubbles and then
+    /// says what was added. One for good: the row is rebuilt whenever an app is added, the menu just moves along.
+    /// </summary>
     private FrameworkElement MakePlusButton()
     {
-        var plus = new TextBlock
+        if (_goo != null) return _goo;
+        _goo = new Views.GooMenu(AppIcon,
+        [
+            ("\uE721", L.T("Найти")),
+            ("\uE8A5", L.T("Файл")),
+            ("\uE8B7", L.T("Папка")),
+            ("\uE896", L.T("Загрузки")),
+        ])
+        { Margin = new Thickness(6, 2, 6, 8), VerticalAlignment = VerticalAlignment.Top, Bounds = HomePage };
+        AutomationProperties.SetName(_goo, L.T("Добавить приложение"));
+        _goo.Picked += async i =>
         {
-            Text = "\uE710", FontFamily = (FontFamily)FindResource("IconFont"), FontSize = 15,
-            HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
+            switch (i)
+            {
+                case 0: await ToggleAppSearch(true); break;
+                case 1: if (PickPath(folder: false, L.T("Добавить файл или программу"), L.T("Все файлы") + "|*.*") is { } file) AddAndSay(file); break;
+                case 2: if (PickPath(folder: true, L.T("Добавить папку")) is { } folder) AddAndSay(folder); break;
+                case 3: AddAndSay(DownloadWatcher.DownloadsFolder()); break;
+            }
         };
-        plus.SetResourceReference(TextBlock.ForegroundProperty, "Fg2");
-        var circle = new Border
-        {
-            Width = AppIcon, Height = AppIcon, CornerRadius = new CornerRadius(AppIcon / 2), Child = plus, Cursor = Cursors.Hand,
-            Margin = new Thickness(6, 2, 6, 8), ToolTip = L.T("Добавить приложение"), VerticalAlignment = VerticalAlignment.Top,
-        };
-        circle.SetResourceReference(Border.BackgroundProperty, "ChipBg");
-        circle.MouseEnter += (_, _) => circle.SetResourceReference(Border.BackgroundProperty, "TileBgHover");
-        circle.MouseLeave += (_, _) => circle.SetResourceReference(Border.BackgroundProperty, "ChipBg");
-        circle.MouseLeftButtonUp += async (_, e) =>
-        {
-            e.Handled = true;
-            await ToggleAppSearch(AppSearchPanel.Visibility != Visibility.Visible);
-        };
-        return circle;
+        return _goo;
+    }
+
+    /// <summary>Adds a file or folder to the row, and the "+" says so (or that it was there already).</summary>
+    private void AddAndSay(string path)
+    {
+        bool had = _settings.DockApps.Contains(path, StringComparer.OrdinalIgnoreCase);
+        AddApps([path]);
+        var name = Path.GetFileNameWithoutExtension(path.TrimEnd('\\'));
+        _goo?.Toast(had ? "\uE946" : "\uE73E", had ? L.F("Уже есть: {0}", name) : L.F("Добавлено: {0}", name));
     }
 
     // ------------------------------------------------------------------ search by name

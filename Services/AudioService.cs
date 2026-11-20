@@ -59,17 +59,25 @@ public sealed class AudioService
         }
     }
 
-    /// <summary>Finds the audio session of the player app; null = use master volume.</summary>
+    private string _foundFor = "";
+    private AudioSessionControl? _found;
+    private long _foundAt;
+
+    /// <summary>
+    /// Finds the audio session of the player app (by its media id: a Store app's package family, a program's
+    /// exe; see <see cref="AudioMatch"/>); null = use master volume. Kept for two seconds: a mouse wheel asks
+    /// many times a second.
+    /// </summary>
     private AudioSessionControl? FindSession(string appId)
     {
         var device = Device;
         if (device == null || string.IsNullOrWhiteSpace(appId)) return null;
+        long now = Environment.TickCount64;
+        if (appId == _foundFor && now - _foundAt < 2000) return _found;
 
-        var tokens = Tokens(appId);
-        if (tokens.Count == 0) return null;
-
-        // browsers have several sessions: take the one that is actually making sound
+        // browsers have several sessions: of the best-matching ones, take the one that is actually making sound
         AudioSessionControl? best = null;
+        int bestScore = 0;
         float bestPeak = -1;
         try
         {
@@ -80,18 +88,20 @@ public sealed class AudioService
             {
                 var s = sessions[i];
                 if (s.IsSystemSoundsSession) continue;
+                int pid = (int)s.GetProcessID;
                 string name;
-                try { name = Process.GetProcessById((int)s.GetProcessID).ProcessName.ToLowerInvariant(); }
+                try { using var p = Process.GetProcessById(pid); name = p.ProcessName; }
                 catch { continue; }
-                if (!tokens.Any(t => name.Contains(t) || t.Contains(name))) continue;
-
+                int score = AudioMatch.Score(appId, name, Native.PackageFamilyOf(pid));
+                if (score == 0 || score < bestScore) continue;
                 float peak = 0;
                 try { peak = s.AudioMeterInformation.MasterPeakValue; } catch { }
                 if (s.State == NAudio.CoreAudioApi.Interfaces.AudioSessionState.AudioSessionStateActive) peak += 0.001f;
-                if (peak > bestPeak) { best = s; bestPeak = peak; }
+                if (score > bestScore || peak > bestPeak) { best = s; bestScore = score; bestPeak = peak; }
             }
         }
-        catch { }
+        catch (Exception e) { Log.Write("audio sessions: " + e.Message); }
+        _foundFor = appId; _found = best; _foundAt = now;
         return best;
     }
 
@@ -263,6 +273,19 @@ public sealed class AudioService
             }
         }
         catch { }
+    }
+
+    /// <summary>The volume of the speakers (0..1); -1 when there are none.</summary>
+    public float Master
+    {
+        get { try { return Device?.AudioEndpointVolume.MasterVolumeLevelScalar ?? -1; } catch { return -1; } }
+        set { try { if (Device != null) Device.AudioEndpointVolume.MasterVolumeLevelScalar = Math.Clamp(value, 0f, 1f); } catch { } }
+    }
+
+    public bool MasterMuted
+    {
+        get { try { return Device?.AudioEndpointVolume.Mute ?? false; } catch { return false; } }
+        set { try { if (Device != null) Device.AudioEndpointVolume.Mute = value; } catch { } }
     }
 
     public void SetVolume(string appId, float value)

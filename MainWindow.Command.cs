@@ -161,6 +161,7 @@ public partial class MainWindow
         (["тема", "theme", "светлая", "тёмная", "темная"], L.T("Сменить тему"), "", ToggleTheme),
         (["выровнять", "центр", "align", "center"], L.T("Выровнять по центру"), "", AlignIsland),
         (["обновить", "обновления", "update", "updates"], L.T("Проверить обновления"), "", () => _ = CheckForUpdatesAsync(manual: true)),
+        (["виджеты", "widgets"], L.T("Виджеты на рабочем столе"), "\uE8A9", () => EditWidgets(true, gallery: true)),
         (["спрятать", "скрыть", "hide"], L.T("Спрятать остров"), "", () => HideIsland(animate: true)),
         (["настройки", "settings"], L.T("Настройки"), "", () => OpenTab(TabSettings)),
         (["погода", "weather"], L.T("Погода"), "", () => OpenTab(TabWeather)),

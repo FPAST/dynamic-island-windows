@@ -255,8 +255,8 @@ public partial class MainWindow
     private void CopyPerfReport_Click(object sender, RoutedEventArgs e)
     {
         var text = PerfReport();
-        try { Clipboard.SetText(text); } catch { }
+        try { Clipboard.SetText(text); } catch (Exception ex) { Log.Write("perf report copy: " + ex.Message); return; }
         Log.Write("perf report:\n" + text);
-        ShowToast("", L.T("Отчёт скопирован"), L.T("Вставьте его в комментарии или в Telegram-канал"));
+        PerfReportButton.Done();
     }
 }

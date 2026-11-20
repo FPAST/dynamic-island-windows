@@ -34,6 +34,7 @@ public partial class MainWindow
     private readonly System.Diagnostics.Stopwatch _promoClock = new();
     private readonly List<(string Key, double T)> _captionLog = [];
     private Dictionary<string, (string Title, string Sub)> _captions = [];
+    private string _promoLink = "github.com/Fuwni/dynamic-island-windows";
 
     private static Dictionary<string, (string, string)> PromoCaptions(string lang) => lang == "en"
         ? new()
@@ -119,7 +120,7 @@ public partial class MainWindow
         bg.Children.Add(frame);
         var link = new TextBlock
         {
-            Text = "github.com/Fuwni/dynamic-island-windows", FontSize = 28, FontFamily = new FontFamily("Segoe UI"),
+            Text = _promoLink, FontSize = 28, FontFamily = new FontFamily("Segoe UI"),
             Foreground = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x9A)), Width = PW, TextAlignment = TextAlignment.Center,
         };
         Canvas.SetTop(link, PromoStage.Bottom + 34);

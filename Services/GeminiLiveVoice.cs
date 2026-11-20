@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
@@ -10,7 +10,27 @@ public sealed class GeminiLiveVoice : IAsyncDisposable
 {
     private const string Endpoint =
         "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent";
-    private const string Model = "gemini-3.8-live";
+    /// <summary>A model that supports the Live API (bidiGenerateContent) for the key.</summary>
+    public const string Model = "gemini-3.8-live";
+
+    /// <summary>What went wrong, in words a person can act on (the key is never part of it).</summary>
+    public static string Explain(Exception ex, string? key = null)
+    {
+        var text = ex.Message;
+        if (!string.IsNullOrEmpty(key)) text = text.Replace(key, "<ключ>");
+        if (text.Contains("API key not valid", StringComparison.OrdinalIgnoreCase) || text.Contains("API_KEY_INVALID") ||
+            text.Contains("PERMISSION_DENIED") || text.Contains("401") || text.Contains("403"))
+            return "Ключ Gemini не подошёл. Проверьте его в Настройках → ИИ-агенты.";
+        if (text.Contains("RESOURCE_EXHAUSTED") || text.Contains("quota", StringComparison.OrdinalIgnoreCase) || text.Contains("429"))
+            return "Лимит Gemini исчерпан. Попробуйте позже.";
+        if (text.Contains("not found", StringComparison.OrdinalIgnoreCase) && text.Contains("model", StringComparison.OrdinalIgnoreCase))
+            return $"Модель {Model} недоступна для этого ключа.";
+        if (ex is WebSocketException or System.Net.Http.HttpRequestException or OperationCanceledException)
+            return "Нет связи с Gemini. Проверьте интернет.";
+        if (ex is NAudio.MmException)
+            return "Не удалось включить микрофон или звук.";
+        return text.Length > 160 ? text[..160] + "…" : text;
+    }
 
     private readonly string _apiKey;
     private readonly string _voice;
@@ -93,9 +113,9 @@ public sealed class GeminiLiveVoice : IAsyncDisposable
         connectTimeout.CancelAfter(TimeSpan.FromSeconds(20));
 
         _socket = new ClientWebSocket();
-        await _socket.ConnectAsync(
-            new Uri($"{Endpoint}?key={Uri.EscapeDataString(_apiKey)}"),
-            connectTimeout.Token);
+        // the key goes in a header, not in the address (addresses end up in logs and error messages)
+        _socket.Options.SetRequestHeader("x-goog-api-key", _apiKey.Trim());
+        await _socket.ConnectAsync(new Uri(Endpoint), connectTimeout.Token);
         await SendJsonAsync(new
         {
             setup = new
@@ -163,6 +183,14 @@ public sealed class GeminiLiveVoice : IAsyncDisposable
         _receiver = ReceiveLoopAsync(_stop.Token);
         StatusChanged?.Invoke("Слушаю…");
     }
+
+    /// <summary>Audio bytes received from the model so far (tests).</summary>
+    public long AudioBytesReceived => Interlocked.Read(ref _audioBytes);
+    private long _audioBytes;
+
+    /// <summary>A typed turn instead of speech (tests).</summary>
+    public Task SendTextAsync(string text, CancellationToken cancellationToken = default) =>
+        SendJsonAsync(new { realtimeInput = new { text } }, cancellationToken);
 
     public async Task StopAsync()
     {
@@ -249,6 +277,7 @@ public sealed class GeminiLiveVoice : IAsyncDisposable
                                 inlineData.TryGetProperty("data", out var audioData))
                             {
                                 var bytes = Convert.FromBase64String(audioData.GetString() ?? "");
+                                Interlocked.Add(ref _audioBytes, bytes.Length);
                                 lock (_playbackSync)
                                 {
                                     Interlocked.Increment(ref _playbackGeneration);
@@ -347,7 +376,7 @@ public sealed class GeminiLiveVoice : IAsyncDisposable
         {
             result = await socket.ReceiveAsync(buffer, cancellationToken);
             if (result.MessageType == WebSocketMessageType.Close)
-                throw new WebSocketException("Gemini Live закрыл соединение.");
+                throw new WebSocketException("Gemini Live закрыл соединение: " + (socket.CloseStatusDescription ?? result.CloseStatusDescription ?? "") + " (" + result.CloseStatus + ")");
             message.Write(buffer, 0, result.Count);
             if (message.Length > 4 * 1024 * 1024)
                 throw new InvalidDataException("Слишком большой ответ Gemini Live.");

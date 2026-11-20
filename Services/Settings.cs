@@ -4,6 +4,12 @@ using System.Text.Json.Nodes;
 
 namespace DynamicIsland.Services;
 
+public sealed class WidgetTodo
+{
+    public string Text { get; set; } = "";
+    public bool Done { get; set; }
+}
+
 public sealed class Reminder
 {
     public string Title { get; set; } = "";
@@ -85,6 +91,8 @@ public sealed class Settings
     public int IdleOpacity { get; set; } = 100;
     /// <summary>The shadow under the island.</summary>
     public bool ShowShadow { get; set; } = true;
+    /// <summary>A ☰ button in the open island's header for the island's menu (besides the right click).</summary>
+    public bool MenuButton { get; set; }
     /// <summary>Font family for the whole island ("" = the system one).</summary>
     public string Font { get; set; } = "";
     /// <summary>The clock: 12-hour, with seconds.</summary>
@@ -144,6 +152,10 @@ public sealed class Settings
 
     // live activities & extras
     public bool GameStats { get; set; }
+    /// <summary>The FPS pill only for the programs in <see cref="GameStatsApps"/>, not for every full-screen one.</summary>
+    public bool GameStatsOnlyListed { get; set; }
+    /// <summary>Programs (exe names without .exe) that get the FPS pill when <see cref="GameStatsOnlyListed"/> is on.</summary>
+    public List<string> GameStatsApps { get; set; } = [];
     public bool Karaoke { get; set; } = true;
     public bool MirrorNotifications { get; set; } = true;
     public bool MirrorAllApps { get; set; }
@@ -152,6 +164,36 @@ public sealed class Settings
     public List<string> Shelf { get; set; } = [];
     public List<Reminder> Reminders { get; set; } = [];
     public bool PomodoroFocus { get; set; } = true;
+    /// <summary>Pomodoro phases, minutes, and the sessions finished today.</summary>
+    public int PomodoroWorkMin { get; set; } = 25;
+    public int PomodoroBreakMin { get; set; } = 5;
+    public int PomodoroLongMin { get; set; } = 15;
+    public DateTime PomodoroCountedOn { get; set; }
+    public int PomodoroDone { get; set; }
+    public List<Alarm> Alarms { get; set; } = [];
+    /// <summary>The clock widget: face "classic", "minimal" or "digital"; the open tab of the large one.</summary>
+    public string ClockFace { get; set; } = "classic";
+    public string ClockTab { get; set; } = "clock";
+    /// <summary>The seconds hand sweeps smoothly (about 1% CPU per face) or jumps once a second (almost free).</summary>
+    public bool ClockSweep { get; set; } = true;
+    /// <summary>Widgets "on top of everything" instead of on the desktop (default: on the desktop).</summary>
+    public bool WidgetsOnTop { get; set; }
+    /// <summary>The tray's "pause": widgets stop animating and polling until resumed.</summary>
+    public bool WidgetsPaused { get; set; }
+    /// <summary>The weather widget's slow background (mist, drops, snow, a warm glare).</summary>
+    public bool WeatherAtmosphere { get; set; } = true;
+    /// <summary>The note on the note widget (by when it was made; null = the newest).</summary>
+    public DateTime? StickyNote { get; set; }
+    /// <summary>The photo widget: "folder", "single" or "thisday"; its folder ("" = Pictures) or file; slideshow settings.</summary>
+    public string PhotoMode { get; set; } = "folder";
+    public string PhotoFolder { get; set; } = "";
+    public string PhotoFile { get; set; } = "";
+    public int PhotoIntervalMin { get; set; } = 5;
+    public bool PhotoShuffle { get; set; } = true;
+    public bool PhotoSubfolders { get; set; } = true;
+    public bool PhotoKenBurns { get; set; } = true;
+    /// <summary>Focus points picked by hand: file → (x, y), 0..1 of the picture.</summary>
+    public Dictionary<string, double[]> PhotoFocus { get; set; } = [];
     public string RestoreToasts { get; set; } = ""; // "1"/"0" while our "Не беспокоить" is on
 
     // behaviour
@@ -190,6 +232,44 @@ public sealed class Settings
     // chat
     public string ChatProvider { get; set; } = "gemini";
     public string GeminiVoiceApiKey { get; set; } = "";
+    /// <summary>Desktop widgets that are on, and where each one sits (left, top in DIPs).</summary>
+    public List<string> DesktopWidgets { get; set; } = [];
+    public Dictionary<string, double[]> WidgetPlaces { get; set; } = [];
+    /// <summary>The look of all widgets, and the widgets that have a look of their own.</summary>
+    public string WidgetTheme { get; set; } = "liquid";
+    public Dictionary<string, string> WidgetThemeOf { get; set; } = [];
+    public bool WidgetLiveGlass { get; set; } = true;
+    public bool WidgetsHidden { get; set; }
+    public List<WidgetTodo> WidgetTodos { get; set; } = [];
+    public string WaterDay { get; set; } = "";
+    public int WaterCount { get; set; }
+    public int WaterGoal { get; set; } = 8;
+    public string CountdownTitle { get; set; } = "";
+    public DateTime? CountdownDate { get; set; }
+    /// <summary>Per widget: its size (S, M, L), accent (hex), how much glass (0..1); the world clock's cities.</summary>
+    public Dictionary<string, string> WidgetSizeOf { get; set; } = [];
+    public Dictionary<string, string> WidgetAccentOf { get; set; } = [];
+    public Dictionary<string, double> WidgetGlassOf { get; set; } = [];
+    public bool WidgetTipShown { get; set; }
+    /// <summary>The glass of the widgets: how much the rim bends the picture (0..1) and how soft the blur is (px).</summary>
+    public double GlassRefraction { get; set; } = 0.6;
+    public double GlassBlur { get; set; } = 36;
+    /// <summary>The widget grid: "A" (cell 72, gap 16) or "B" (cell 76, gap 12); its version (2 = cells, S 2×2…).</summary>
+    public string WidgetGrid { get; set; } = "A";
+    /// <summary>The music widget's visualiser: "wave", "bars", "ring" or "off".</summary>
+    public string MusicViz { get; set; } = "wave";
+    /// <summary>Lyrics sync shift, ms (−500…+500, step 50): more = the lines come earlier.</summary>
+    public int LyricsOffsetMs { get; set; }
+    /// <summary>Equaliser (through Equalizer APO): 10 bands in dB, ±12.</summary>
+    public double[] EqGains { get; set; } = new double[10];
+    public bool EqBypass { get; set; }
+    /// <summary>The preset the bands came from ("" once a band is moved by hand).</summary>
+    public string EqPreset { get; set; } = "Плоский";
+    public Dictionary<string, double[]> EqCustom { get; set; } = [];
+    public int WidgetGridVersion { get; set; }
+    /// <summary>Where the widgets are, per set of monitors (key: positions and resolutions of the monitors).</summary>
+    public Dictionary<string, Dictionary<string, double[]>> WidgetLayouts { get; set; } = [];
+    public List<string> WorldCities { get; set; } = ["Нью-Йорк", "Лондон", "Токио", "Париж", "Дубай", "Сидней"];
     public string GeminiVoice { get; set; } = "Kore";
     public int GeminiVoiceVolume { get; set; } = 100;
 

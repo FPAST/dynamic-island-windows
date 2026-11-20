@@ -1,5 +1,6 @@
 # Atoll <-> Claude Code / Codex bridge.
-# Claude Code runs this for PermissionRequest / Notification / Stop hooks, Codex for PermissionRequest / Stop.
+# Claude Code runs this for PermissionRequest / Notification / Stop hooks and, in the background, PostToolUse of its
+# task list tools; Codex for PermissionRequest / Stop.
 # If the island is not running, it silently does nothing and the agent behaves as usual.
 param([string]$Event = "Notification", [string]$Source = "claude")
 

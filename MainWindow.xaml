@@ -56,13 +56,15 @@
       </Border.RenderTransform>
       <Border.ContextMenu>
         <ContextMenu x:Name="IslandMenu">
-          <MenuItem Header="Спрятать (смахнуть вверх)" Click="HideIsland_Click"/>
-          <MenuItem Header="Выровнять по центру" Click="ResetPosition_Click"/>
-          <MenuItem Header="Изменить размер…" Click="EditSize_Click"/>
-          <MenuItem Header="Сменить тему" InputGestureText="Ctrl+Alt+T" Click="ToggleTheme_Click"/>
-          <MenuItem Header="Настройки" Click="OpenSettings_Click"/>
+          <MenuItem Header="Виджеты на рабочем столе…" Click="EditWidgets_Click"><MenuItem.Icon><TextBlock FontFamily="{StaticResource IconFont}" FontSize="14" Text="&#xE8A9;"/></MenuItem.Icon></MenuItem>
+          <MenuItem Header="Изменить размер…" Click="EditSize_Click"><MenuItem.Icon><TextBlock FontFamily="{StaticResource IconFont}" FontSize="14" Text="&#xE740;"/></MenuItem.Icon></MenuItem>
+          <MenuItem Header="Выровнять по центру" Click="ResetPosition_Click"><MenuItem.Icon><TextBlock FontFamily="{StaticResource IconFont}" FontSize="14" Text="&#xE8E3;"/></MenuItem.Icon></MenuItem>
+          <MenuItem Header="Сменить тему" InputGestureText="Ctrl+Alt+T" Click="ToggleTheme_Click"><MenuItem.Icon><TextBlock FontFamily="{StaticResource IconFont}" FontSize="14" Text="&#xE790;"/></MenuItem.Icon></MenuItem>
           <Separator/>
-          <MenuItem Header="Выход" Click="Exit_Click"/>
+          <MenuItem Header="Спрятать (смахнуть вверх)" InputGestureText="Ctrl+Alt+I" Click="HideIsland_Click"><MenuItem.Icon><TextBlock FontFamily="{StaticResource IconFont}" FontSize="14" Text="&#xE70E;"/></MenuItem.Icon></MenuItem>
+          <MenuItem Header="Настройки" Click="OpenSettings_Click"><MenuItem.Icon><TextBlock FontFamily="{StaticResource IconFont}" FontSize="14" Text="&#xE713;"/></MenuItem.Icon></MenuItem>
+          <Separator/>
+          <MenuItem Header="Выход" Click="Exit_Click"><MenuItem.Icon><TextBlock FontFamily="{StaticResource IconFont}" FontSize="14" Text="&#xE7E8;"/></MenuItem.Icon></MenuItem>
         </ContextMenu>
       </Border.ContextMenu>
 
@@ -202,7 +204,7 @@
               <Button x:Name="ClaudeAllowButton" Style="{StaticResource AccentPill}" Content="Разрешить" Click="ClaudeAllow_Click"/>
             </StackPanel>
             <StackPanel x:Name="ClaudeInfoButtons" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
-              <Button Style="{StaticResource Pill}" Content="Копировать" Margin="0,0,8,0" Click="ClaudeCopy_Click"/>
+              <v:CopyButton x:Name="ClaudeCopyButton" Style="{StaticResource Pill}" Margin="0,0,8,0" Click="ClaudeCopy_Click"/>
               <Button Style="{StaticResource GhostPill}" Content="Закрыть" Click="ClaudeClose_Click"/>
             </StackPanel>
           </StackPanel>
@@ -230,15 +232,11 @@
         <Grid x:Name="DropView" Width="500" Margin="16,14,16,16" VerticalAlignment="Top" Visibility="Collapsed" Opacity="0">
           <StackPanel>
             <DockPanel>
-              <Border Width="40" Height="40" CornerRadius="12" Background="{DynamicResource ChipBg}">
-                <TextBlock x:Name="DropIcon" Text="&#xE8E5;" FontFamily="{StaticResource IconFont}" FontSize="17"
-                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
-              </Border>
+              <!-- File drop: the circle wakes up for a file, gulps it, shows work on a ring, ends green with a check -->
+              <v:DropCore x:Name="DropCoreView" Width="48" Height="48"/>
               <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
-                <TextBlock x:Name="DropTitle" Text="Отпустите файл на острове" FontSize="14" FontWeight="SemiBold"
-                           TextTrimming="CharacterEllipsis"/>
-                <TextBlock x:Name="DropSubtitle" Style="{StaticResource Muted}" TextTrimming="CharacterEllipsis"
-                           Text="Поделиться, сжать в ZIP, конвертировать картинку"/>
+                <v:RollingLine x:Name="DropTitle" TextElement.FontSize="14" TextElement.FontWeight="SemiBold"/>
+                <v:RollingLine x:Name="DropSubtitle" TextElement.FontSize="12" TextElement.Foreground="{DynamicResource Fg2}" Margin="0,2,0,0"/>
               </StackPanel>
             </DockPanel>
             <WrapPanel x:Name="DropActions" Margin="0,12,0,0" Visibility="Collapsed"/>
@@ -260,8 +258,9 @@
             <StackPanel x:Name="DotsRow" Orientation="Horizontal" VerticalAlignment="Center"/>
             <TextBlock x:Name="PageTitle" FontSize="13.5" FontWeight="SemiBold" Margin="12,0,0,1" VerticalAlignment="Center"/>
           </StackPanel>
-          <StackPanel x:Name="TabStrip" Orientation="Horizontal" VerticalAlignment="Center">
-            <StackPanel.RenderTransform><TranslateTransform x:Name="TabStripShift"/></StackPanel.RenderTransform>
+          <!-- one rubber pill under the chosen tab (Rubber dock): it stretches between tabs and can be dragged along them -->
+          <v:RubberStack x:Name="TabStrip" Orientation="Horizontal" VerticalAlignment="Center" Rim="True" PillRadius="16">
+            <v:RubberStack.RenderTransform><TranslateTransform x:Name="TabStripShift"/></v:RubberStack.RenderTransform>
             <RadioButton x:Name="TabHome" Style="{StaticResource TabButton}" GroupName="Tabs" Content="Главная" Tag="&#xE80F;" IsChecked="True" Checked="Tab_Checked"/>
             <RadioButton x:Name="TabMusic" Style="{StaticResource TabButton}" GroupName="Tabs" Content="Музыка" Tag="&#xE8D6;" Checked="Tab_Checked"/>
             <RadioButton x:Name="TabWeather" Style="{StaticResource TabButton}" GroupName="Tabs" Content="Погода" Tag="&#xE706;" Checked="Tab_Checked"/>
@@ -271,11 +270,17 @@
             <RadioButton x:Name="TabNotes" Style="{StaticResource TabButton}" GroupName="Tabs" Content="Заметки" Tag="&#xE70B;" Checked="Tab_Checked"/>
             <RadioButton x:Name="TabCalendar" Style="{StaticResource TabButton}" GroupName="Tabs" Content="Календарь" Tag="&#xE787;" Checked="Tab_Checked"/>
             <RadioButton x:Name="TabSystem" Style="{StaticResource TabButton}" GroupName="Tabs" Content="Система" Tag="&#xE7FC;" Checked="Tab_Checked"/>
-          </StackPanel>
+            <RadioButton x:Name="TabWidgets" Style="{StaticResource TabButton}" GroupName="Tabs" Content="Виджеты" Tag="&#xE8A9;" Checked="Tab_Checked"/>
+          </v:RubberStack>
           </Grid>
           <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
             <v:CharacterView x:Name="MenuBuddy" VerticalAlignment="Center" Margin="0,0,12,0" Visibility="Collapsed"
                              ToolTip="Нажми на меня"/>
+            <!-- the menu button (Settings > Layout): the island's menu, its lines turning into a cross while open -->
+            <Button x:Name="MenuButton" Style="{StaticResource IconButton}" Width="30" Height="30" Margin="0,0,4,0" Visibility="Collapsed"
+                    Click="MenuButton_Click" ToolTip="Меню острова">
+              <v:MenuToggleIcon x:Name="MenuToggle"/>
+            </Button>
             <TextBlock x:Name="ExpandedTime" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,8,0"/>
             <RadioButton x:Name="TabSettings" Style="{StaticResource TabButton}" GroupName="Tabs" Content="Настройки" Tag="&#xE713;" Checked="Tab_Checked"/>
             <Button Style="{StaticResource IconButton}" Width="30" Height="30" FontSize="12" Content="&#xE70E;"
@@ -333,6 +338,12 @@
                   </Grid>
                 </Border>
               </Grid>
+              <!-- Claude Code's plan (its task list), live from its hooks -->
+              <Border x:Name="ClaudePlanTile" Style="{StaticResource Tile}" Margin="4,8,4,0" Padding="14,10,14,8" Visibility="Collapsed">
+                <v:TaskListView x:Name="ClaudePlanList"/>
+              </Border>
+              <!-- the notifications the island has shown (messages, Claude, timers, downloads): a stack, swipe one away -->
+              <v:NotificationStack x:Name="HomeMissed" Margin="4,12,4,0"/>
               <!-- apps you dropped here: click to open -->
               <Border x:Name="HomeApps" Style="{StaticResource Tile}" Margin="4,8,4,0" Padding="10,8,10,6" MinHeight="64">
                 <StackPanel>
@@ -370,20 +381,16 @@
                       <ColumnDefinition Width="Auto"/>
                       <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
-                    <Border x:Name="ArtBox" Width="72" Height="72" CornerRadius="16" Background="{DynamicResource ChipBg}">
-                      <Border.Effect>
-                        <DropShadowEffect BlurRadius="14" ShadowDepth="2" Opacity="0.3"/>
-                      </Border.Effect>
-                      <TextBlock x:Name="ArtPlaceholder" Text="&#xE8D6;" FontFamily="{StaticResource IconFont}" FontSize="24"
-                                 Foreground="{DynamicResource Fg3}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                    </Border>
+                    <!-- the cover as a record: turns while the music plays, the ring is the song's progress, the hole plays / pauses -->
+                    <v:MusicRecordView x:Name="ArtRecord" Width="80" Height="80" VerticalAlignment="Center"/>
                     <StackPanel Grid.Column="1" Margin="14,0,0,0" VerticalAlignment="Center">
-                      <TextBlock x:Name="TrackTitle" Text="Ничего не играет" FontSize="16" FontWeight="SemiBold"
-                                 TextTrimming="CharacterEllipsis"/>
+                      <!-- the song's name as a weight wave: bold swells around the mouse, and sweeps by itself while it plays -->
+                      <v:WeightWaveText x:Name="TrackTitle" Text="Ничего не играет" FontSize="16" HorizontalAlignment="Left"/>
                       <TextBlock x:Name="TrackArtist" Text="Включите музыку в любом плеере" FontSize="12.5"
                                  Foreground="{DynamicResource Fg2}" TextTrimming="CharacterEllipsis" Margin="0,3,0,0"/>
                       <TextBlock x:Name="TrackSource" FontSize="11" Foreground="{DynamicResource Fg3}"
                                  TextTrimming="CharacterEllipsis" Margin="0,3,0,0"/>
+                      <v:MusicBarsView x:Name="MusicBars" HorizontalAlignment="Left" Margin="0,6,0,0"/>
                     </StackPanel>
                   </Grid>
 
@@ -394,14 +401,8 @@
                       <ColumnDefinition Width="44"/>
                     </Grid.ColumnDefinitions>
                     <TextBlock x:Name="Elapsed" Text="0:00" FontSize="10.5" Foreground="{DynamicResource Fg3}" VerticalAlignment="Center"/>
-                    <Border x:Name="ProgressTrack" Grid.Column="1" Height="16" Background="Transparent" Cursor="Hand"
-                            MouseLeftButtonDown="ProgressTrack_MouseLeftButtonDown">
-                      <Grid VerticalAlignment="Center" Height="5">
-                        <Border Background="{DynamicResource TrackBg}" CornerRadius="2.5"/>
-                        <Border x:Name="ProgressFill" Background="{DynamicResource Fg}" CornerRadius="2.5"
-                                HorizontalAlignment="Left" Width="0"/>
-                      </Grid>
-                    </Border>
+                    <!-- seeking: the jelly slider, the time in its drop; the song jumps when the thumb is let go -->
+                    <v:JellySlider x:Name="SeekSlider" Grid.Column="1" VerticalAlignment="Center" Margin="4,0"/>
                     <TextBlock x:Name="Remaining" Grid.Column="2" Text="-0:00" FontSize="10.5" Foreground="{DynamicResource Fg3}"
                                HorizontalAlignment="Right" VerticalAlignment="Center"/>
                   </Grid>
@@ -431,7 +432,7 @@
                     </Grid.ColumnDefinitions>
                     <TextBlock Text="&#xE767;" FontFamily="{StaticResource IconFont}" FontSize="13"
                                Foreground="{DynamicResource Fg2}" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                    <Slider x:Name="VolumeSlider" Grid.Column="1" Style="{StaticResource SoftSlider}"
+                    <v:JellySlider x:Name="VolumeSlider" Grid.Column="1" ShowScale="True"
                             ValueChanged="VolumeSlider_ValueChanged"/>
                     <TextBlock x:Name="VolumeLabel" Grid.Column="2" Style="{StaticResource Muted}" FontSize="11"
                                Margin="10,0,0,0" VerticalAlignment="Center" MinWidth="70"/>
@@ -919,6 +920,9 @@
               </UniformGrid>
             </StackPanel>
 
+            <!-- ======== WIDGETS (built in code: MainWindow.WidgetsPage.cs) ======== -->
+            <StackPanel x:Name="WidgetsPage" Width="600" Visibility="Collapsed"/>
+
             <!-- ======== SETTINGS: sidebar + one section at a time ======== -->
             <Grid x:Name="SettingsPage" Width="660" Height="430" Visibility="Collapsed">
               <Grid.ColumnDefinitions>
@@ -949,7 +953,7 @@
                     </StackPanel>
                   </Button>
                 </DockPanel>
-                <StackPanel x:Name="SettingsNav"/>
+                <v:RubberStack x:Name="SettingsNav" PillRadius="12"/>
               </DockPanel>
               <ScrollViewer x:Name="SettingsScroll" Grid.Column="1" Margin="12,0,0,0" VerticalScrollBarVisibility="Hidden">
                 <Grid x:Name="SettingsSections">
@@ -1018,13 +1022,7 @@
                 <Border Style="{StaticResource Tile}" Margin="0,0,0,10">
                   <StackPanel>
                     <CheckBox x:Name="DarkSwitch" Style="{StaticResource Switch}" Click="DarkSwitch_Click" Content="Тёмная тема"/>
-                    <DockPanel Margin="0,0,0,8">
-                      <TextBlock DockPanel.Dock="Left" Text="Размер острова" VerticalAlignment="Center" Margin="0,0,12,0" FontSize="13"/>
-                      <TextBlock x:Name="ScaleValue" DockPanel.Dock="Right" Style="{StaticResource Muted}" VerticalAlignment="Center" MinWidth="40"
-                                 TextAlignment="Right" Margin="10,0,0,0"/>
-                      <Slider x:Name="ScaleSlider" Style="{StaticResource SoftSlider}" Minimum="80" Maximum="130" TickFrequency="5"
-                              IsSnapToTickEnabled="True" VerticalAlignment="Center" ValueChanged="ScaleSlider_ValueChanged"/>
-                    </DockPanel>
+                    <v:Scrubber x:Name="ScaleSlider" Minimum="80" Maximum="130" Step="5" Margin="0,0,0,8" ValueChanged="ScaleSlider_ValueChanged"/>
                     <CheckBox x:Name="GlassSwitch" Style="{StaticResource Switch}" Click="Glass_Click" Content="Матовое стекло"/>
                     <DockPanel x:Name="TintRow" Margin="0,4,0,4">
                       <TextBlock Text="Тон стекла" FontSize="12.5" VerticalAlignment="Center"/>
@@ -1068,13 +1066,8 @@
                     </DockPanel>
                     <CheckBox x:Name="ReactiveSwitch" Style="{StaticResource Switch}" Click="Reactive_Click" Content="Живой отклик"/>
                     <CheckBox x:Name="LiquidSwitch" Style="{StaticResource Switch}" Click="Liquid_Click" Content="Живые волны"/>
-                    <DockPanel x:Name="LiquidRow" Margin="0,0,0,6" Visibility="Collapsed">
-                      <TextBlock DockPanel.Dock="Left" Text="Сила волн" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0,0,12,0"/>
-                      <TextBlock x:Name="LiquidValue" DockPanel.Dock="Right" Style="{StaticResource Muted}" VerticalAlignment="Center" MinWidth="36"
-                                 TextAlignment="Right" Margin="10,0,0,0"/>
-                      <Slider x:Name="LiquidSlider" Style="{StaticResource SoftSlider}" Minimum="10" Maximum="100" VerticalAlignment="Center"
-                              ValueChanged="LiquidSlider_ValueChanged"/>
-                    </DockPanel>
+                    <v:Scrubber x:Name="LiquidSlider" Minimum="10" Maximum="100" Step="1" Margin="0,0,0,6" Visibility="Collapsed"
+                                ValueChanged="LiquidSlider_ValueChanged"/>
                   </StackPanel>
                 </Border>
 
@@ -1195,10 +1188,30 @@
                       </StackPanel>
                     </DockPanel>
                     <CheckBox x:Name="LiteSwitch" Style="{StaticResource Switch}" Click="Lite_Click" ToolTip="Без стекла, свечения и эффектов: заметно меньше нагрузка" Content="Облегчённая графика для слабых ПК"/>
-                    <Button Style="{StaticResource GhostPill}" HorizontalAlignment="Left" Padding="12,6" Margin="0,0,0,10"
-                            Content="Скопировать отчёт о плавности" Click="CopyPerfReport_Click"
-                            ToolTip="Если остров дёргается — отправьте этот отчёт разработчику"/>
+                    <v:CopyButton x:Name="PerfReportButton" Style="{StaticResource GhostPill}" HorizontalAlignment="Left" Padding="12,6" Margin="0,0,0,10"
+                            Click="CopyPerfReport_Click" ToolTip="Если остров дёргается — отправьте этот отчёт разработчику"/>
                     <CheckBox x:Name="GameStatsSwitch" Style="{StaticResource Switch}" Click="Behavior_Click" Content="В играх показывать FPS и нагрузку вместо полного скрытия"/>
+                    <StackPanel x:Name="GameAppsBlock" Margin="18,0,0,0">
+                      <CheckBox x:Name="GameOnlyListedSwitch" Style="{StaticResource Switch}" Click="Behavior_Click" Content="Только в выбранных программах"/>
+                      <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,-4,0,8"
+                                 Text="Браузеры и Проводник никогда не считаются играми: поверх них во весь экран остров просто прячется"/>
+                      <StackPanel x:Name="GameAppsList">
+                        <WrapPanel x:Name="GameAppChips"/>
+                        <TextBlock x:Name="GameAppsEmpty" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,6"
+                                   Text="Добавьте свои игры: выберите запущенную игру в списке или найдите её .exe или папку на диске — подойдёт любая игра"/>
+                        <DockPanel Margin="0,0,0,6">
+                          <Button DockPanel.Dock="Right" Style="{StaticResource GhostPill}" Padding="12,6" Margin="8,0,0,0" Content="Добавить" Click="GameAppAdd_Click"/>
+                          <ComboBox x:Name="GameAppPicker" Style="{StaticResource SoftCombo}" ToolTip="Программы, запущенные сейчас"/>
+                        </DockPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                          <TextBlock Text="Или выберите на диске:" Style="{StaticResource Muted}" FontSize="12.5" VerticalAlignment="Center" Margin="2,0,8,0"/>
+                          <Button Style="{StaticResource GhostPill}" Padding="12,5" Margin="0,0,6,0" Content="Программа…" Click="GameAppProgram_Click"
+                                  ToolTip="Любой .exe — даже если программа сейчас не запущена"/>
+                          <Button Style="{StaticResource GhostPill}" Padding="12,5" Content="Папка…" Click="GameAppFolder_Click"
+                                  ToolTip="Всё, что запускается из этой папки (например, папка с игрой)"/>
+                        </StackPanel>
+                      </StackPanel>
+                    </StackPanel>
                     <DockPanel Margin="0,0,0,8">
                       <Button x:Name="FpsGrantButton" DockPanel.Dock="Right" Style="{StaticResource GhostPill}" Padding="12,5"
                               Content="Разрешить" Visibility="Collapsed" Click="FpsGrant_Click"/>
@@ -1255,17 +1268,11 @@
                     <TextBlock Style="{StaticResource Caption}" Text="ГОЛОСОВОЙ АССИСТЕНТ · GEMINI LIVE"/>
                     <TextBlock Text="API-ключ Gemini" Margin="0,8,0,4"/>
                     <PasswordBox x:Name="GeminiVoiceApiKeyBox" Style="{StaticResource SoftPasswordBox}" Height="30"
-                                 LostFocus="GeminiVoiceApiKeyBox_LostFocus"/>
+                                 PasswordChanged="GeminiVoiceApiKeyBox_Changed"/>
                     <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" FontSize="11" Margin="0,5,0,0"
                                Text="Если поле пустое, используется GEMINI_API_KEY."/>
                     <StackPanel Margin="0,10,0,0">
-                      <DockPanel Margin="0,0,0,4">
-                        <TextBlock Text="Громкость ИИ-ассистента" FontSize="13" VerticalAlignment="Center"/>
-                        <TextBlock x:Name="VoiceVolumeValue" DockPanel.Dock="Right" Style="{StaticResource Muted}"
-                                   MinWidth="40" TextAlignment="Right" VerticalAlignment="Center"/>
-                      </DockPanel>
-                      <Slider x:Name="VoiceVolumeSlider" Style="{StaticResource SoftSlider}" Minimum="0" Maximum="100"
-                              TickFrequency="1" VerticalAlignment="Center" ValueChanged="VoiceVolumeSlider_ValueChanged"/>
+                      <v:Scrubber x:Name="VoiceVolumeSlider" Minimum="0" Maximum="100" Step="1" ValueChanged="VoiceVolumeSlider_ValueChanged"/>
                     </StackPanel>
                   </StackPanel>
                 </Border>

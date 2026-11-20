@@ -16,6 +16,8 @@ public partial class MainWindow
     private MediaSnapshot? _lastMedia;
     private Lyrics? _currentLyrics;
     private string _lyricsKey = "";
+    /// <summary>Lyrics follow this clock, not the player's rare and jumpy reports.</summary>
+    private readonly PlaybackClock _lyricsClock = new();
     private int _lyricIndex = int.MinValue;
     private bool _eqRunning;
     private bool _volumeUpdating;
@@ -23,6 +25,24 @@ public partial class MainWindow
     private async Task InitMediaAsync()
     {
         _media.Changed += () => Dispatcher.BeginInvoke(UpdateMediaUi);
+        ArtRecord.Toggled += () => _media.TogglePlayPause();
+        SeekSlider.Format = v => _lastMedia is { } sm && sm.Duration > TimeSpan.Zero ? FormatTime(TimeSpan.FromSeconds(v * sm.Duration.TotalSeconds)) : "0:00";
+        SeekSlider.Released += v =>
+        {
+            if (_lastMedia is not { } sm || sm.Duration <= TimeSpan.Zero) return;
+            var to = TimeSpan.FromSeconds(sm.Duration.TotalSeconds * v);
+            // pictures and tests: the demo song moves, the user's real player is left alone
+            if (_demoMedia != null) { _demoMedia = _demoMedia with { Position = to, PositionUpdatedAt = DateTimeOffset.Now }; UpdateMediaUi(); return; }
+            _media.Seek(to);
+        };
+        // while the thumb is held, the time on the left is where the song will jump to
+        SeekSlider.ValueChanged += (_, e) =>
+        {
+            if (!SeekSlider.IsDragging || _lastMedia is not { } sm || sm.Duration <= TimeSpan.Zero) return;
+            var at = TimeSpan.FromSeconds(e.NewValue * sm.Duration.TotalSeconds);
+            Elapsed.Text = FormatTime(at);
+            Remaining.Text = "-" + FormatTime(sm.Duration - at);
+        };
         try { await _media.InitAsync(); } catch { /* media API unavailable */ }
         UpdateMediaUi();
     }
@@ -55,16 +75,16 @@ public partial class MainWindow
         if (m?.Art != null)
         {
             var brush = new ImageBrush(m.Art) { Stretch = Stretch.UniformToFill };
-            ArtBox.Background = MiniArt.Background = HomeArt.Background = brush;
-            ArtPlaceholder.Visibility = HomeArtPlaceholder.Visibility = Visibility.Collapsed;
+            MiniArt.Background = HomeArt.Background = brush;
+            HomeArtPlaceholder.Visibility = Visibility.Collapsed;
         }
         else
         {
-            ArtBox.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "ChipBg");
             MiniArt.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "ChipBg");
             HomeArt.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "ChipBg");
-            ArtPlaceholder.Visibility = HomeArtPlaceholder.Visibility = Visibility.Visible;
+            HomeArtPlaceholder.Visibility = Visibility.Visible;
         }
+        ArtRecord.SetCover(m?.Art);
 
         // equaliser, glow and character accents take the cover's colour
         if (!ReferenceEquals(m?.Art, _lastArt))
@@ -78,6 +98,9 @@ public partial class MainWindow
             }
         }
 
+        ArtRecord.SetPlaying(playing);
+        TrackTitle.Playing = playing;
+        MusicBars.SetPlaying(playing);
         PlayPauseButton.Content = HomePlay.Content = playing ? "" : "";
         UpdateEyesVisibility();
         SetEqualizer(playing);
@@ -102,7 +125,7 @@ public partial class MainWindow
             _currentLyrics = null;
             _lyricIndex = int.MinValue;
             ShowLyrics(false, hasTrack ? L.T("Ищу слова…") : L.T("Здесь появятся слова песни"));
-            if (_demoMedia != null) { _currentLyrics = DemoLyrics; ShowLyrics(true, ""); }
+            if (_demoMedia != null) { _currentLyrics = DemoLyrics; _lyricsLoaded = key; ShowLyrics(true, ""); }
             else if (hasTrack) _ = LoadLyricsAsync(m!, key);
             if (_mode == Mode.Expanded && TabMusic.IsChecked == true) RefreshVolume();
         }
@@ -117,14 +140,17 @@ public partial class MainWindow
         var m = _lastMedia;
         if (m == null || m.Duration <= TimeSpan.Zero)
         {
-            ProgressFill.Width = 0;
+            if (!SeekSlider.IsDragging) SeekSlider.Value = 0;
+            ArtRecord.SetProgress(0);
             Elapsed.Text = "0:00";
             Remaining.Text = "-0:00";
             return;
         }
         var pos = m.CurrentPosition;
         double frac = pos.TotalSeconds / m.Duration.TotalSeconds;
-        ProgressFill.Width = Math.Max(0, ProgressTrack.ActualWidth * frac);
+        ArtRecord.SetProgress(frac);
+        if (SeekSlider.IsDragging) return;   // the thumb is held: the times show where the song will jump to
+        SeekSlider.Value = Math.Clamp(frac, 0, 1);
         Elapsed.Text = FormatTime(pos);
         Remaining.Text = "-" + FormatTime(m.Duration - pos);
     }
@@ -166,14 +192,6 @@ public partial class MainWindow
         if (!_justDragged) TabMusic.IsChecked = true;
     }
 
-    private void ProgressTrack_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-    {
-        var m = _lastMedia;
-        if (m == null || m.Duration <= TimeSpan.Zero || ProgressTrack.ActualWidth <= 0) return;
-        double frac = Math.Clamp(e.GetPosition(ProgressTrack).X / ProgressTrack.ActualWidth, 0, 1);
-        _media.Seek(TimeSpan.FromSeconds(m.Duration.TotalSeconds * frac));
-    }
-
     // ------------------------------------------------------------------ volume
 
     private void RefreshVolume()
@@ -205,12 +223,13 @@ public partial class MainWindow
         if (key != _lyricsKey) return;
         var duration = _lastMedia?.Duration ?? track.Duration;
 
-        var lyrics = await _lyrics.GetAsync(track.Artist, track.Title, duration);
+        var lyrics = await _lyrics.GetAsync(track.Artist, track.Title, duration, _lastMedia?.Album ?? track.Album);
         if (key != _lyricsKey) return;
 
         _currentLyrics = lyrics;
+        _lyricsLoaded = key;
         _lyricIndex = int.MinValue;
-        ShowLyrics(lyrics != null, L.T("Слова для этой песни не найдены"));
+        ShowLyrics(lyrics is { Lines.Count: > 0 }, lyrics?.Instrumental == true ? L.T("Инструментальная композиция") : L.T("Слова для этой песни не найдены"));
         UpdateLyricLine();
     }
 
@@ -221,27 +240,51 @@ public partial class MainWindow
         LyricsEmptyText.Text = emptyText;
     }
 
+    /// <summary>The key of the track whose lyrics search has finished (found or not).</summary>
+    private string _lyricsLoaded = "";
+
+    /// <summary>Where the lyrics are now: the smooth clock plus the user's sync shift.</summary>
+    private TimeSpan LyricsPosition()
+    {
+        var m = _lastMedia;
+        if (m == null) return TimeSpan.Zero;
+        long now = System.Diagnostics.Stopwatch.GetTimestamp();
+        _lyricsClock.Report(_lyricsKey, m.CurrentPosition, m.IsPlaying, now);
+        return _lyricsClock.At(now) + TimeSpan.FromMilliseconds(LyricsShiftMs);
+    }
+
+    /// <summary>The user's shift plus the player's own lateness (browsers report the position late).</summary>
+    private int LyricsShiftMs => _settings.LyricsOffsetMs + PlaybackClock.SourceLeadMs(_lastMedia?.AppId ?? "");
+
+    /// <summary>Jump to a line of the lyrics (the shift is taken back out, so the line starts as it is shown).</summary>
+    private void SeekToLyric(TimeSpan lineTime)
+    {
+        var to = lineTime - TimeSpan.FromMilliseconds(LyricsShiftMs);
+        if (to < TimeSpan.Zero) to = TimeSpan.Zero;
+        if (Settings.ReadOnly || _demoMedia != null) { if (_lastMedia != null) _lastMedia = _lastMedia with { Position = to, PositionUpdatedAt = DateTimeOffset.Now }; }
+        else _media.Seek(to);
+        _lyricsClock.Seeked(to, System.Diagnostics.Stopwatch.GetTimestamp());
+        UpdateLyricLine();
+        TickMusicLyrics();
+    }
+
     private void UpdateLyricLine()
     {
         var lyrics = _currentLyrics;
         var m = _lastMedia;
-        if (lyrics == null || m == null) return;
+        if (lyrics == null || m == null || lyrics.Lines.Count == 0) return;
 
         var lines = lyrics.Lines;
+        var at = LyricsPosition();
         int index;
-        if (lyrics.Synced)
-        {
-            var pos = m.CurrentPosition + TimeSpan.FromMilliseconds(200);
-            index = -1;
-            for (int i = 0; i < lines.Count && lines[i].Time <= pos; i++) index = i;
-        }
+        if (lyrics.Synced) index = LyricsService.LineAt(lines, at + TimeSpan.FromMilliseconds(200));
         else
         {
-            double frac = m.Duration > TimeSpan.Zero ? m.CurrentPosition.TotalSeconds / m.Duration.TotalSeconds : 0;
+            double frac = m.Duration > TimeSpan.Zero ? at.TotalSeconds / m.Duration.TotalSeconds : 0;
             index = Math.Clamp((int)(frac * lines.Count), 0, lines.Count - 1);
         }
 
-        if (lyrics.Synced) Karaoke.Sync(m.CurrentPosition, m.IsPlaying);
+        if (lyrics.Synced) Karaoke.Sync(at, m.IsPlaying);
         if (index == _lyricIndex) return;
         bool forward = index > _lyricIndex && _lyricIndex != int.MinValue;
         _lyricIndex = index;

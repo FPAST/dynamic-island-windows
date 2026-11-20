@@ -10,6 +10,22 @@ namespace DynamicIsland;
 public partial class MainWindow
 {
     private readonly FpsMeter _fps = new();
+    private uint _gamePid;
+    private string _gamePidName = "", _gamePidPath = "";
+
+    /// <summary>Is the full-screen window in front a program that gets the FPS pill (not a browser, Explorer, or — in "only listed" mode — an unlisted program)?</summary>
+    private bool IsGameWindow(IntPtr fg)
+    {
+        if (fg == IntPtr.Zero || Native.GetWindowThreadProcessId(fg, out uint pid) == 0) return !_settings.GameStatsOnlyListed;
+        if (pid != _gamePid)
+        {
+            _gamePid = pid;
+            try { using var p = System.Diagnostics.Process.GetProcessById((int)pid); _gamePidName = p.ProcessName; }
+            catch (Exception e) { _gamePidName = ""; Log.Write($"game: no name for pid {pid}: {e.Message}"); }
+            _gamePidPath = Native.ProcessPath(pid);
+        }
+        return FpsMeter.CountsAsGame(_gamePidName, _gamePidPath, _settings.GameStatsOnlyListed, _settings.GameStatsApps);
+    }
 
     private void OnGameModeChanged(bool game)
     {

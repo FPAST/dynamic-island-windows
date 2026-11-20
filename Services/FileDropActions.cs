@@ -25,8 +25,30 @@ public static class FileDropActions
         System.Windows.Clipboard.SetFileDropList(list);
     }
 
-    public static string Zip(IReadOnlyList<string> paths)
+    /// <summary>All the bytes the paths hold (folders counted through).</summary>
+    public static long SizeOf(IEnumerable<string> paths) => paths.Sum(p =>
+        Directory.Exists(p) ? Directory.EnumerateFiles(p, "*", SearchOption.AllDirectories).Sum(f => new FileInfo(f).Length)
+        : File.Exists(p) ? new FileInfo(p).Length : 0);
+
+    /// <summary>Zips the paths next to the first one. Progress (0…1) comes by the bytes read, a megabyte at a time.</summary>
+    public static string Zip(IReadOnlyList<string> paths, IProgress<double>? progress = null)
     {
+        long total = Math.Max(1, SizeOf(paths)), done = 0;
+        var buffer = new byte[1 << 20];
+        void Add(ZipArchive archive, string file, string entryName)
+        {
+            var entry = archive.CreateEntry(entryName, CompressionLevel.Optimal);
+            entry.LastWriteTime = File.GetLastWriteTime(file);
+            using var src = File.OpenRead(file);
+            using var dst = entry.Open();
+            int n;
+            while ((n = src.Read(buffer, 0, buffer.Length)) > 0)
+            {
+                dst.Write(buffer, 0, n);
+                done += n;
+                progress?.Report((double)done / total);
+            }
+        }
         var dir = Path.GetDirectoryName(paths[0])!;
         var name = paths.Count == 1 ? Path.GetFileNameWithoutExtension(paths[0]) : L.T("Архив") + DateTime.Now.ToString(" yyyy-MM-dd HH-mm");
         var zip = Unique(Path.Combine(dir, name + ".zip"));
@@ -37,10 +59,11 @@ public static class FileDropActions
             {
                 var root = Path.GetDirectoryName(p.TrimEnd('\\'))!;
                 foreach (var f in Directory.EnumerateFiles(p, "*", SearchOption.AllDirectories))
-                    archive.CreateEntryFromFile(f, Path.GetRelativePath(root, f), CompressionLevel.Optimal);
+                    Add(archive, f, Path.GetRelativePath(root, f));
             }
-            else archive.CreateEntryFromFile(p, Path.GetFileName(p), CompressionLevel.Optimal);
+            else Add(archive, p, Path.GetFileName(p));
         }
+        progress?.Report(1);
         return zip;
     }
 

@@ -129,7 +129,7 @@ public partial class MainWindow
         if (FocusMode.IsOn) return;
         var app = ProgressWatcher.Friendly(name);
         WhenNotTyping(() => ShowToast("", app, L.T("Новое сообщение"), () => Native.SetForegroundWindow(window),
-            new SolidColorBrush(Color.FromRgb(0x2A, 0xAB, 0xEE)), ms: 4500));
+            new SolidColorBrush(Color.FromRgb(0x2A, 0xAB, 0xEE)), ms: 4500, keep: true));
     }
 
     // ------------------------------------------------------------------ the monitor the mouse is on

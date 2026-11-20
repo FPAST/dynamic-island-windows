@@ -27,6 +27,9 @@ public sealed class KaraokeView : FrameworkElement
     private double _positionAt;
     private bool _playing;
     private bool _ticking;
+    /// <summary>How long each character takes (pauses at dashes and commas), and the width sung after k characters.</summary>
+    private double[] _weights = [];
+    private double[] _prefix = [0];
 
     public KaraokeView()
     {
@@ -48,12 +51,14 @@ public sealed class KaraokeView : FrameworkElement
         _old = _line; _oldScale = _scale;
         _text = text;
         _line = Format(text, out _scale);
+        _weights = KaraokeTiming.Weights(text);
+        _prefix = new double[text.Length + 1];
+        for (int k = 1; k <= text.Length; k++) _prefix[k] = Format(text[..k], out _, _scale).WidthIncludingTrailingWhitespace;
         _changedAt = _clock.Elapsed.TotalSeconds;
         _start = start;
-        // people finish a line before the next one begins: light it over a time that fits its length,
-        // and never slower than the gap to the next line
-        double natural = 1.0 + text.Length * 0.11, gap = (next - start).TotalSeconds;
-        _length = TimeSpan.FromSeconds(Math.Max(0.8, gap > 0.3 ? Math.Min(gap * 0.92, natural) : natural));
+        // the light fills the time to the next line (the singing does), with pauses at dashes and commas;
+        // earlier it ran at a fixed letter speed and finished before the singer (seen on a photo of the island)
+        _length = TimeSpan.FromSeconds(KaraokeTiming.Duration(text, (next - start).TotalSeconds));
         InvalidateMeasure();
         InvalidateVisual();
         Hook();
@@ -68,10 +73,11 @@ public sealed class KaraokeView : FrameworkElement
         Hook();
     }
 
-    private FormattedText Format(string text, out double scale)
+    private FormattedText Format(string text, out double scale, double? fixedScale = null)
     {
         var face = new Typeface(TextElement.GetFontFamily(this), FontStyles.Normal, FontWeights.SemiBold, FontStretches.Normal);
         double dpi = VisualTreeHelper.GetDpi(this).PixelsPerDip;
+        if (fixedScale is { } fs) { scale = fs; return new FormattedText(text, CultureInfo.CurrentUICulture, FlowDirection.LeftToRight, face, 13 * fs, Brushes.White, dpi); }
         var f = new FormattedText(text, CultureInfo.CurrentUICulture, FlowDirection.LeftToRight, face, 13, Brushes.White, dpi);
         scale = 1;
         if (f.Width > MaxLineWidth)
@@ -142,8 +148,15 @@ public sealed class KaraokeView : FrameworkElement
             dc.DrawText(_old, new Point((w - _old.Width) / 2, (h - _old.Height) / 2 - 11 * ease));
         }
 
-        // the line that is: springs up from below, light running across it as it is sung
+        // the line that is: springs up from below, light running across it as it is sung; the share of time is
+        // turned into the share of the line's width actually sung (pauses hold the light after a dash)
         double p = Progress();
+        if (p < 1 && _prefix.Length > 1 && _line.Width > 0)
+        {
+            double c = KaraokeTiming.CharAt(_weights, p);
+            int k = Math.Clamp((int)c, 0, _prefix.Length - 1), k2 = Math.Min(k + 1, _prefix.Length - 1);
+            p = Math.Clamp((_prefix[k] + (_prefix[k2] - _prefix[k]) * (c - k)) / _line.Width, 0, 1);
+        }
         const double edge = 0.05;
         var dim = Color.FromArgb((byte)(fg.A * 0.42), fg.R, fg.G, fg.B);
         Brush brush;

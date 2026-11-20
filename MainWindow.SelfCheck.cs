@@ -78,12 +78,7 @@ public partial class MainWindow
 
         var again = new Button { Style = (Style)FindResource("GhostPill"), Content = L.T("Проверить снова"), Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(0, 0, 8, 0) };
         again.Click += async (_, _) => await RunSelfCheckAsync();
-        var copy = new Button { Style = (Style)FindResource("GhostPill"), Content = L.T("Скопировать отчёт"), Padding = new Thickness(12, 6, 12, 6), ToolTip = L.T("Текстом: его можно отправить в Telegram-канал, если нужна помощь") };
-        copy.Click += (_, _) =>
-        {
-            try { Clipboard.SetText(SelfCheckReport()); } catch { return; }
-            ShowToast("", L.T("Отчёт скопирован"), L.T("Вставьте его в сообщение: Ctrl+V"));
-        };
+        var copy = new Views.CopyButton(L.T("Скопировать отчёт")) { Style = (Style)FindResource("GhostPill"), Padding = new Thickness(12, 6, 12, 6), ToolTip = L.T("Текстом: его можно отправить в Telegram-канал, если нужна помощь"), Text = SelfCheckReport };
         var bar = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0) };
         bar.Children.Add(again); bar.Children.Add(copy);
         CheckHost.Children.Add(bar);
