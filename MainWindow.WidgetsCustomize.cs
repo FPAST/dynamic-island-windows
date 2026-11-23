@@ -418,9 +418,8 @@ public partial class MainWindow
         {
             _settings.WidgetGlassOf[id] = Math.Round(e.NewValue, 2);
             if (_widgets.TryGetValue(id, out var w)) w.ApplyTheme(WidgetThemeOf(id), GlassOf(id));
+            _settings.SaveSoon();
         };
-        slider.LostMouseCapture += (_, _) => _settings.Save();
-        slider.LostKeyboardFocus += (_, _) => _settings.Save();
         stack.Children.Add(slider);
 
         // accent: the colour of its title, rings and levels

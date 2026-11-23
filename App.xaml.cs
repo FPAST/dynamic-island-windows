@@ -111,6 +111,7 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        if (MainWindow is DynamicIsland.MainWindow) Settings.Current.Flush();   // a slider's last move is not lost
         _mutex?.Dispose();
         base.OnExit(e);
     }

@@ -45,15 +45,15 @@ public partial class MainWindow
         FrameworkElement SliderRow(string label, double min, double max, double step, Func<double, string> show, double value, Action<double> changed, Action done)
         {
             var sl = new Views.Scrubber { Label = label, Format = show, Minimum = min, Maximum = max, Step = step, Value = value, Margin = new Thickness(0, 8, 0, 0) };
-            sl.ValueChanged += (_, e) => changed(e.NewValue);
+            sl.ValueChanged += (_, e) => { changed(e.NewValue); _settings.SaveSoon(); };
             sl.LostMouseCapture += (_, _) => done();
             sl.LostKeyboardFocus += (_, _) => done();
             return sl;
         }
         ts.Children.Add(SliderRow(L.T("Преломление"), 0, 1, .01, v => $"{v * 100:0}%", _settings.GlassRefraction,
-            v => { _settings.GlassRefraction = v; foreach (var w in _widgets.Values) UpdateWidgetGlass(w); }, () => _settings.Save()));
+            v => { _settings.GlassRefraction = v; foreach (var w in _widgets.Values) UpdateWidgetGlass(w); }, () => { }));
         ts.Children.Add(SliderRow(L.T("Размытие"), 12, 60, 1, v => $"{v:0} px", _settings.GlassBlur,
-            v => _settings.GlassBlur = v, () => { _settings.Save(); _wallpaper.BlurPx = _settings.GlassBlur; _wallpaper.Rebuild(); }));
+            v => _settings.GlassBlur = v, () => { _wallpaper.BlurPx = _settings.GlassBlur; _wallpaper.Rebuild(); }));
         themeTile.Child = ts;
         WidgetsPage.Children.Add(themeTile);
 

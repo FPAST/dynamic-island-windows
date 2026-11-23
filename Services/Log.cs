@@ -5,7 +5,7 @@ namespace DynamicIsland.Services;
 /// <summary>Tiny log at %LOCALAPPDATA%\DynamicIsland\log.txt for "it didn't work" moments.</summary>
 public static class Log
 {
-    private static readonly string FilePath = Path.Combine(
+    internal static string FilePath { get; set; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DynamicIsland", "log.txt");
 
     public static void Write(string message)

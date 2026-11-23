@@ -409,7 +409,7 @@ public partial class MainWindow
     {
         if (_settingsLoading || !IsLoaded) return;
         _settings.LiquidStrength = (int)Math.Round(LiquidSlider.Value);
-        _settings.Save();
+        _settings.SaveSoon();
         Kick(4);   // a wave to show the new strength
     }
 
@@ -417,7 +417,7 @@ public partial class MainWindow
     {
         if (_settingsLoading || !IsLoaded) return;
         _settings.IslandScale = (int)Math.Round(ScaleSlider.Value);
-        _settings.Save();
+        _settings.SaveSoon();
         ApplyIslandScale();
     }
 

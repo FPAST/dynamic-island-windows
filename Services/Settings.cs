@@ -33,7 +33,9 @@ public sealed class Settings
     /// <summary>No settings file yet: the very first start on this computer.</summary>
     public static bool FirstRun { get; private set; }
 
-    public static Settings Current { get; } = Load();
+    private static readonly Lazy<Settings> _current = new(Load);
+    /// <summary>The settings of this run, read on first use (tests never read the user's file).</summary>
+    public static Settings Current => _current.Value;
 
     // weather
     public string City { get; set; } = "";
@@ -284,24 +286,27 @@ public sealed class Settings
     public string GeminiVoice { get; set; } = "Kore";
     public int GeminiVoiceVolume { get; set; } = 100;
 
-    private static string FilePath => Path.Combine(
+    /// <summary>The settings file; tests point it elsewhere.</summary>
+    internal static string FilePath { get; set; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "DynamicIsland", "settings.json");
 
     private const int CurrentVersion = 3;
 
-    private static Settings Load()
+    internal static Settings Load()
     {
         Settings s;
         bool existed = File.Exists(FilePath);
         FirstRun = !existed;
         try
         {
-            s = File.Exists(FilePath)
-                ? JsonSerializer.Deserialize<Settings>(File.ReadAllText(FilePath)) ?? new Settings()
-                : new Settings();
+            s = existed ? JsonSerializer.Deserialize<Settings>(File.ReadAllText(FilePath)) ?? new Settings() : new Settings();
         }
-        catch { s = new Settings(); } // corrupted file: start fresh
+        catch (Exception ex)
+        {
+            Log.Write("settings: unreadable, starting fresh (" + ex.GetType().Name + ")");
+            s = new Settings();
+        }
 
         if (existed) s.Onboarded = true;   // people who already use it never get the welcome steps
         if (s.Version < CurrentVersion)
@@ -348,21 +353,69 @@ public sealed class Settings
     /// <summary>Demo / screenshot mode: never touch the user's files.</summary>
     public static bool ReadOnly { get; set; }
 
+    private static readonly object WriteLock = new();
+    private Timer? _saveSoon;
+    private int _saveSoonPending;
+
     public void Save()
     {
+        Interlocked.Exchange(ref _saveSoonPending, 0);
+        _saveSoon?.Change(Timeout.Infinite, Timeout.Infinite);
         if (ReadOnly) return;
-        try
+        Write(Snapshot());
+    }
+
+    /// <summary>
+    /// Saves after 500 ms without changes, off the UI thread, the latest state: for sliders and scrubbers, which
+    /// change many times a second (each change used to write the file).
+    /// </summary>
+    public void SaveSoon()
+    {
+        if (ReadOnly) return;
+        Interlocked.Exchange(ref _saveSoonPending, 1);
+        _saveSoon ??= new Timer(_ => SaveSoonNow());
+        _saveSoon.Change(500, Timeout.Infinite);
+    }
+
+    /// <summary>A pending <see cref="SaveSoon"/> is written now (on exit).</summary>
+    public void Flush()
+    {
+        if (Interlocked.Exchange(ref _saveSoonPending, 0) == 1) Save();
+    }
+
+    private void SaveSoonNow()
+    {
+        if (Interlocked.Exchange(ref _saveSoonPending, 0) == 0) return;
+        // the values are read where they are changed (the UI thread), the file is written here
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        string? json = null;
+        try { json = dispatcher == null || dispatcher.CheckAccess() ? Snapshot() : dispatcher.Invoke(Snapshot); }
+        catch (Exception ex) { Log.Write("settings: save soon: " + ex.GetType().Name); }
+        if (json != null) Write(json);
+    }
+
+    private string Snapshot()
+    {
+        var json = JsonSerializer.SerializeToNode(this) as JsonObject ?? [];
+        // a value --safe changed goes back to the user's own, unless the user changed it in this run
+        foreach (var (name, (own, safe)) in _safeSwaps ?? [])
+            if (JsonNode.DeepEquals(json[name], safe)) json[name] = own?.DeepClone();
+        return json.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+    }
+
+    private static void Write(string json)
+    {
+        lock (WriteLock)
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
-            // write to a temp file and swap: a kill in the middle can't leave a half-written settings file
-            var tmp = FilePath + ".tmp";
-            var json = JsonSerializer.SerializeToNode(this) as JsonObject ?? [];
-            // a value --safe changed goes back to the user's own, unless the user changed it in this run
-            foreach (var (name, (own, safe)) in _safeSwaps ?? [])
-                if (JsonNode.DeepEquals(json[name], safe)) json[name] = own?.DeepClone();
-            File.WriteAllText(tmp, json.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
-            File.Move(tmp, FilePath, overwrite: true);
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
+                // write to a temp file and swap: a kill in the middle can't leave a half-written settings file
+                var tmp = FilePath + ".tmp";
+                File.WriteAllText(tmp, json);
+                File.Move(tmp, FilePath, overwrite: true);
+            }
+            catch (Exception ex) { Log.Write("settings: not saved (" + ex.GetType().Name + ")"); }
         }
-        catch { /* not critical */ }
     }
 }

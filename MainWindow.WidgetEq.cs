@@ -97,7 +97,7 @@ public partial class MainWindow
         }
         _eqWriteNow = Write;
         if (_eqWrite.Tag == null) { _eqWrite.Tag = true; _eqWrite.Tick += (_, _) => { _eqWrite.Stop(); _eqWriteNow?.Invoke(); }; }
-        void Changed() { _settings.Save(); _eqWrite.Stop(); _eqWrite.Start(); }   // writes 150 ms after the last move
+        void Changed() { _settings.SaveSoon(); _eqWrite.Stop(); _eqWrite.Start(); }   // writes 150 ms after the last move
 
         void Presets()
         {
