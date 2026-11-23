@@ -44,15 +44,18 @@ public sealed class ClaudeBridge
     });
 
     /// <summary>Only the hook script may talk to us: no browsers, the right secret, small JSON bodies.</summary>
-    private static bool IsTrusted(HttpListenerRequest r)
+    private static bool IsTrusted(HttpListenerRequest r) =>
+        IsTrusted(r.HttpMethod, r.Headers["Origin"], r.Headers["Referer"], r.ContentType, r.ContentLength64, r.IsLocal, r.Headers["X-Island-Token"], Token.Value);
+
+    internal static bool IsTrusted(string method, string? origin, string? referer, string? contentType, long length, bool isLocal, string? token, byte[] expected)
     {
-        if (r.HttpMethod != "POST") return false;
-        if (r.Headers["Origin"] != null || r.Headers["Referer"] != null) return false;          // a web page
-        if (!(r.ContentType ?? "").StartsWith("application/json", StringComparison.OrdinalIgnoreCase)) return false;
-        if (r.ContentLength64 is < 0 or > MaxBody) return false;
-        if (!r.IsLocal) return false;
-        var sent = Encoding.ASCII.GetBytes(r.Headers["X-Island-Token"] ?? "");
-        return CryptographicOperations.FixedTimeEquals(sent, Token.Value);
+        if (method != "POST") return false;
+        if (origin != null || referer != null) return false;          // a web page
+        if (!(contentType ?? "").StartsWith("application/json", StringComparison.OrdinalIgnoreCase)) return false;
+        if (length is < 0 or > MaxBody) return false;
+        if (!isLocal) return false;
+        var sent = Encoding.ASCII.GetBytes(token ?? "");
+        return CryptographicOperations.FixedTimeEquals(sent, expected);
     }
 
     public sealed class PermissionRequest
