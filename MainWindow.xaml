@@ -81,7 +81,9 @@
             </Canvas.Effect>
             <!-- liquid glass: the lens (GlassEffect) bends the picture along the rim, before the blur -->
             <Canvas x:Name="FrostLens" Background="Transparent" ClipToBounds="True">
+              <!-- two pictures: a new one fades in over the one before -->
               <Image x:Name="Frost" Stretch="Fill"/>
+              <Image x:Name="FrostNext" Stretch="Fill" Opacity="0"/>
             </Canvas>
           </Canvas>
         </Canvas>

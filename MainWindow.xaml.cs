@@ -2766,43 +2766,43 @@ public partial class MainWindow : Window
                     var me = System.Diagnostics.Process.GetCurrentProcess();
                     async Task Phase(string name, int secs)
                     {
-                        await Task.Delay(2000);
-                        ResetCosts(); _frostShownCount = 0; _frostGrabCount = 0; _frostGrabTicks = 0;
+                        await Task.Delay(1000);
+                        ResetCosts(); _frostShownCount = 0; _frostGrabCount = 0; _frostGrabTicks = 0; _frostFades = 0; _frostFadeMs = 0;
                         me.Refresh(); var c0 = me.TotalProcessorTime; var t0 = DateTime.Now;
                         await Task.Delay(secs * 1000);
                         me.Refresh();
                         double wall = (DateTime.Now - t0).TotalMilliseconds, cpu = (me.TotalProcessorTime - c0).TotalMilliseconds;
                         Log.Write($"glassbench: {(liquid ? "liquid" : "plain")}{(mag ? " mag" : "")} {name}: CPU {cpu / wall * 100 / Environment.ProcessorCount:0.00}% of the PC ({cpu / wall * 100:0.0}% of one core), " +
                                   $"grabs {_frostGrabCount / (wall / 1000):0.0}/s at {(_frostGrabCount > 0 ? _frostGrabTicks * 1000.0 / System.Diagnostics.Stopwatch.Frequency / _frostGrabCount : 0):0.00} ms off the UI thread, " +
-                                  $"new pictures {_frostShownCount / (wall / 1000):0.0}/s, mode {_mode}, covers={_frostCovers}, glass opacity {FrostHost.Opacity:0.00}");
+                                  $"new pictures {_frostShownCount / (wall / 1000):0.0}/s ({_frostFades} faded in, {(_frostFades > 0 ? _frostFadeMs / _frostFades : 0):0} ms on average), mode {_mode}, covers={_frostCovers}, glass opacity {FrostHost.Opacity:0.00}");
                         Log.Write($"glassbench: {name}: " + TopCosts(_costs, (long)(wall / 1000 * System.Diagnostics.Stopwatch.Frequency), cpu / wall * 100 / Environment.ProcessorCount).Replace(Environment.NewLine, " | "));
                         string Frost(string n) => _costs.TryGetValue(n, out var c) ? $"{n} {c.Ticks * 1000.0 / System.Diagnostics.Stopwatch.Frequency / (wall / 1000):0.00} ms/s, avg {c.Ticks * 1000.0 / System.Diagnostics.Stopwatch.Frequency / c.Calls:0.00} ms, max {c.Max * 1000.0 / System.Diagnostics.Stopwatch.Frequency:0.0} ms" : n + " -";
                         Log.Write($"glassbench: {name}: UI thread: {Frost("frost")}; {Frost("frost grab")}; {Frost("frost show")}");
                     }
-                    await Task.Delay(12000);
+                    await Task.Delay(8000);
                     SetMode(Mode.Compact);
-                    await Phase("folded", 20);
+                    await Phase("folded", 10);
                     TabHome.IsChecked = true; _pinnedOpen = true; Expand();
-                    await Phase("open", 20);
+                    await Phase("open", 10);
                     var gaps = new List<double>(); TimeSpan last = default;
                     EventHandler onFrame = (_, e2) => { var t = ((RenderingEventArgs)e2).RenderingTime; if (_rendering && last != default && t != last) gaps.Add((t - last).TotalMilliseconds); last = t; };
                     _pinnedOpen = false; SetMode(Mode.Compact); await Task.Delay(1500);
                     ResetCosts(); _frostShownCount = 0;
                     CompositionTarget.Rendering += onFrame;
-                    for (int i = 0; i < 4; i++)
+                    for (int i = 0; i < 2; i++)
                     {
                         TabHome.IsChecked = true; _pinnedOpen = true; Expand(); await Task.Delay(900);
                         _pinnedOpen = false; SetMode(Mode.Compact); await Task.Delay(900);
                     }
                     CompositionTarget.Rendering -= onFrame;
                     var gg = gaps.Where(x => x < 500).ToList();
-                    Log.Write($"glassbench: open/fold x4: {gg.Count} frames, {1000 / Math.Max(1, gg.DefaultIfEmpty(0).Average()):0} fps avg, worst {gg.DefaultIfEmpty(0).Max():0} ms, slow (>20 ms) {gg.Count(x => x > 20) * 100.0 / Math.Max(1, gg.Count):0}%, new pictures {_frostShownCount}");
+                    Log.Write($"glassbench: open/fold x2: {gg.Count} frames, {1000 / Math.Max(1, gg.DefaultIfEmpty(0).Average()):0} fps avg, worst {gg.DefaultIfEmpty(0).Max():0} ms, slow (>20 ms) {gg.Count(x => x > 20) * 100.0 / Math.Max(1, gg.Count):0}%, new pictures {_frostShownCount}");
                     Log.Write($"glassbench: open/fold: " + TopCosts(_costs, System.Diagnostics.Stopwatch.Frequency * 7, 0).Replace(Environment.NewLine, " | "));
                     Log.Write("glassbench: Smoothness: " + PerfSummary());
                     var backdrop = TestBackdrop(moving: true);
-                    await Phase("folded over motion", 20);
+                    await Phase("folded over motion", 10);
                     TabHome.IsChecked = true; _pinnedOpen = true; Expand();
-                    await Phase("open over motion", 20);
+                    await Phase("open over motion", 10);
                     backdrop.Close();
                     Application.Current.Shutdown();
                     return;
@@ -3269,6 +3269,7 @@ public partial class MainWindow : Window
 
     private bool _windowFitted;
 
+#if DEBUG
     /// <summary>Tests: a window of coloured stripes under the island (in z-order), still or sliding like a video.</summary>
     private Window TestBackdrop(bool moving)
     {
@@ -3289,6 +3290,7 @@ public partial class MainWindow : Window
         if (moving) slide.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(0, 160, TimeSpan.FromSeconds(2)) { RepeatBehavior = RepeatBehavior.Forever });
         return w;
     }
+#endif
 
     private static bool PerfNoResize;
 

@@ -44,8 +44,10 @@ public partial class MainWindow
         Canvas.SetTop(FrostLens, -band);
         FrostLens.Width = Math.Max(1, w + 2 * band);
         FrostLens.Height = Math.Max(1, h + 2 * band);
-        Canvas.SetLeft(Frost, band + w / 2 - _frostHalf);
+        Canvas.SetLeft(Frost, band + w / 2 - _layerHalf[0]);
         Canvas.SetTop(Frost, band);
+        Canvas.SetLeft(FrostNext, band + w / 2 - _layerHalf[1]);
+        Canvas.SetTop(FrostNext, band);
         if (FrostLens.Effect is not GlassEffect lens || w < 2 || h < 2) return;
         double rr = Math.Min(Radius(h), Math.Min(w, h) / 2);
         double bend = Math.Max(6, Math.Min(h * 0.42, rr * 1.2 + 6)), push = bend * 0.9;

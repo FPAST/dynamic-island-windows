@@ -28,11 +28,11 @@ public partial class MainWindow
     /// </summary>
     private double DripRoom => Liquid && _settings.MusicWaves && !_settings.Docked ? Math.Ceiling(10.2 * LiquidK) : 0;
     private double _frostHalf = 200, _frostHeight = 80;
-    private WriteableBitmap? _frostBmp;
     private byte[]? _frostPixels;
     private long _frostSig;
     /// <summary>Test counters (--run glassbench): pictures shown, grabs taken and their time off the UI thread.</summary>
-    private int _frostShownCount, _frostGrabCount;
+    private int _frostShownCount, _frostGrabCount, _frostFades;
+    private double _frostFadeMs;
     private long _frostGrabTicks;
     private LinearGradientBrush? _auraBrush;
 
@@ -419,10 +419,16 @@ public partial class MainWindow
         _frostSig = sig;
         _frostShownCount++;
 
-        if (sizeChanged)
+        // the new picture goes into the other layer, on top, and fades in over the one shown now
+        FinishFrostFade();
+        bool sameGeometry = _frostCovers && FrostHost.Opacity > 0.5 && Math.Abs(half - _frostHalf) < 0.5 && Math.Abs(height - _frostHeight) < 0.5;
+        int next = 1 - _frostFront;
+        var layers = FrostLayers;
+        var layer = layers[next];
+        if (_frostBmps[next] is not { } bmp || bmp.PixelWidth != w || bmp.PixelHeight != h)
         {
-            _frostBmp = new WriteableBitmap(w, h, 96, 96, PixelFormats.Bgr32, null);
-            Frost.Source = _frostBmp;
+            bmp = _frostBmps[next] = new WriteableBitmap(w, h, 96, 96, PixelFormats.Bgr32, null);
+            layer.Source = bmp;
         }
         ApplyLiquidBlur();
         var shown = px;
@@ -431,16 +437,61 @@ public partial class MainWindow
             double sb = w / (half * 2);   // DIP → grab pixels
             shown = Refract(px, w, h, (half - islandW / 2) * sb, islandW * sb, islandH * sb, Radius(islandH) * sb);
         }
-        _frostBmp!.WritePixels(new Int32Rect(0, 0, w, h), shown, w * 4, 0);
+        bmp.WritePixels(new Int32Rect(0, 0, w, h), shown, w * 4, 0);
+        _frostFront = next;
+        _layerHalf[next] = half;
         _frostHalf = half;
         _frostHeight = height;
-        Frost.Width = half * 2;
-        Frost.Height = height;
+        layer.Width = half * 2;
+        layer.Height = height;
         PlaceFrost(Island.ActualWidth, Island.ActualHeight);
+        Panel.SetZIndex(layer, 1);
+        Panel.SetZIndex(layers[1 - next], 0);
+        // 120–180 ms when pictures come slowly, shorter when they come faster than that; at once for a new size
+        // (the old picture may not cover it), with animations turned off in Windows, and folded (the pill is nearly
+        // opaque: a fade there cost more than it showed)
+        long now = System.Diagnostics.Stopwatch.GetTimestamp();
+        double since = (now - _frostShownAt) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+        _frostShownAt = now;
+        double fade = sameGeometry && !Services.Motion.Reduced && _mode != Mode.Compact ? Math.Min(150, since * 0.8) : 0;
+        if (fade < 16) { layer.Opacity = 1; layers[1 - next].Opacity = 0; }
+        else
+        {
+            _frostFading = true;
+            _frostFades++;
+            _frostFadeMs += fade;
+            int id = ++_frostFadeId;
+            // a blend of two blurred pictures looks the same at 30 frames a second, for half the redraws of the window
+            var a = Slow(new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(fade)), 30);
+            a.Completed += (_, _) => { if (id == _frostFadeId) FinishFrostFade(); };
+            layer.BeginAnimation(OpacityProperty, a);
+        }
         FrostHost.BeginAnimation(OpacityProperty, null);
         FrostHost.Opacity = 1;
         SetFrostCovers(true);
         return true;
+    }
+
+    // the glass's two picture layers: the newest is on top, fading in over the one before
+    private Image[]? _frostLayersCached;
+    private Image[] FrostLayers => _frostLayersCached ??= [Frost, FrostNext];
+    private readonly WriteableBitmap?[] _frostBmps = new WriteableBitmap?[2];
+    private readonly double[] _layerHalf = [200, 200];
+    private int _frostFront, _frostFadeId;
+    private bool _frostFading;
+    private long _frostShownAt;
+    private WriteableBitmap? _frostBmp => _frostBmps[_frostFront];
+
+    /// <summary>A fade still running ends now: the newest picture fully shown, the one under it hidden.</summary>
+    private void FinishFrostFade()
+    {
+        if (!_frostFading) return;
+        _frostFading = false;
+        _frostFadeId++;
+        var layers = FrostLayers;
+        layers[_frostFront].BeginAnimation(OpacityProperty, null);
+        layers[_frostFront].Opacity = 1;
+        layers[1 - _frostFront].Opacity = 0;
     }
 
     /// <summary>Called whenever the outline changes: keep frost and aura glued to the shape.</summary>
