@@ -235,12 +235,32 @@ public sealed partial class LyricsService
         catch (Exception e) { Log.Write("lyrics cache write: " + e.Message); }
     }
 
-    /// <summary>One artist is the other, ignoring case, ё/е, spaces and punctuation ("Би-2" = "би 2").</summary>
+    /// <summary>
+    /// One artist is the other, ignoring case, ё/е, spaces and punctuation ("Би-2" = "би 2"), and Cyrillic against
+    /// Latin ("Анна Асти" = "ANNA ASTI"): Yandex and VK often spell an artist one way and LRCLIB the other.
+    /// </summary>
     public static bool SameArtist(string a, string b)
     {
         static string N(string s) => new(s.ToLowerInvariant().Replace('ё', 'е').Where(char.IsLetterOrDigit).ToArray());
+        static bool In(string x, string y) => x.Length > 0 && y.Length > 0 && (x.Contains(y) || y.Contains(x));
         string x = N(a), y = N(b);
-        return x.Length > 0 && y.Length > 0 && (x.Contains(y) || y.Contains(x));
+        return In(x, y) || In(Latin(x), Latin(y));
+    }
+
+    private static string Latin(string s)
+    {
+        var sb = new StringBuilder(s.Length + 8);
+        foreach (var c in s)
+            sb.Append(c switch
+            {
+                'а' => "a", 'б' => "b", 'в' => "v", 'г' => "g", 'ґ' => "g", 'д' => "d", 'е' => "e", 'є' => "ye", 'ж' => "zh",
+                'з' => "z", 'и' => "i", 'і' => "i", 'ї' => "yi", 'й' => "y", 'к' => "k", 'л' => "l", 'м' => "m", 'н' => "n",
+                'о' => "o", 'п' => "p", 'р' => "r", 'с' => "s", 'т' => "t", 'у' => "u", 'ф' => "f", 'х' => "h", 'ц' => "ts",
+                'ч' => "ch", 'ш' => "sh", 'щ' => "sch", 'ъ' or 'ь' => "", 'ы' => "y", 'э' => "e", 'ю' => "yu", 'я' => "ya",
+                _ => c.ToString(),
+            });
+        // spellings the Latin side varies in: "kh"/"h", "j"/"y", "x"/"ks"
+        return sb.Replace("kh", "h").Replace('j', 'y').Replace("x", "ks").ToString();
     }
 
     /// <summary>
