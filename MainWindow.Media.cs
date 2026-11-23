@@ -249,7 +249,16 @@ public partial class MainWindow
         var m = _lastMedia;
         if (m == null) return TimeSpan.Zero;
         long now = System.Diagnostics.Stopwatch.GetTimestamp();
+        int resyncs = _lyricsClock.Resyncs;
         _lyricsClock.Report(_lyricsKey, m.CurrentPosition, m.IsPlaying, now);
+        if (_lyricsClock.Resyncs != resyncs && _currentLyrics?.Synced == true)
+        {
+            // why the words run late after a few songs (2.0.1): what the player said and how far the clock was off
+            var off = _lyricsClock.LastCorrection;
+            Log.Write("lyrics clock: " + (off is { } o
+                ? $"{m.AppId}: corrected by {o.TotalMilliseconds:+0;-0} ms at {m.CurrentPosition.TotalSeconds:0.0} s"
+                : $"{m.AppId}: took {m.CurrentPosition.TotalSeconds:0.0} s ({(m.IsPlaying ? "playing" : "paused")}), the report is {(DateTimeOffset.Now - m.PositionUpdatedAt).TotalSeconds:0.0} s old"));
+        }
         return _lyricsClock.At(now) + TimeSpan.FromMilliseconds(LyricsShiftMs);
     }
 

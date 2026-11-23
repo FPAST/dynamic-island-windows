@@ -22,6 +22,12 @@ public sealed class PlaybackClock
     /// <summary>How many times it took the reported position (for logs and tests).</summary>
     public int Resyncs { get; private set; }
 
+    /// <summary>
+    /// The last time the same track, playing all along, disagreed with the player by more than the tolerance: how far
+    /// the clock had run off (reported − clock; positive = the words were late). For the log.
+    /// </summary>
+    public TimeSpan? LastCorrection { get; private set; }
+
     public TimeSpan At(long ticks) => _playing ? _base + TimeSpan.FromSeconds((ticks - _baseTicks) / _frequency) : _base;
 
     /// <summary>A report from the media controls: track (any id), position, whether it plays.</summary>
@@ -36,6 +42,7 @@ public sealed class PlaybackClock
         }
         if (track != _key || playing != _playing || !agrees)
         {
+            LastCorrection = track == _key && playing == _playing ? reported - local : null;
             _key = track; _playing = playing; _base = reported; _baseTicks = ticks;
             Resyncs++;
         }
