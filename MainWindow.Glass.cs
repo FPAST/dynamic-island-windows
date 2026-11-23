@@ -33,6 +33,9 @@ public partial class MainWindow
     private byte[]? _frostPixels;
     private long _frostSig;
     private int _frostSkips;
+    /// <summary>Test counters (--run glassbench): pictures shown, grabs taken and their time off the UI thread.</summary>
+    private int _frostShownCount, _frostGrabCount;
+    private long _frostGrabTicks;
     private LinearGradientBrush? _auraBrush;
 
     public static readonly (string Id, string Name, string[] Colors)[] Auras =
@@ -234,9 +237,15 @@ public partial class MainWindow
             if (_shutDown || _frostBusy) return false;
             _frostBusy = true;
             var buffer = _frostPixels;
-            Task<byte[]?> grab = _excluded == true
+            long g0 = System.Diagnostics.Stopwatch.GetTimestamp();
+            Task<byte[]?> grab = (_excluded == true
                 ? Task.Run(() => CaptureService.CaptureSmall(rect, w, h, buffer))
-                : MagCapture.CaptureAsync(_hwnd, rect, w, h, buffer);
+                : MagCapture.CaptureAsync(_hwnd, rect, w, h, buffer)).ContinueWith(t =>
+                {
+                    Interlocked.Add(ref _frostGrabTicks, System.Diagnostics.Stopwatch.GetTimestamp() - g0);
+                    Interlocked.Increment(ref _frostGrabCount);
+                    return t.Result;
+                }, TaskContinuationOptions.ExecuteSynchronously);
             if (waitMs > 0 && grab.Wait(waitMs))
             {
                 _frostBusy = false;
@@ -272,6 +281,7 @@ public partial class MainWindow
             return true;   // nothing changed behind
         }
         _frostSig = sig;
+        _frostShownCount++;
 
         if (sizeChanged)
         {

@@ -2746,6 +2746,72 @@ public partial class MainWindow : Window
                     Application.Current.Shutdown();
                     return;
                 }
+                if (action == "glassbench")   // test (2.1): what the glass costs and how often its picture changes: glassbench liquid|plain [mag]
+                {
+                    Settings.ReadOnly = true;
+                    Island.IsHitTestVisible = false; _settings.ExpandOnHover = false; NoClickOutside = true;
+                    bool liquid = args.ElementAtOrDefault(r + 2) != "plain";
+                    bool mag = args.ElementAtOrDefault(r + 3) == "mag";
+                    ApplyThemePreset(BuiltInThemes.First(t => t.Id == (liquid ? "liquid" : "midnight")));
+                    _settings.Glass = true; _settings.LiteGraphics = false;
+                    _settings.CaptureHidden = !mag; ApplyCaptureExclusion(); ApplyGlass();
+                    var me = System.Diagnostics.Process.GetCurrentProcess();
+                    async Task Phase(string name, int secs)
+                    {
+                        await Task.Delay(2000);
+                        ResetCosts(); _frostShownCount = 0; _frostGrabCount = 0; _frostGrabTicks = 0;
+                        me.Refresh(); var c0 = me.TotalProcessorTime; var t0 = DateTime.Now;
+                        await Task.Delay(secs * 1000);
+                        me.Refresh();
+                        double wall = (DateTime.Now - t0).TotalMilliseconds, cpu = (me.TotalProcessorTime - c0).TotalMilliseconds;
+                        Log.Write($"glassbench: {(liquid ? "liquid" : "plain")}{(mag ? " mag" : "")} {name}: CPU {cpu / wall * 100 / Environment.ProcessorCount:0.00}% of the PC ({cpu / wall * 100:0.0}% of one core), " +
+                                  $"grabs {_frostGrabCount / (wall / 1000):0.0}/s at {(_frostGrabCount > 0 ? _frostGrabTicks * 1000.0 / System.Diagnostics.Stopwatch.Frequency / _frostGrabCount : 0):0.00} ms off the UI thread, " +
+                                  $"new pictures {_frostShownCount / (wall / 1000):0.0}/s, mode {_mode}, covers={_frostCovers}, glass opacity {FrostHost.Opacity:0.00}");
+                        Log.Write($"glassbench: {name}: " + TopCosts(_costs, (long)(wall / 1000 * System.Diagnostics.Stopwatch.Frequency), cpu / wall * 100 / Environment.ProcessorCount).Replace(Environment.NewLine, " | "));
+                    }
+                    await Task.Delay(12000);
+                    SetMode(Mode.Compact);
+                    await Phase("folded", 20);
+                    TabHome.IsChecked = true; _pinnedOpen = true; Expand();
+                    await Phase("open", 20);
+                    var gaps = new List<double>(); TimeSpan last = default;
+                    EventHandler onFrame = (_, e2) => { var t = ((RenderingEventArgs)e2).RenderingTime; if (_rendering && last != default && t != last) gaps.Add((t - last).TotalMilliseconds); last = t; };
+                    _pinnedOpen = false; SetMode(Mode.Compact); await Task.Delay(1500);
+                    ResetCosts(); _frostShownCount = 0;
+                    CompositionTarget.Rendering += onFrame;
+                    for (int i = 0; i < 4; i++)
+                    {
+                        TabHome.IsChecked = true; _pinnedOpen = true; Expand(); await Task.Delay(900);
+                        _pinnedOpen = false; SetMode(Mode.Compact); await Task.Delay(900);
+                    }
+                    CompositionTarget.Rendering -= onFrame;
+                    var gg = gaps.Where(x => x < 500).ToList();
+                    Log.Write($"glassbench: open/fold x4: {gg.Count} frames, {1000 / Math.Max(1, gg.DefaultIfEmpty(0).Average()):0} fps avg, worst {gg.DefaultIfEmpty(0).Max():0} ms, slow (>20 ms) {gg.Count(x => x > 20) * 100.0 / Math.Max(1, gg.Count):0}%, new pictures {_frostShownCount}");
+                    Log.Write($"glassbench: open/fold: " + TopCosts(_costs, System.Diagnostics.Stopwatch.Frequency * 7, 0).Replace(Environment.NewLine, " | "));
+                    Log.Write("glassbench: Smoothness: " + PerfSummary());
+                    // a moving backdrop (stripes sliding under the island, like a video), under the island in z-order
+                    var stripes = new LinearGradientBrush { StartPoint = new Point(0, 0), EndPoint = new Point(80, 30), MappingMode = BrushMappingMode.Absolute, SpreadMethod = GradientSpreadMethod.Repeat };
+                    stripes.GradientStops.Add(new GradientStop(Color.FromRgb(0xFF, 0x5A, 0x5F), 0));
+                    stripes.GradientStops.Add(new GradientStop(Color.FromRgb(0x2E, 0x9B, 0xFF), 0.5));
+                    stripes.GradientStops.Add(new GradientStop(Color.FromRgb(0xFF, 0xB3, 0x40), 1));
+                    var slide = new TranslateTransform();
+                    stripes.Transform = slide;
+                    var tl0 = Island.PointToScreen(new Point(0, 0));
+                    var backdrop = new Window
+                    {
+                        WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, ShowInTaskbar = false, ShowActivated = false, Topmost = true,
+                        Left = tl0.X / Dpi - 150, Top = 0, Width = Island.ActualWidth * 1.2 + 300, Height = 420, Background = stripes,
+                    };
+                    backdrop.Show();
+                    Native.SetWindowPos(_hwnd, new IntPtr(-1), 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010);   // the island back on top
+                    slide.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(0, 160, TimeSpan.FromSeconds(2)) { RepeatBehavior = RepeatBehavior.Forever });
+                    await Phase("folded over motion", 20);
+                    TabHome.IsChecked = true; _pinnedOpen = true; Expand();
+                    await Phase("open over motion", 20);
+                    backdrop.Close();
+                    Application.Current.Shutdown();
+                    return;
+                }
                 if (action == "perfreport")   // test: the smoothness report after a few openings
                 {
                     Settings.ReadOnly = true;
