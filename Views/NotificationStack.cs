@@ -68,7 +68,9 @@ public sealed class NotificationStack : StackPanel
     }
 
     private readonly List<Card> _cards = [];   // newest first
-    private readonly Grid _list = new() { ClipToBounds = false };
+    // a background, if only a see-through one: where a closed card was, the cursor must still be "on the stack"
+    // (without it the empty place was nothing, the stack thought the cursor had left and shrank under it)
+    private readonly Grid _list = new() { ClipToBounds = false, Background = Brushes.Transparent };
     private readonly TextBlock _title = new() { FontSize = 13, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
     private readonly System.Windows.Documents.Run _count = new();
     private readonly Button _toggle = new() { Padding = new Thickness(10, 3, 10, 3), FontSize = 12, Focusable = false };
@@ -110,6 +112,7 @@ public sealed class NotificationStack : StackPanel
         head.Children.Add(_toggle);
         Children.Add(head);
         Children.Add(_list);
+        Background = Brushes.Transparent;
         Visibility = Visibility.Collapsed;
         MouseEnter += (_, _) => { _hovered = true; Relayout(); };
         MouseLeave += (_, _) => { if (_drag != null) return; _hovered = false; Relayout(); };
@@ -458,6 +461,10 @@ public sealed class NotificationStack : StackPanel
         (_list.Height, Expanded, _cards.Select(c => (c.Y.Now, c.S.Now, c.Root.Opacity, c.X, c.Leaving)).ToArray());
 
     internal void TestHover(bool on) { _hovered = on; Relayout(); }
+
+    /// <summary>Tests: a card's close button (to click it with the real mouse) and its face.</summary>
+    internal (FrameworkElement Close, FrameworkElement Face)? TestCard(int index) =>
+        _cards.Where(k => !k.Leaving).ElementAtOrDefault(index) is { } c ? (c.Close, c.Face) : null;
 
     /// <summary>Tests: the close button of a card, as if clicked.</summary>
     internal void TestClose(int index) => Dismiss(_cards.Where(k => !k.Leaving).ElementAt(index), 1, 0);

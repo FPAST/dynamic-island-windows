@@ -737,6 +737,62 @@ public partial class MainWindow : Window
                     Application.Current.Shutdown();
                     return;
                 }
+                if (action == "stackmouse")   // test (2.0.1): the notification stack with the real mouse: hover, close five cards with their ×, Clear all; the island's height every frame
+                {
+                    Settings.ReadOnly = true;
+                    _settings.ExpandOnHover = false;
+                    await Task.Delay(3000);
+                    for (int i = 0; i < 5; i++) HomeMissed.Add(new("\uE916", null, "Card " + i, "a message with some text in it", DateTime.Now, null));
+                    _pinnedOpen = true; Expand(); TabHome.IsChecked = true; await Task.Delay(1200);
+                    var frames = new List<(double T, double H, Mode M)>();
+                    var sw = System.Diagnostics.Stopwatch.StartNew();
+                    void OnFrame(object? s, EventArgs e) => frames.Add((sw.Elapsed.TotalMilliseconds, Island.Height, _mode));
+                    CompositionTarget.Rendering += OnFrame;
+                    Native.POINT Screen(FrameworkElement el, double fx, double fy)
+                    {
+                        var p = el.PointToScreen(new Point(el.ActualWidth * fx, el.ActualHeight * fy));
+                        return new Native.POINT { X = (int)p.X, Y = (int)p.Y };
+                    }
+                    async Task MoveTo(Native.POINT to, int steps = 12)
+                    {
+                        Native.GetCursorPos(out var from);
+                        for (int i = 1; i <= steps; i++) { Native.SetCursorPos(from.X + (to.X - from.X) * i / steps, from.Y + (to.Y - from.Y) * i / steps); await Task.Delay(12); }
+                    }
+                    async Task Click() { Native.MouseClick(); await Task.Delay(30); }
+                    string Since(double from)
+                    {
+                        var f = frames.Where(x => x.T >= from).ToList();
+                        if (f.Count == 0) return "no frames";
+                        int changes = 0; for (int i = 1; i < f.Count; i++) if (Math.Abs(f[i].H - f[i - 1].H) > 0.5) changes++;
+                        return $"height {f.Min(x => x.H):0}…{f.Max(x => x.H):0} px, changed in {changes} of {f.Count} frames, mode {string.Join("/", f.Select(x => x.M).Distinct())}";
+                    }
+                    // onto the stack: it fans out
+                    var first = HomeMissed.TestCard(0)!.Value;
+                    await MoveTo(Screen(first.Face, 0.5, 0.5)); await Task.Delay(1200);
+                    _pinnedOpen = false;   // like a real hover-open: from now on leaving the island folds it
+                    Log.Write($"stackmouse: hover the stack: {Since(0)}");
+                    for (int k = 0; k < 4; k++)
+                    {
+                        double t0 = sw.Elapsed.TotalMilliseconds;
+                        var card = HomeMissed.TestCard(0)!.Value;
+                        await MoveTo(Screen(card.Face, 0.3, 0.5), 6); await Task.Delay(250);   // hover the card: its × shows
+                        await MoveTo(Screen(card.Close, 0.5, 0.5), 6); await Task.Delay(150);
+                        await Click(); await Task.Delay(900);
+                        Log.Write($"stackmouse: close #{k + 1} with ×: {Since(t0)}, {HomeMissed.Count} left");
+                    }
+                    double tl = sw.Elapsed.TotalMilliseconds;
+                    var last = HomeMissed.TestCard(0)!.Value;
+                    await MoveTo(Screen(last.Face, 0.3, 0.5), 6); await Task.Delay(250);
+                    await MoveTo(Screen(last.Close, 0.5, 0.5), 6); await Task.Delay(150);
+                    await Click(); await Task.Delay(900);
+                    Log.Write($"stackmouse: close the last one: {Since(tl)}, {HomeMissed.Count} left");
+                    double ta = sw.Elapsed.TotalMilliseconds;
+                    await MoveTo(Screen(TabHome, 0.5, 0.5), 10); await Task.Delay(1200);
+                    Log.Write($"stackmouse: cursor up to the tabs: {Since(ta)}");
+                    CompositionTarget.Rendering -= OnFrame;
+                    Application.Current.Shutdown();
+                    return;
+                }
                 if (action == "livecheck")   // test (2.0.1): page dots vs tab icons, closing cards under the cursor, the command bar's shortcut (nothing is saved)
                 {
                     Settings.ReadOnly = true;
