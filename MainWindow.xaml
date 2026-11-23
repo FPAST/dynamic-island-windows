@@ -1039,6 +1039,7 @@
                       </StackPanel>
                     </DockPanel>
                     <CheckBox x:Name="FadeSwitch" Style="{StaticResource Switch}" Click="Fade_Click" Content="Прозрачный низ"/>
+                    <CheckBox x:Name="LiveGlassSwitch" Style="{StaticResource Switch}" Click="LiveGlass_Click" Content="Живое стекло — плавно, без преломления по краю"/>
                   </StackPanel>
                 </Border>
 

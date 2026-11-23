@@ -302,7 +302,8 @@ public partial class MainWindow
             if (_hwnd != IntPtr.Zero)
             {
                 var dpi = VisualTreeHelper.GetDpi(this);
-                Native.MoveTo(_hwnd, (int)Math.Round(_px.Value * dpi.DpiScaleX), (int)Math.Round(_py.Value * dpi.DpiScaleY));
+                int x = (int)Math.Round(_px.Value * dpi.DpiScaleX), y = (int)Math.Round(_py.Value * dpi.DpiScaleY);
+                if (!MoveWithLiveBackdrop(x, y)) Native.MoveTo(_hwnd, x, y);
             }
             else { Left = _px.Value; Top = _py.Value; }
             if (FrostHost.IsVisible) { PlaceFrost(Island.ActualWidth, Island.ActualHeight); CaptureFrost(); }   // the glass's picture stays where it was taken

@@ -77,6 +77,8 @@ public sealed class Settings
     public bool HandDrawn { get; set; }
     /// <summary>Frosted glass: the desktop behind the island, blurred, under a tint.</summary>
     public bool Glass { get; set; } = true;
+    /// <summary>Live glass (experiment): the compositor blurs a window under the island instead of screen grabs.</summary>
+    public bool LiveGlass { get; set; }
     public bool ShowCapsLock { get; set; } = true;
     /// <summary>Volume and screen brightness: a level beside the island while they change.</summary>
     public bool ShowLevels { get; set; } = true;

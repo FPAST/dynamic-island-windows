@@ -2645,7 +2645,7 @@ public partial class MainWindow : Window
                     // the lens is a ps_3_0 shader, which RenderTargetBitmap (software) leaves out: the pictures are taken
                     // from the screen, the island visible to capture, over a window of test stripes ("cpu": Refract's look)
                     if (args.ElementAtOrDefault(r + 3) == "cpu") { _lensTried = true; _lens = null; ApplyLiquidBlur(); }
-                    _settings.CaptureHidden = false; ApplyCaptureExclusion();
+                    _settings.CaptureHidden = false; _settings.LiveGlass = args.Contains("live"); ApplyCaptureExclusion(); ApplyGlass();
                     var stripes = TestBackdrop(moving: false);
                     void Shot(string name)
                     {
@@ -2763,7 +2763,7 @@ public partial class MainWindow : Window
                     bool dragOnly = args.Contains("drag");   // only the drag phase (glassbench liquid drag)
                     ApplyThemePreset(BuiltInThemes.First(t => t.Id == (liquid ? "liquid" : "midnight")));
                     _settings.Glass = true; _settings.LiteGraphics = false;
-                    _settings.CaptureHidden = !mag; ApplyCaptureExclusion(); ApplyGlass();
+                    _settings.CaptureHidden = !mag; _settings.LiveGlass = args.Contains("live"); ApplyCaptureExclusion(); ApplyGlass();
                     var me = System.Diagnostics.Process.GetCurrentProcess();
                     async Task Phase(string name, int secs)
                     {
@@ -2816,7 +2816,14 @@ public partial class MainWindow : Window
                     {
                         var home = new Point(Left, Top);
                         int frames = 0, covered = 0;
-                        EventHandler count = (_, _) => { frames++; if (_frostCovers && FrostHost.Opacity > 0.5) covered++; };
+                        int apart = 0;   // live glass: how far the backdrop is from where it belongs under the island, at worst
+                        EventHandler count = (_, _) =>
+                        {
+                            frames++;
+                            if (_frostCovers && (FrostHost.Opacity > 0.5 || _liveShown)) covered++;
+                            if (_liveShown && Native.GetWindowRect(_hwnd, out var a) && Native.GetWindowRect(_liveBackHwnd, out var b))
+                                apart = Math.Max(apart, Math.Max(Math.Abs(b.Left - a.Left - _liveBox.X), Math.Abs(b.Top - a.Top - _liveBox.Y)));
+                        };
                         ResetCosts(); _frostShownCount = 0; _frostGrabCount = 0; _frostGrabTicks = 0;
                         me.Refresh(); var c0 = me.TotalProcessorTime; var t0 = DateTime.Now;
                         CompositionTarget.Rendering += count;
@@ -2835,7 +2842,8 @@ public partial class MainWindow : Window
                         me.Refresh();
                         double wall = (DateTime.Now - t0).TotalMilliseconds, cpu = (me.TotalProcessorTime - c0).TotalMilliseconds;
                         Log.Write($"glassbench: {(liquid ? "liquid" : "plain")} drag at {speed} DIP/s: CPU {cpu / wall * 100 / Environment.ProcessorCount:0.00}% of the PC, grabs {_frostGrabCount / (wall / 1000):0.0}/s, " +
-                                  $"new pictures {_frostShownCount / (wall / 1000):0.0}/s, glass on in {covered * 100.0 / Math.Max(1, frames):0}% of {frames} frames");
+                                  $"new pictures {_frostShownCount / (wall / 1000):0.0}/s, glass on in {covered * 100.0 / Math.Max(1, frames):0}% of {frames} frames" +
+                                  (_liveShown ? $", backdrop apart from the island by {apart} px at worst" : ""));
                         _testCursor = null; _pressed = false; _dragging = false;
                         _px.Stiffness = _py.Stiffness = 560; _px.Damping = _py.Damping = 38;
                         MoveWindow(home.X, home.Y);
@@ -3978,7 +3986,7 @@ public partial class MainWindow : Window
             }
         }
         // a menu of ours is open: pulling the island to the very top now would put it over that menu
-        if (!fs && !_dragging && _menusOpen == 0) Native.KeepTopmost(_hwnd);
+        if (!fs && !_dragging && _menusOpen == 0) { Native.KeepTopmost(_hwnd); PlaceLiveBackdrop(); }
     }
 
     // ================================================================ clock & eyes

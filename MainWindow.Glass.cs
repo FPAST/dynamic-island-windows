@@ -48,6 +48,7 @@ public partial class MainWindow
 
     private void InitGlass()
     {
+        LocationChanged += (_, _) => PlaceLiveBackdrop();
         foreach (var _ in new int[3]) _frostFree.Enqueue(new FrostFrame());
         _showFrostFrame = ShowFrostFrame;
         _frostLoop = new Thread(FrostLoop) { IsBackground = true, Name = "Atoll glass loop", Priority = ThreadPriority.BelowNormal };
@@ -169,6 +170,7 @@ public partial class MainWindow
         _excluded = hide;
         if (!Native.SetWindowDisplayAffinity(_hwnd, _excluded == true ? Native.WDA_EXCLUDEFROMCAPTURE : 0))
             Log.Write("display affinity: not supported");
+        if (_liveBackHwnd != IntPtr.Zero) Native.SetWindowDisplayAffinity(_liveBackHwnd, _excluded == true ? Native.WDA_EXCLUDEFROMCAPTURE : 0);
     }
 
     /// <summary>Snapshot of the screen behind the island (our own window isn't in it), blurred by the Image's effect.</summary>
@@ -191,6 +193,16 @@ public partial class MainWindow
     /// </summary>
     private void CaptureFrost()
     {
+        if (LiveGlassOn)   // the compositor's glass under the island: no grabs at all
+        {
+            bool show = !_hidden && !_fullscreenHidden && IsLoaded && Island.IsVisible;
+            PauseFrost();
+            FrostHost.Opacity = 0;
+            ShowLiveBackdrop(show);
+            SetFrostCovers(show);
+            return;
+        }
+        ShowLiveBackdrop(false);
         if (!IslandGlass || Lite || !FrostCanGrab || _hidden || _fullscreenHidden || !IsLoaded || !Island.IsVisible) { PauseFrost(); if (Lite || !FrostCanGrab) FrostHost.Opacity = 0; SetFrostCovers(false); return; }
         // grabbing the screen makes Windows finish composing first: never while the size is changing
         if (_rendering && !(_w.IsSettled && _h.IsSettled)) { PauseFrost(); return; }
@@ -340,6 +352,7 @@ public partial class MainWindow
     /// </summary>
     private bool PrecaptureFrost(Size coming)
     {
+        if (LiveGlassOn) return _liveShown;
         if (!IslandGlass || Lite || !FrostCanGrab || _hidden || _fullscreenHidden || !IsLoaded || !Island.IsVisible || _dragging || _posActive) return false;
         double iw = Math.Max(coming.Width, Island.ActualWidth), ih = Math.Max(coming.Height, Island.ActualHeight);
         if (_frostCovers && iw / 2 + FrostMargin <= _frostHalf + 0.5 && ih + FrostMargin + DripRoom <= _frostHeight + 0.5) return true;   // already big enough
@@ -534,6 +547,7 @@ public partial class MainWindow
         PhotoImage.Height = Math.Max(1, Island.Height);
         PlaceFrost(width, Island.Height);
         CaptureFrost();
+        LiveOutline(g);
         AuraHost.Clip = g;
         AuraFill.Width = width;
         AuraFill.Height = Island.Height + 12;
@@ -795,6 +809,8 @@ public partial class MainWindow
             else card.BorderBrush = Brushes.Transparent;
         }
         GlassSwitch.IsChecked = _settings.Glass;
+        LiveGlassSwitch.IsChecked = _settings.LiveGlass;
+        LiveGlassSwitch.Visibility = _settings.Glass ? Visibility.Visible : Visibility.Collapsed;
         TintRow.Visibility = _settings.Glass ? Visibility.Visible : Visibility.Collapsed;
         TintLabel.Text = $"{_settings.GlassTint}%";
         FadeSwitch.IsChecked = _settings.BottomFade;
@@ -821,6 +837,13 @@ public partial class MainWindow
         ApplyGlass();
         RefreshLookControls();
         Remeasure();
+    }
+
+    private void LiveGlass_Click(object sender, RoutedEventArgs e)
+    {
+        _settings.LiveGlass = LiveGlassSwitch.IsChecked == true;
+        _settings.Save();
+        ApplyGlass();
     }
 
     private void TintMinus_Click(object sender, RoutedEventArgs e) => ChangeTint(-5);
