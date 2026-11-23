@@ -13,6 +13,8 @@
     <ApplicationIcon>Assets\icon.ico</ApplicationIcon>
     <!-- Program.Main answers the agents hooks before WPF starts -->
     <StartupObject>DynamicIsland.Program</StartupObject>
+    <!-- the demo and test fields are set only by the runs compiled in Debug; in a release build they stay empty -->
+    <NoWarn Condition="'$(Configuration)' == 'Release'">$(NoWarn);CS0649</NoWarn>
 
     <Version>2.0.1</Version>
     <Product>Atoll</Product>
