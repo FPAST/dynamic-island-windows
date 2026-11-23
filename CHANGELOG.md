@@ -2,6 +2,19 @@
 
 All notable changes to Atoll (formerly "Dynamic Island for Windows"). Русская версия каждого пункта — ниже английской.
 
+## 2.1 — unreleased
+
+- **Smooth glass.** The glass's picture of what's behind the island used to change about once a second (and every six seconds folded), and dropped out while you dragged the island. Now it is taken on a thread of its own up to 20 times a second while the island is open, 4–5 times folded, and under twice a second when nothing behind moves; a new picture fades in over the old one instead of jumping. Measured (liquid glass, Ryzen 7 2700): open over a moving picture 2–3 % CPU, folded about 1 %, the UI thread spends 0.2 ms per picture instead of 1.7 ms.
+- **Liquid glass bends on the graphics card**: the lens at the rim was worked out pixel by pixel on the processor for every picture; now a shader does it, with the same look.
+- **The glass stays on while you drag the island**: the picture stays where it was taken and slides back as the island moves, so what's behind stands still. Measured while dragging: glass on in 98 % of frames at a normal pace (it was off), at a very fast flick the glass fades to the solid colour for a moment.
+- **Live glass (experiment, off by default)**: Settings → Appearance → "Live glass: smooth, no bending at the rim". Windows itself blurs what's behind the island, every frame, with no screenshots: the smoothest and lightest glass (about 1 % CPU open), but without the lens at the edge.
+
+### По-русски
+- Плавное стекло. Картинка того, что за островом, раньше обновлялась примерно раз в секунду (а в свёрнутом — раз в шесть секунд) и пропадала, пока остров перетаскивают. Теперь она снимается в отдельном потоке до 20 раз в секунду у раскрытого острова, 4–5 раз у свёрнутого и реже двух раз, когда за островом ничего не движется; новая картинка плавно проступает поверх старой, а не меняется скачком. Замер (жидкое стекло, Ryzen 7 2700): раскрытый остров над движущейся картинкой — 2–3 % процессора, свёрнутый — около 1 %, поток интерфейса тратит на картинку 0,2 мс вместо 1,7 мс.
+- Жидкое стекло преломляет на видеокарте: линза по краю считалась на процессоре по пикселю для каждой картинки, теперь это делает шейдер, вид тот же.
+- Стекло не пропадает, пока остров перетаскивают: картинка остаётся там, где её сняли, и сдвигается обратно вслед за островом, так что фон стоит на месте. Замер при перетаскивании: стекло видно в 98 % кадров при обычной скорости (раньше выключалось); при очень резком броске стекло на мгновение плавно переходит в сплошной цвет.
+- Живое стекло (эксперимент, выключено по умолчанию): Настройки → Внешний вид → «Живое стекло — плавно, без преломления по краю». Фон за островом размывает сама Windows, каждый кадр и без снимков экрана: самое плавное и лёгкое стекло (около 1 % процессора у раскрытого острова), но без линзы по краю.
+
 ## 2.0.1 — 2026-11-23
 
 - **Fixed: memory kept growing past 1 GB.** Every second the island asked Windows for the sound devices anew (for the wave and for "is Discord in a call") and never let them go; each one kept a piece of memory Windows couldn't take back. Measured: in one minute 2.0.0 left 302 of them behind, 2.0.1 keeps one.
