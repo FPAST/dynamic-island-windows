@@ -1108,5 +1108,15 @@
  "Показывать файл в Проводнике после сохранения": "Datei nach dem Speichern im Explorer zeigen",
  "Снимок сохранён и скопирован": "Screenshot gespeichert und kopiert",
  "Волны от музыки": "Wellen von der Musik",
- "Край острова качается в такт музыке. Без этого волны остаются только от касаний": "Der Rand der Insel schwingt im Takt der Musik. Ohne das bleiben nur die Wellen von Berührungen"
+ "Край острова качается в такт музыке. Без этого волны остаются только от касаний": "Der Rand der Insel schwingt im Takt der Musik. Ohne das bleiben nur die Wellen von Berührungen",
+ "Проверить": "Prüfen",
+ "Запустить установленный хук с тестовым событием и дождаться его на острове": "Den installierten Hook mit einem Testereignis starten und auf der Insel darauf warten",
+ "Порт занят: хуки установлены, но порт {0} занят другой программой — остров не может их принять.": "Port belegt: Die Hooks sind installiert, aber Port {0} ist von einem anderen Programm belegt — die Insel kann sie nicht empfangen.",
+ "Работает, последнее событие: {0}": "Funktioniert, letztes Ereignis: {0}",
+ "Хуки установлены, ждём первое событие — перезапустите открытые сессии Claude Code.": "Hooks installiert, warte auf das erste Ereignis — starten Sie offene Claude-Code-Sitzungen neu.",
+ "Хуки установлены, ждём первое событие — один раз подтвердите хуки в Codex командой /hooks и перезапустите открытые сессии.": "Hooks installiert, warte auf das erste Ereignis — bestätigen Sie die Hooks einmal in Codex mit /hooks und starten Sie offene Sitzungen neu.",
+ "Хук не найден в настройках — нажмите «Отключить» и «Подключить» снова.": "Der Hook wurde in den Einstellungen nicht gefunden — klicken Sie auf „Trennen“ und dann wieder auf „Verbinden“.",
+ "Проверка прошла: событие дошло до острова за {0} мс ({1}).": "Prüfung bestanden: Das Ereignis erreichte die Insel in {0} ms ({1}).",
+ "Событие не дошло до острова за 5 с ({0}, код выхода {1}).": "Das Ereignis hat die Insel nicht innerhalb von 5 s erreicht ({0}, Exitcode {1}).",
+ "Подробности — в журнале и в {0}.": "Details im Protokoll und in {0}."
 }

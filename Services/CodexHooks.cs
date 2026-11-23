@@ -34,6 +34,13 @@ public static class CodexHooks
         }
     }
 
+    /// <summary>The command our Stop hook runs on Windows, as written in ~/.codex/hooks.json.</summary>
+    public static string? InstalledCommand()
+    {
+        var list = Load()["hooks"]?["Stop"] as JsonArray;
+        return ClaudeHooks.OurCommand(list, "commandWindows") ?? ClaudeHooks.OurCommand(list, "command");
+    }
+
     public static void Install()
     {
         Directory.CreateDirectory(Path.GetDirectoryName(ScriptPath)!);

@@ -247,6 +247,9 @@ public sealed class Settings
 
     // chat
     public string ChatProvider { get; set; } = "gemini";
+    /// <summary>When a real event last came from Claude Code's / Codex's hook (null = never since the hooks were set up).</summary>
+    public DateTime? ClaudeLastEvent { get; set; }
+    public DateTime? CodexLastEvent { get; set; }
     private string _geminiKey = "", _geminiKeySealed = "";
 
     /// <summary>The Gemini key itself: kept in memory only, never written as text (see <see cref="GeminiVoiceApiKeySealed"/>).</summary>

@@ -1108,5 +1108,15 @@
  "Показывать файл в Проводнике после сохранения": "Mostrar o arquivo no Explorador depois de salvar",
  "Снимок сохранён и скопирован": "Captura salva e copiada",
  "Волны от музыки": "Ondas com a música",
- "Край острова качается в такт музыке. Без этого волны остаются только от касаний": "A borda da ilha balança no ritmo da música. Sem isso, só os toques fazem ondas"
+ "Край острова качается в такт музыке. Без этого волны остаются только от касаний": "A borda da ilha balança no ritmo da música. Sem isso, só os toques fazem ondas",
+ "Проверить": "Verificar",
+ "Запустить установленный хук с тестовым событием и дождаться его на острове": "Executar o hook instalado com um evento de teste e esperá-lo na ilha",
+ "Порт занят: хуки установлены, но порт {0} занят другой программой — остров не может их принять.": "Porta ocupada: os hooks estão instalados, mas outro programa usa a porta {0} e a ilha não pode recebê-los.",
+ "Работает, последнее событие: {0}": "Funcionando, último evento: {0}",
+ "Хуки установлены, ждём первое событие — перезапустите открытые сессии Claude Code.": "Hooks instalados, aguardando o primeiro evento — reinicie as sessões abertas do Claude Code.",
+ "Хуки установлены, ждём первое событие — один раз подтвердите хуки в Codex командой /hooks и перезапустите открытые сессии.": "Hooks instalados, aguardando o primeiro evento — confirme os hooks uma vez no Codex com /hooks e reinicie as sessões abertas.",
+ "Хук не найден в настройках — нажмите «Отключить» и «Подключить» снова.": "O hook não está nas configurações — clique em Desconectar e depois em Conectar de novo.",
+ "Проверка прошла: событие дошло до острова за {0} мс ({1}).": "Verificação concluída: o evento chegou à ilha em {0} ms ({1}).",
+ "Событие не дошло до острова за 5 с ({0}, код выхода {1}).": "O evento não chegou à ilha em 5 s ({0}, código de saída {1}).",
+ "Подробности — в журнале и в {0}.": "Detalhes no registro e em {0}."
 }

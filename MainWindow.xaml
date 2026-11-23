@@ -1305,8 +1305,11 @@
                     <DockPanel>
                       <TextBlock Text="✳" FontSize="16" Foreground="{DynamicResource ClaudeOrange}" VerticalAlignment="Center"/>
                       <TextBlock Style="{StaticResource Caption}" Text="CLAUDE CODE" VerticalAlignment="Center" Margin="8,0,0,0"/>
-                      <Button x:Name="ClaudeHooksButton" Style="{StaticResource Pill}" HorizontalAlignment="Right"
+                      <Button x:Name="ClaudeHooksButton" Style="{StaticResource Pill}" DockPanel.Dock="Right"
                               Content="Подключить" Click="ClaudeHooks_Click"/>
+                      <Button x:Name="ClaudeCheckButton" Style="{StaticResource GhostPill}" DockPanel.Dock="Right" Margin="0,0,6,0" Padding="12,6"
+                              Content="Проверить" Click="ClaudeCheck_Click" ToolTip="Запустить установленный хук с тестовым событием и дождаться его на острове"/>
+                      <Border/>
                     </DockPanel>
                     <TextBlock x:Name="ClaudeHooksStatus" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,8,0,0"/>
                   </StackPanel>
@@ -1316,8 +1319,11 @@
                     <DockPanel>
                       <TextBlock Text="◎" FontSize="16" Foreground="#10A37F" VerticalAlignment="Center"/>
                       <TextBlock Style="{StaticResource Caption}" Text="CODEX (OPENAI)" VerticalAlignment="Center" Margin="8,0,0,0"/>
-                      <Button x:Name="CodexHooksButton" Style="{StaticResource Pill}" HorizontalAlignment="Right"
+                      <Button x:Name="CodexHooksButton" Style="{StaticResource Pill}" DockPanel.Dock="Right"
                               Content="Подключить" Click="CodexHooks_Click"/>
+                      <Button x:Name="CodexCheckButton" Style="{StaticResource GhostPill}" DockPanel.Dock="Right" Margin="0,0,6,0" Padding="12,6"
+                              Content="Проверить" Click="CodexCheck_Click" ToolTip="Запустить установленный хук с тестовым событием и дождаться его на острове"/>
+                      <Border/>
                     </DockPanel>
                     <TextBlock x:Name="CodexHooksStatus" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,8,0,0"/>
                   </StackPanel>

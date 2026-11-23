@@ -74,6 +74,10 @@ public sealed class ClaudeBridge
     public event Action<Notice>? Notified;
     /// <summary>Claude Code's task list changed (raised on a background thread).</summary>
     public event Action<ClaudePlan.Snapshot>? PlanChanged;
+    /// <summary>A real call from an agent's hook arrived: "Claude Code" or "Codex" (background thread).</summary>
+    public event Action<string>? EventArrived;
+    /// <summary>The check from Settings came through the installed hook: its nonce (background thread).</summary>
+    public event Action<string>? CheckArrived;
     private readonly ClaudePlan _plan = new();
 
     public bool IsRunning => _listener?.IsListening == true;
@@ -120,6 +124,10 @@ public sealed class ClaudeBridge
             var json = JsonNode.Parse(body) as JsonObject ?? new JsonObject();
             var project = Path.GetFileName((json["cwd"]?.GetValue<string>() ?? "").TrimEnd('\\', '/'));
             var agent = ctx.Request.QueryString["src"] == "codex" ? "Codex" : "Claude Code";
+
+            // "Check" in Settings ran the installed hook: it got here, nothing to show
+            if (json["atoll_check"] is JsonValue check && check.TryGetValue<string>(out var nonce)) { CheckArrived?.Invoke(nonce); goto answer; }
+            EventArrived?.Invoke(agent);
 
             switch (ctx.Request.Url?.AbsolutePath)
             {
@@ -186,8 +194,9 @@ public sealed class ClaudeBridge
                 }
             }
         }
-        catch { }
+        catch (Exception ex) { Log.Write("claude bridge: " + ex.GetType().Name + ": " + ex.Message); }
 
+        answer:
         try
         {
             var bytes = Encoding.UTF8.GetBytes(response);

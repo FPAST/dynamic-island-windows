@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using System.IO;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -83,6 +85,78 @@ public static class ClaudeHooks
             list.Add(entry);
         }
         Save(root);
+    }
+
+    /// <summary>The command our hook for <paramref name="evt"/> runs, as written in ~/.claude/settings.json.</summary>
+    public static string? InstalledCommand(string evt) => OurCommand(Load()["hooks"]?[evt] as JsonArray, "command");
+
+    /// <summary>Our entry's command in a list of hooks (Claude Code's and Codex's lists have the same shape).</summary>
+    internal static string? OurCommand(JsonArray? list, string key) =>
+        list?.SelectMany(e => (e?["hooks"] as JsonArray) ?? [])
+            .Select(h => h?[key] is JsonValue v && v.TryGetValue<string>(out var c) ? c : null)
+            .FirstOrDefault(c => c != null && c.Contains(Marker, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// Git Bash, which Claude Code on Windows runs its hooks with (CLAUDE_CODE_GIT_BASH_PATH, or next to git.exe);
+    /// null without Git for Windows.
+    /// </summary>
+    internal static string? GitBash()
+    {
+        var set = Environment.GetEnvironmentVariable("CLAUDE_CODE_GIT_BASH_PATH");
+        if (!string.IsNullOrWhiteSpace(set) && File.Exists(set)) return set;
+        foreach (var dir in (Environment.GetEnvironmentVariable("PATH") ?? "").Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            try
+            {
+                if (!File.Exists(Path.Combine(dir, "git.exe"))) continue;
+                var bash = Path.GetFullPath(Path.Combine(dir, "..", "bin", "bash.exe"));
+                if (File.Exists(bash)) return bash;
+            }
+            catch (ArgumentException) { }   // a malformed PATH entry
+        }
+        foreach (var root in new[] { Environment.SpecialFolder.ProgramFiles, Environment.SpecialFolder.ProgramFilesX86, Environment.SpecialFolder.LocalApplicationData })
+        {
+            var bash = Path.Combine(Environment.GetFolderPath(root), root == Environment.SpecialFolder.LocalApplicationData ? "Programs" : "", "Git", "bin", "bash.exe");
+            if (File.Exists(bash)) return bash;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Runs an installed hook command the way the agent does — through Git Bash (Claude Code) or cmd.exe —
+    /// with <paramref name="input"/> on stdin. Exit code (-1 = still running after 10 s), stderr, the shell used.
+    /// </summary>
+    public static async Task<(int Exit, string Stderr, string Shell)> RunAsync(string command, string input, bool gitBash)
+    {
+        var bash = gitBash ? GitBash() : null;
+        var psi = new ProcessStartInfo
+        {
+            FileName = bash ?? "cmd.exe",
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardInput = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            StandardInputEncoding = new UTF8Encoding(false),
+            StandardOutputEncoding = Encoding.UTF8,
+            StandardErrorEncoding = Encoding.UTF8,
+        };
+        if (bash != null) { psi.ArgumentList.Add("-c"); psi.ArgumentList.Add(command); }
+        else psi.Arguments = $"/d /s /c \"{command}\"";   // as Node's spawn with shell: true
+        using var p = Process.Start(psi) ?? throw new InvalidOperationException("no process");
+        var stderr = p.StandardError.ReadToEndAsync();
+        var stdout = p.StandardOutput.ReadToEndAsync();
+        await p.StandardInput.WriteAsync(input);
+        p.StandardInput.Close();
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        try { await p.WaitForExitAsync(cts.Token); }
+        catch (OperationCanceledException)
+        {
+            try { p.Kill(entireProcessTree: true); } catch (InvalidOperationException) { }   // ended in between
+            return (-1, "", bash != null ? "Git Bash" : "cmd");
+        }
+        await stdout;
+        return (p.ExitCode, (await stderr).Trim(), bash != null ? "Git Bash" : "cmd");
     }
 
     private static bool HasPlanHook()
