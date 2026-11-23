@@ -116,7 +116,8 @@ public partial class ScreenshotEditor : Window
     {
         var path = CaptureService.SavePng(Render());
         Flash(L.T("Сохранено"));
-        try { Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{path}\"") { UseShellExecute = true }); } catch { }
+        if (Settings.Current.ScreenshotReveal) CaptureService.Reveal(path);
+
     }
 
     private void Close_Click(object sender, RoutedEventArgs e) => Close();

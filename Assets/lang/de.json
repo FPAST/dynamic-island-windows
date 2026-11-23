@@ -1100,5 +1100,11 @@
  "Очистить все": "Alle löschen",
  "Время вышло: 25:00": "Zeit ist um: 25:00",
  "Командная строка клавишами": "Befehlszeile per Tastenkürzel",
- "Если Alt+Space занят другой программой, работает Ctrl+Alt+Space.": "Ist Alt+Leertaste von einem anderen Programm belegt, funktioniert Strg+Alt+Leertaste."
+ "Если Alt+Space занят другой программой, работает Ctrl+Alt+Space.": "Ist Alt+Leertaste von einem anderen Programm belegt, funktioniert Strg+Alt+Leertaste.",
+ "После снимка": "Nach dem Screenshot",
+ "Открыть редактор": "Editor öffnen",
+ "Сохранить и скопировать без окна": "Speichern und kopieren, ohne Fenster",
+ "В полноэкранной игре снимок всегда сохраняется без окна": "In einem Vollbildspiel wird der Screenshot immer ohne Fenster gespeichert",
+ "Показывать файл в Проводнике после сохранения": "Datei nach dem Speichern im Explorer zeigen",
+ "Снимок сохранён и скопирован": "Screenshot gespeichert und kopiert"
 }

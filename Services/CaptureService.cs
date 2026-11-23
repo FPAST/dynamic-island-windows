@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using System.IO;
+
 using System.Net.Http;
 using System.Runtime.InteropServices;
 using System.Text.Json;
@@ -133,7 +135,15 @@ public static class CaptureService
         return path;
     }
 
-    private static byte[] ToBgra(BitmapSource bmp, out int w, out int h)
+    /// <summary>The file selected in File Explorer.</summary>
+    public static void Reveal(string path)
+    {
+        try { using var _ = Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{path}\"") { UseShellExecute = true }); }
+        catch (Exception ex) { Log.Write("reveal screenshot: " + ex.Message); }
+    }
+
+    private static byte[] ToBgra(
+BitmapSource bmp, out int w, out int h)
     {
         var conv = new FormatConvertedBitmap(bmp, PixelFormats.Bgra32, null, 0);
         w = conv.PixelWidth;

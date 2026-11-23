@@ -194,6 +194,8 @@ public partial class MainWindow
         VoiceVolumeSlider.Value = Math.Clamp(_settings.GeminiVoiceVolume, 0, 100);
         DiscordSideSwitch.IsEnabled = _settings.ShowDiscordCall;
         CaptureSwitch.IsChecked = HideFromCapture;
+        ShotModeBox.SelectedIndex = _settings.ScreenshotQuick ? 1 : 0;
+        ShotRevealSwitch.IsChecked = _settings.ScreenshotReveal;
         ScaleSlider.Value = Math.Clamp(_settings.IslandScale, 80, 130);
         LiteSwitch.IsChecked = Lite;
         if (OpenHotkeyBox.Items.Count == 0)
@@ -326,6 +328,7 @@ public partial class MainWindow
             CaptureFrost();
             UpdateGlassFill();
         }
+        _settings.ScreenshotReveal = ShotRevealSwitch.IsChecked == true;
         _settings.Karaoke = KaraokeSwitch.IsChecked == true;
         _settings.MirrorNotifications = NotifySwitch.IsChecked == true;
         RefreshNotifyHint();
@@ -379,7 +382,15 @@ public partial class MainWindow
         ? L.T("Если Alt+Space занят другой программой, работает Ctrl+Alt+Space.") : "";
 
 
+    private void ShotMode_Changed(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (_settingsLoading || ShotModeBox.SelectedIndex < 0) return;
+        _settings.ScreenshotQuick = ShotModeBox.SelectedIndex == 1;
+        _settings.Save();
+    }
+
     private void CommandHotkey_Changed(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+
     {
         if (_settingsLoading || CommandHotkeyBox.SelectedIndex < 0) return;
         int i = CommandHotkeyBox.SelectedIndex;

@@ -135,6 +135,11 @@ public sealed class Settings
     public string OpenHotkey { get; set; } = "Ctrl+Alt+O";
     /// <summary>Shortcut of the command bar: "Alt+Space" (with Ctrl+Alt+Space), "Ctrl+Alt+Space", "Ctrl+Shift+Space" or "" (off).</summary>
     public string CommandHotkey { get; set; } = "Alt+Space";
+    /// <summary>After a screenshot: false = open the editor, true = save it and copy it, only a short notice.</summary>
+    public bool ScreenshotQuick { get; set; }
+    /// <summary>Show the saved picture in File Explorer.</summary>
+    public bool ScreenshotReveal { get; set; }
+
 
     /// <summary>Tracks liked with the heart on the music page ("Artist — Title"), newest first.</summary>
     public List<string> LikedTracks { get; set; } = [];

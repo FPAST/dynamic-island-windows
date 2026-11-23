@@ -1178,6 +1178,18 @@
                     <CheckBox x:Name="CaptureSwitch" Style="{StaticResource Switch}" Click="Behavior_Click" Content="Скрывать остров на скриншотах и демонстрации экрана"/>
                     <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,-4,0,8"
                                Text="Если выключить, остров будет виден на скриншотах, записи и в Zoom/Discord — стекло при этом продолжает работать. Пока работает запись NVIDIA, остров сам остаётся видимым — иначе она не пишет рабочий стол"/>
+                    <DockPanel Margin="0,0,0,10">
+                      <ComboBox x:Name="ShotModeBox" DockPanel.Dock="Right" Style="{StaticResource SoftCombo}" Width="200" SelectionChanged="ShotMode_Changed">
+                        <ComboBoxItem Content="Открыть редактор"/>
+                        <ComboBoxItem Content="Сохранить и скопировать без окна"/>
+                      </ComboBox>
+                      <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="После снимка" FontSize="13"/>
+                        <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,2,0,0" Text="В полноэкранной игре снимок всегда сохраняется без окна"/>
+                      </StackPanel>
+                    </DockPanel>
+                    <CheckBox x:Name="ShotRevealSwitch" Style="{StaticResource Switch}" Click="Behavior_Click" Content="Показывать файл в Проводнике после сохранения"/>
+
                     <CheckBox x:Name="FullscreenSwitch" Style="{StaticResource Switch}" Click="Behavior_Click" Content="Прятать в играх и полноэкранном режиме"/>
                     <DockPanel Margin="0,0,0,10">
                       <ComboBox x:Name="OpenHotkeyBox" DockPanel.Dock="Right" Style="{StaticResource SoftCombo}" Width="200"

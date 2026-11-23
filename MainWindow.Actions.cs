@@ -172,22 +172,40 @@ public partial class MainWindow
         return picked?.Image;
     }
 
+    /// <summary>A full-screen program (a game) is in front: a snapshot must not open windows and take its focus.</summary>
+    private bool FullscreenInFront => _hwnd != IntPtr.Zero && Native.IsFullscreenAppActive(_hwnd);
+
     private async Task RegionScreenshotAsync()
     {
+        // in a game the region picker would take the focus: the whole screen is saved instead
+        if (FullscreenInFront) { await FullScreenshotAsync(); return; }
         var img = await PickRegionAsync();
-        if (img != null) new ScreenshotEditor(img).Show();
+        if (img != null) ShotTaken(img);
     }
 
     private async Task FullScreenshotAsync()
     {
+        bool game = FullscreenInFront;
         if (_mode != Mode.Compact) SetMode(Mode.Compact);
         Root.Opacity = 0;
         await Task.Delay(160);
         BitmapSource img;
         try { img = CaptureService.CaptureMonitorUnderCursor(); }
         finally { if (!_fullscreenHidden) Root.Opacity = 1; }
-        new ScreenshotEditor(img).Show();
+        ShotTaken(img, quick: game);
     }
+
+    /// <summary>The editor, or (chosen in Settings, or in a game) saved and copied with only the island's notice.</summary>
+    private void ShotTaken(BitmapSource img, bool quick = false)
+    {
+        if (!quick && !_settings.ScreenshotQuick) { new ScreenshotEditor(img).Show(); return; }
+        var path = CaptureService.SavePng(img);
+        try { Clipboard.SetImage(img); }
+        catch (Exception ex) { Log.Write("screenshot to clipboard: " + ex.Message); }
+        ShowToast("\uE722", L.T("Снимок сохранён и скопирован"), System.IO.Path.GetFileName(path), () => new ScreenshotEditor(img).Show());
+
+    }
+
 
     private async Task OcrFromScreenAsync()
     {

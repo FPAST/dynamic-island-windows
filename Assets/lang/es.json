@@ -1100,5 +1100,11 @@
  "Очистить все": "Borrar todo",
  "Время вышло: 25:00": "Se acabó el tiempo: 25:00",
  "Командная строка клавишами": "Atajo de la barra de comandos",
- "Если Alt+Space занят другой программой, работает Ctrl+Alt+Space.": "Si otro programa usa Alt+Espacio, funciona Ctrl+Alt+Espacio."
+ "Если Alt+Space занят другой программой, работает Ctrl+Alt+Space.": "Si otro programa usa Alt+Espacio, funciona Ctrl+Alt+Espacio.",
+ "После снимка": "Después de la captura",
+ "Открыть редактор": "Abrir el editor",
+ "Сохранить и скопировать без окна": "Guardar y copiar, sin ventana",
+ "В полноэкранной игре снимок всегда сохраняется без окна": "En un juego a pantalla completa la captura siempre se guarda sin ventana",
+ "Показывать файл в Проводнике после сохранения": "Mostrar el archivo en el Explorador después de guardar",
+ "Снимок сохранён и скопирован": "Captura guardada y copiada"
 }

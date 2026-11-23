@@ -1100,5 +1100,11 @@
  "Очистить все": "Clear all",
  "Время вышло: 25:00": "Time is up: 25:00",
  "Командная строка клавишами": "Command bar shortcut",
- "Если Alt+Space занят другой программой, работает Ctrl+Alt+Space.": "If another program owns Alt+Space, Ctrl+Alt+Space works."
+ "Если Alt+Space занят другой программой, работает Ctrl+Alt+Space.": "If another program owns Alt+Space, Ctrl+Alt+Space works.",
+ "После снимка": "After a screenshot",
+ "Открыть редактор": "Open the editor",
+ "Сохранить и скопировать без окна": "Save and copy, no window",
+ "В полноэкранной игре снимок всегда сохраняется без окна": "In a full-screen game the screenshot is always saved without a window",
+ "Показывать файл в Проводнике после сохранения": "Show the file in File Explorer after saving",
+ "Снимок сохранён и скопирован": "Screenshot saved and copied"
 }
