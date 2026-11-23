@@ -3265,12 +3265,25 @@ public partial class MainWindow : Window
         Release();
         _expandDelay.Stop();
         if (!_dragging) Unsquish(0);
-        if (_mode is Mode.Expanded) _collapseDelay.Start();
+        if (_mode is Mode.Expanded && !CursorOnIsland()) _collapseDelay.Start();
         if (_mode is Mode.Drop && _dropped.Length > 0) _collapseDelay.Start();
         if (_mode == Mode.Toast && !_toastTimer.IsEnabled) _toastTimer.Start();
     }
 
+    /// <summary>
+    /// The cursor really is over the island, by its screen position. WPF also reports leaving when the island
+    /// changes size under a still cursor (a notification card closed); that must not fold it.
+    /// </summary>
+    private bool CursorOnIsland()
+    {
+        if (PresentationSource.FromVisual(Island) == null) return false;
+        Native.GetCursorPos(out var p);
+        var at = Island.PointFromScreen(new Point(p.X, p.Y));
+        return at.X >= 0 && at.Y >= 0 && at.X < Island.ActualWidth && at.Y < Island.ActualHeight;
+    }
+
     private int _tabIndex;
+
 
     private void Tab_Checked(object sender, RoutedEventArgs e)
     {

@@ -27,7 +27,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="DynamicIsland.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- the unit tests are a project of their own -->
+
     <Compile Remove="tests\**" />
     <None Remove="tests\**" />
     <Page Remove="tests\**" />
