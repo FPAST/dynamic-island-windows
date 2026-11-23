@@ -8,17 +8,19 @@ namespace DynamicIsland.Tests;
 public class SettingsTests : IDisposable
 {
     private readonly string _dir = Path.Combine(Path.GetTempPath(), "atoll-settings-" + Guid.NewGuid().ToString("N"));
-    private readonly string _was = Settings.FilePath;
+    private readonly string _was = Settings.FilePath, _logWas = Log.FilePath;
 
     public SettingsTests()
     {
         Directory.CreateDirectory(_dir);
         Settings.FilePath = Path.Combine(_dir, "settings.json");
+        Log.FilePath = Path.Combine(_dir, "log.txt");   // never the user's own log
     }
 
     public void Dispose()
     {
         Settings.FilePath = _was;
+        Log.FilePath = _logWas;
         try { Directory.Delete(_dir, true); } catch (IOException) { }
     }
 
@@ -96,16 +98,10 @@ public class SettingsTests : IDisposable
         var s = new Settings { GeminiVoiceApiKey = key };
         Assert.NotEqual("", s.GeminiVoiceApiKeySealed);
         Assert.DoesNotContain(key, s.GeminiVoiceApiKeySealed);
-        var was = Log.FilePath;
-        Log.FilePath = Path.Combine(_dir, "log.txt");
-        try
-        {
-            Log.Write("test: a message with " + key + " inside");
-            var text = File.ReadAllText(Log.FilePath);
-            Assert.Contains("<key>", text);
-            Assert.DoesNotContain(key, text);
-        }
-        finally { Log.FilePath = was; }
+        Log.Write("test: a message with " + key + " inside");
+        var text = File.ReadAllText(Log.FilePath);
+        Assert.Contains("<key>", text);
+        Assert.DoesNotContain(key, text);
     }
 
     [Fact]
