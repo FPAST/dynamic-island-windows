@@ -19,7 +19,6 @@ public partial class MainWindow
     /// <summary>The island's glass: on in settings and not turned off for everything in Windows (Transparency effects).</summary>
     private bool IslandGlass => _settings.Glass && !Services.Motion.NoTransparency;
 
-    private readonly DispatcherTimer _frostTimer = new() { Interval = TimeSpan.FromMilliseconds(700) };
     private const double FrostMargin = 28;      // a little of the screen around the island, for the blur to pull in
 
     /// <summary>
@@ -32,7 +31,6 @@ public partial class MainWindow
     private WriteableBitmap? _frostBmp;
     private byte[]? _frostPixels;
     private long _frostSig;
-    private int _frostSkips;
     /// <summary>Test counters (--run glassbench): pictures shown, grabs taken and their time off the UI thread.</summary>
     private int _frostShownCount, _frostGrabCount;
     private long _frostGrabTicks;
@@ -50,8 +48,10 @@ public partial class MainWindow
 
     private void InitGlass()
     {
-        _frostTimer.Tick += (_, _) => Measure("frost", CaptureFrost);
-        _frostTimer.Start();
+        foreach (var _ in new int[3]) _frostFree.Enqueue(new FrostFrame());
+        _showFrostFrame = ShowFrostFrame;
+        _frostLoop = new Thread(FrostLoop) { IsBackground = true, Name = "Atoll glass loop", Priority = ThreadPriority.BelowNormal };
+        _frostLoop.Start();
         ApplyGlass();
         SetupAura();
         UpdatePageDots();
@@ -179,15 +179,143 @@ public partial class MainWindow
     /// </summary>
     private bool FrostCanGrab => _excluded == true || _demoPlate != null || (!Settings.Safe && MagCapture.Works != false);
 
+    /// <summary>
+    /// Tells the grab loop what to take now (cheap: called whenever the outline, the state or a setting changes,
+    /// and once a second). The loop stops while the glass is off, hidden, dragged or changing size.
+    /// </summary>
     private void CaptureFrost()
     {
-        if (!IslandGlass || Lite || !FrostCanGrab || _hidden || _fullscreenHidden || !IsLoaded || !Island.IsVisible) { if (Lite || !FrostCanGrab) FrostHost.Opacity = 0; SetFrostCovers(false); return; }
-        if (_dragging || _posActive) { FrostHost.Opacity = 0; SetFrostCovers(false); return; }
+        if (!IslandGlass || Lite || !FrostCanGrab || _hidden || _fullscreenHidden || !IsLoaded || !Island.IsVisible) { PauseFrost(); if (Lite || !FrostCanGrab) FrostHost.Opacity = 0; SetFrostCovers(false); return; }
+        if (_dragging || _posActive) { PauseFrost(); FrostHost.Opacity = 0; SetFrostCovers(false); return; }
         // grabbing the screen makes Windows finish composing first: never while the size is changing
-        if (_rendering && !(_w.IsSettled && _h.IsSettled)) return;
-        // the folded pill is nearly opaque: refreshing what's behind it every few seconds is plenty
-        if (_mode == Mode.Compact && ++_frostSkips % 8 != 0 && _frostBmp != null) return;
-        GrabFrost(Island.ActualWidth, Island.ActualHeight);
+        if (_rendering && !(_w.IsSettled && _h.IsSettled)) { PauseFrost(); return; }
+        if (_frostTestBackdrop != null || _demoPlate != null)   // still pictures: taken again when the size changes, or after half a second
+        {
+            PauseFrost();
+            double half = Island.ActualWidth / 2 + FrostMargin, height = Island.ActualHeight + FrostMargin + DripRoom;
+            if (_frostCovers && Math.Abs(half - _frostHalf) < 0.5 && Math.Abs(height - _frostHeight) < 0.5 && Environment.TickCount64 - _frostStillAt < 500) return;
+            _frostStillAt = Environment.TickCount64;
+            GrabFrost(Island.ActualWidth, Island.ActualHeight);
+            return;
+        }
+        if (_hwnd == IntPtr.Zero || !Native.GetWindowRect(_hwnd, out var wr)) return;
+        double islandW = Island.ActualWidth, islandH = Island.ActualHeight;
+        var top = Island.PointToScreen(new Point(islandW / 2, 0));
+        var want = new FrostWant(top.X - wr.Left, top.Y - wr.Top, islandW / 2 + FrostMargin, islandH + FrostMargin + DripRoom, islandW, islandH,
+                                 Dpi * UiScale, LiquidGlass ? 2 : 4, _excluded != true, _mode != Mode.Compact, _frostGen);
+        var was = _frostWant;
+        if (want == was) return;
+        _frostWant = want;
+        // the loop is woken for a new size or a new start; a move (the island bobbing with the music) waits for its next grab
+        if (was == null || !want.SameSize(was) || want.Open != was.Open) _frostWake.Set();
+    }
+
+    private long _frostStillAt;
+    private int _frostGen;
+
+    /// <summary>The loop stops; when it starts again its first picture is shown even if nothing changed behind.</summary>
+    private void PauseFrost()
+    {
+        if (_frostWant == null) return;
+        _frostWant = null;
+        _frostGen++;
+    }
+
+    // ---------------------------------------------------------------- the grab loop
+
+    /// <summary>
+    /// What the loop grabs: the island's top centre in pixels from the window's corner (the window's own place is
+    /// read at every grab, so a moved window needs nothing new), the picture's size in DIP, the island's size,
+    /// DIP → pixels, the shrink factor, through the magnifier or not, open or folded.
+    /// </summary>
+    private sealed record FrostWant(double OffX, double OffY, double Half, double Height, double IslandW, double IslandH, double K, int Div, bool Mag, bool Open, int Gen)
+    {
+        public bool SameSize(FrostWant o) => Math.Abs(Half - o.Half) < 0.5 && Math.Abs(Height - o.Height) < 0.5 && Math.Abs(IslandW - o.IslandW) < 0.5 && Math.Abs(IslandH - o.IslandH) < 0.5
+                                             && K == o.K && Div == o.Div && Mag == o.Mag && Gen == o.Gen;
+    }
+
+    /// <summary>A grabbed picture; three of them go round (grabbing, waiting for the UI, being shown), no new arrays per frame.</summary>
+    private sealed class FrostFrame { public byte[] Px = []; public int W, H; public long Sig; public FrostWant Want = null!; }
+
+    private volatile FrostWant? _frostWant;
+    private readonly AutoResetEvent _frostWake = new(false);
+    private readonly System.Collections.Concurrent.ConcurrentQueue<FrostFrame> _frostFree = new();
+    private FrostFrame? _frostPending;
+    private Thread? _frostLoop;
+
+    // up to 20 pictures a second open, 4–5 folded, under 2 while nothing behind changes; the magnifier at most 8
+    private const int FrostOpenMs = 50, FrostFoldedMs = 220, FrostStillMs = 600, FrostMagMs = 125, FrostStillAfter = 10;
+
+    private void FrostLoop()
+    {
+        int same = 0;
+        long lastSig = 0;
+        FrostWant? lastWant = null;
+        var lastRect = Drawing.Rectangle.Empty;
+        while (!_shutDown)
+        {
+            var want = _frostWant;
+            if (want == null) { lastWant = null; _frostWake.WaitOne(); continue; }
+            long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
+            if (!_frostFree.TryDequeue(out var f)) { _frostWake.WaitOne(20); continue; }
+            bool handed = false;
+            try
+            {
+                if (!Native.GetWindowRect(_hwnd, out var wr)) continue;
+                var rect = new Drawing.Rectangle((int)(wr.Left + want.OffX - want.Half * want.K), (int)(wr.Top + want.OffY), (int)(want.Half * 2 * want.K), (int)(want.Height * want.K));
+                int w = Math.Max(1, rect.Width / want.Div), h = Math.Max(1, rect.Height / want.Div);
+                if (f.Px.Length != w * h * 4) f.Px = new byte[w * h * 4];
+                byte[]? px;
+                if (want.Mag)
+                {
+                    var t = MagCapture.CaptureAsync(_hwnd, rect, w, h, f.Px);
+                    px = t.Wait(1000) ? t.Result : null;
+                }
+                else px = CaptureService.CaptureSmall(rect, w, h, f.Px);
+                Interlocked.Add(ref _frostGrabTicks, System.Diagnostics.Stopwatch.GetTimestamp() - t0);
+                Interlocked.Increment(ref _frostGrabCount);
+                if (px == null || _shutDown) continue;
+                long sig = w * 73856093L ^ h * 19349663L;
+                for (int i = 0; i < px.Length; i += 16) sig = sig * 31 + px[i] + (px[i + 1] << 8) + (px[i + 2] << 16);
+                same = sig == lastSig && rect == lastRect && lastWant != null && want.SameSize(lastWant) ? same + 1 : 0;
+                lastSig = sig;
+                lastWant = want;
+                lastRect = rect;
+                if (same > 0) continue;   // nothing changed behind: nothing to show
+                f.Px = px; f.W = w; f.H = h; f.Sig = sig; f.Want = want;
+                // the newest picture wins: one the UI hasn't taken yet is dropped
+                var old = Interlocked.Exchange(ref _frostPending, f);
+                handed = true;
+                if (old != null) _frostFree.Enqueue(old);
+                else Dispatcher.BeginInvoke(DispatcherPriority.Render, _showFrostFrame!);
+            }
+            catch (Exception e) { Log.Error("glass loop", e); }
+            finally
+            {
+                if (!handed) _frostFree.Enqueue(f);
+                int every = same >= FrostStillAfter ? FrostStillMs : want.Open ? FrostOpenMs : FrostFoldedMs;
+                if (want.Mag) every = Math.Max(every, FrostMagMs);
+                int spent = (int)((System.Diagnostics.Stopwatch.GetTimestamp() - t0) * 1000 / System.Diagnostics.Stopwatch.Frequency);
+                if (!_shutDown) _frostWake.WaitOne(Math.Max(1, every - spent));
+            }
+        }
+    }
+
+    private Action? _showFrostFrame;
+
+    /// <summary>UI thread: the newest picture from the loop, if the island still wants it.</summary>
+    private void ShowFrostFrame()
+    {
+        var f = Interlocked.Exchange(ref _frostPending, null);
+        if (f == null) return;
+        try
+        {
+            var want = f.Want;
+            if (_frostWant == null || !IslandGlass || Lite || _shutDown || _hidden || _fullscreenHidden || _dragging || _posActive) return;
+            UiStep("glass");
+            Measure("frost show", () => ShowFrost(f.Px, f.W, f.H, want.Half, want.Height, want.IslandW, want.IslandH, f.Sig));
+        }
+        finally { _frostFree.Enqueue(f); }
     }
 
     /// <summary>
@@ -232,7 +360,9 @@ public partial class MainWindow
             if (_frostTestBackdrop != null || _demoPlate != null)
             {
                 var still = _frostTestBackdrop != null ? _frostTestBackdrop(w, h) : CaptureService.CropSmall(_demoPlate!, _demoPlateAt, rect, w, h, _frostPixels);
-                return still != null && ShowFrost(still, w, h, half, height, islandW, islandH);
+                if (still == null) return false;
+                if (_frostTestBackdrop == null) _frostPixels = still;
+                return ShowFrost(still, w, h, half, height, islandW, islandH);
             }
             if (_shutDown || _frostBusy) return false;
             _frostBusy = true;
@@ -249,14 +379,18 @@ public partial class MainWindow
             if (waitMs > 0 && grab.Wait(waitMs))
             {
                 _frostBusy = false;
-                return grab.Result is { } now && ShowFrost(now, w, h, half, height, islandW, islandH);
+                if (grab.Result is not { } now) return false;
+                _frostPixels = now;
+                return ShowFrost(now, w, h, half, height, islandW, islandH);
             }
             grab.ContinueWith(t =>
             {
                 _frostBusy = false;
                 if (t.IsFaulted) { Log.Write("glass: grab failed: " + t.Exception?.InnerException?.Message); return; }
                 // the island may have been dragged, hidden or switched to solid while the picture was taken
-                if (t.Result is not { } later || !IslandGlass || Lite || _shutDown || _hidden || _fullscreenHidden || _dragging || _posActive) return;
+                if (t.Result is not { } later) return;
+                _frostPixels = later;
+                if (!IslandGlass || Lite || _shutDown || _hidden || _fullscreenHidden || _dragging || _posActive) return;
                 Measure("frost show", () => ShowFrost(later, w, h, half, height, islandW, islandH));
             }, TaskScheduler.FromCurrentSynchronizationContext());
             return false;
@@ -269,11 +403,13 @@ public partial class MainWindow
         }
     }
 
-    private bool ShowFrost(byte[] px, int w, int h, double half, double height, double islandW, double islandH)
+    private bool ShowFrost(byte[] px, int w, int h, double half, double height, double islandW, double islandH, long sig = 0)
     {
-        _frostPixels = px;
-        long sig = w * 73856093L ^ h * 19349663L;
-        for (int i = 0; i < px.Length; i += 16) sig = sig * 31 + px[i] + (px[i + 1] << 8) + (px[i + 2] << 16);
+        if (sig == 0)
+        {
+            sig = w * 73856093L ^ h * 19349663L;
+            for (int i = 0; i < px.Length; i += 16) sig = sig * 31 + px[i] + (px[i + 1] << 8) + (px[i + 2] << 16);
+        }
         bool sizeChanged = _frostBmp == null || _frostBmp.PixelWidth != w || _frostBmp.PixelHeight != h;
         if (!sizeChanged && sig == _frostSig && Math.Abs(half - _frostHalf) < 0.5 && Math.Abs(height - _frostHeight) < 0.5)
         {
@@ -327,6 +463,7 @@ public partial class MainWindow
         PhotoImage.Width = Math.Max(1, width);
         PhotoImage.Height = Math.Max(1, Island.Height);
         PlaceFrost(width, Island.Height);
+        CaptureFrost();
         AuraHost.Clip = g;
         AuraFill.Width = width;
         AuraFill.Height = Island.Height + 12;

@@ -2655,7 +2655,7 @@ public partial class MainWindow : Window
                         var px = CaptureService.CaptureSmall(rect, rect.Width, rect.Height, null)!;
                         CaptureService.SavePng(BitmapSource.Create(rect.Width, rect.Height, 96, 96, PixelFormats.Bgr32, null, px, rect.Width * 4), System.IO.Path.Combine(dir, name + ".png"));
                     }
-                    SetMode(Mode.Compact); await Task.Delay(2500); _frostSkips = 7; CaptureFrost(); await Task.Delay(300); Shot("liquid-compact");
+                    SetMode(Mode.Compact); await Task.Delay(2500); CaptureFrost(); await Task.Delay(300); Shot("liquid-compact");
                     TabMusic.IsChecked = true; _pinnedOpen = true; Expand(); await Task.Delay(2500); CaptureFrost(); await Task.Delay(300); Shot("liquid-open");
                     if (_liquidPixels != null && _frostBmp != null)
                         CaptureService.SavePng(BitmapSource.Create(_frostBmp.PixelWidth, _frostBmp.PixelHeight, 96, 96, PixelFormats.Bgr32, null, _liquidPixels, _frostBmp.PixelWidth * 4),
@@ -3225,7 +3225,6 @@ public partial class MainWindow : Window
         {
             _windowFitted = true;
             ShrinkWindowToPill();
-            _frostSkips = 7;   // the next capture is not skipped, even when folded
             Dispatcher.InvokeAsync(CaptureFrost, System.Windows.Threading.DispatcherPriority.Background);
         }
 
@@ -3235,7 +3234,6 @@ public partial class MainWindow : Window
             _rendering = false;
             UpdateShape(false);
             ShrinkWindowToPill();
-            _frostSkips = 3;          // the next frost tick refreshes even when folded
             Dispatcher.InvokeAsync(CaptureFrost, System.Windows.Threading.DispatcherPriority.Background);
         }
     }
@@ -3925,6 +3923,7 @@ public partial class MainWindow : Window
         {
             _fullscreenHidden = fs;
             UpdateAuraVisibility();
+            CaptureFrost();
             if (fs)
             {
                 Root.IsHitTestVisible = false;

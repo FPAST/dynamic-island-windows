@@ -235,6 +235,7 @@ public partial class MainWindow
     {
         CheckAlarms();
         UpdateWidgetPause();
+        Measure("frost", CaptureFrost);   // the glass's grab loop picks up whatever changed (hidden, light graphics, a setting)
         _slowCount++;
         FocusMode.Tick();
         UiStep("slow tick");

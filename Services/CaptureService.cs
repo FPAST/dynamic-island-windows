@@ -92,9 +92,17 @@ public static class CaptureService
         return buffer;
     }
 
+    private static readonly object SmallLock = new();
+
+    /// <summary>Any thread (the glass's grab loop and the one-off grabs share the small bitmap).</summary>
     public static byte[]? CaptureSmall(Drawing.Rectangle r, int w, int h, byte[]? buffer)
     {
         if (w < 1 || h < 1 || r.Width < 1 || r.Height < 1) return null;
+        lock (SmallLock) return CaptureSmallLocked(r, w, h, buffer);
+    }
+
+    private static byte[]? CaptureSmallLocked(Drawing.Rectangle r, int w, int h, byte[]? buffer)
+    {
         if (_small == null || _small.Width != w || _small.Height != h)
         {
             _small?.Dispose();
