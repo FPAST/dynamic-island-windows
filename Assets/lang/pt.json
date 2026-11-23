@@ -1123,5 +1123,6 @@
  "Открываю в {0}": "Abrindo em {0}",
  "Это сочетание уже открывает командную строку — выберите другое.": "Este atalho já abre a barra de comandos — escolha outro.",
  "Это сочетание уже открывает остров — выберите другое.": "Este atalho já abre a ilha — escolha outro.",
- "Alt+Space занят другой программой — работает Ctrl+Alt+Space.": "Outro programa usa Alt+Espaço — Ctrl+Alt+Espaço funciona."
+ "Alt+Space занят другой программой — работает Ctrl+Alt+Space.": "Outro programa usa Alt+Espaço — Ctrl+Alt+Espaço funciona.",
+ "Снимок сохранён, но не скопирован: буфер обмена занят": "Captura salva, mas não copiada: a área de transferência está ocupada"
 }

@@ -200,10 +200,13 @@ public partial class MainWindow
     {
         if (!quick && !_settings.ScreenshotQuick) { new ScreenshotEditor(img).Show(); return; }
         var path = CaptureService.SavePng(img);
-        try { Clipboard.SetImage(img); }
-        catch (Exception ex) { Log.Write("screenshot to clipboard: " + ex.Message); }
-        ShowToast("\uE722", L.T("Снимок сохранён и скопирован"), System.IO.Path.GetFileName(path), () => new ScreenshotEditor(img).Show());
-
+        bool copied = false;
+        try { Clipboard.SetImage(img); copied = true; }
+        catch (Exception ex) { Log.Write("screenshot to clipboard: " + ex.Message); }   // another program holds the clipboard
+        ShowToast("\uE722", copied ? L.T("Снимок сохранён и скопирован") : L.T("Снимок сохранён, но не скопирован: буфер обмена занят"),
+            System.IO.Path.GetFileName(path), () => new ScreenshotEditor(img).Show());
+        // the user's own choice, as after saving in the editor; never in a game (it would take the game's focus)
+        if (_settings.ScreenshotReveal && !quick) CaptureService.Reveal(path);
     }
 
 

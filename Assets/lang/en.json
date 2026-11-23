@@ -1123,5 +1123,6 @@
  "Открываю в {0}": "Opening in {0}",
  "Это сочетание уже открывает командную строку — выберите другое.": "This shortcut already opens the command bar — pick another one.",
  "Это сочетание уже открывает остров — выберите другое.": "This shortcut already opens the island — pick another one.",
- "Alt+Space занят другой программой — работает Ctrl+Alt+Space.": "Another program holds Alt+Space — Ctrl+Alt+Space works."
+ "Alt+Space занят другой программой — работает Ctrl+Alt+Space.": "Another program holds Alt+Space — Ctrl+Alt+Space works.",
+ "Снимок сохранён, но не скопирован: буфер обмена занят": "Screenshot saved but not copied: the clipboard is busy"
 }

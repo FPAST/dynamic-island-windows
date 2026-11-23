@@ -1123,5 +1123,6 @@
  "Открываю в {0}": "Öffne in {0}",
  "Это сочетание уже открывает командную строку — выберите другое.": "Dieses Kürzel öffnet schon die Befehlszeile — wählen Sie ein anderes.",
  "Это сочетание уже открывает остров — выберите другое.": "Dieses Kürzel öffnet schon die Insel — wählen Sie ein anderes.",
- "Alt+Space занят другой программой — работает Ctrl+Alt+Space.": "Alt+Leertaste ist von einem anderen Programm belegt — Strg+Alt+Leertaste funktioniert."
+ "Alt+Space занят другой программой — работает Ctrl+Alt+Space.": "Alt+Leertaste ist von einem anderen Programm belegt — Strg+Alt+Leertaste funktioniert.",
+ "Снимок сохранён, но не скопирован: буфер обмена занят": "Screenshot gespeichert, aber nicht kopiert: die Zwischenablage ist belegt"
 }
