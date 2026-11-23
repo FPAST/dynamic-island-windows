@@ -149,6 +149,14 @@ public sealed class WidgetCard
         if (!_lightMoving) { _lightMoving = true; CompositionTarget.Rendering += StepLight; }
     }
 
+    /// <summary>The window closed: the light stops where it is.</summary>
+    public void StopLight()
+    {
+        if (!_lightMoving) return;
+        _lightMoving = false;
+        CompositionTarget.Rendering -= StepLight;
+    }
+
     // the light turns towards the pointer with inertia; nothing runs once it got there
     private void StepLight(object? sender, EventArgs e)
     {
@@ -404,7 +412,10 @@ public sealed class DesktopWidgetWindow : Window
         SizeChanged += (_, _) => BoundsChanged?.Invoke(this);
         Deactivated += (_, _) => { if (_raised) ClickedAway?.Invoke(this); };
         PreviewKeyDown += (_, e) => { if (e.Key == Key.Escape && _raised) { e.Handled = true; ClickedAway?.Invoke(this); } };
-        Closed += (_, _) => { Spring.Stop(); _altWatch.Stop(); };
+        Closed += (_, _) =>
+        {
+            Spring.Stop(); _altWatch.Stop(); Card.StopLight();
+        };
         // live glass: the region follows every frame of a spring, before the window takes the new size, so the
         // window never shows corners the region doesn't cut
         Spring.Resizing += r => { if (Kind == GlassKind.Live) LiveGlass.Round(this, WidgetCard.Radius, r.Width, r.Height); };
