@@ -26,8 +26,19 @@ public sealed class SideToast : Window
     private Action? _action;
     private bool _shown;
 
-    /// <summary>Whether it stays out of screenshots and screen sharing, as the island does.</summary>
-    public bool HideFromCapture { get; set; }
+    private bool _hideFromCapture;
+
+    /// <summary>Whether it stays out of screenshots and screen sharing, as the island does (changed with the island's setting).</summary>
+    public bool HideFromCapture
+    {
+        get => _hideFromCapture;
+        set
+        {
+            _hideFromCapture = value;
+            var h = new WindowInteropHelper(this).Handle;
+            if (h != IntPtr.Zero) Native.SetWindowDisplayAffinity(h, value ? Native.WDA_EXCLUDEFROMCAPTURE : 0);
+        }
+    }
 
     public SideToast()
     {
@@ -71,7 +82,7 @@ public sealed class SideToast : Window
         {
             var h = new WindowInteropHelper(this).Handle;
             Native.SetWindowLong(h, Native.GWL_EXSTYLE, Native.GetWindowLong(h, Native.GWL_EXSTYLE) | Native.WS_EX_TOOLWINDOW | 0x08000000);   // WS_EX_NOACTIVATE
-            if (HideFromCapture) Native.SetWindowDisplayAffinity(h, Native.WDA_EXCLUDEFROMCAPTURE);
+            if (_hideFromCapture) Native.SetWindowDisplayAffinity(h, Native.WDA_EXCLUDEFROMCAPTURE);
         };
     }
 

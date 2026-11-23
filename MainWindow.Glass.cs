@@ -155,6 +155,7 @@ public partial class MainWindow
     private void ApplyCaptureExclusion()
     {
         bool hide = HideFromCapture;
+        if (_sideToast != null) _sideToast.HideFromCapture = hide;   // the notice beside the open island goes along
         if (_hwnd == IntPtr.Zero || _excluded == hide) return;
         _excluded = hide;
         if (!Native.SetWindowDisplayAffinity(_hwnd, _excluded == true ? Native.WDA_EXCLUDEFROMCAPTURE : 0))
