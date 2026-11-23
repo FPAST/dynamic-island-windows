@@ -737,6 +737,54 @@ public partial class MainWindow : Window
                     Application.Current.Shutdown();
                     return;
                 }
+                if (action == "livecheck")   // test (2.0.1): page dots vs tab icons, closing cards under the cursor, the command bar's shortcut (nothing is saved)
+                {
+                    Settings.ReadOnly = true;
+                    Island.IsHitTestVisible = false; _settings.ExpandOnHover = false;
+                    await Task.Delay(3000);
+                    _pinnedOpen = true; Expand(); await Task.Delay(900);
+                    string Dots() => string.Join(",", DotsRow.Children.OfType<UIElement>().Select(d => d.Opacity.ToString("0.0")));
+                    string Icons() => string.Join(",", PageTabs.Select(t => t.Opacity.ToString("0.0")));
+                    bool Overlap() => DotsRow.Children.OfType<UIElement>().Any(d => d.Opacity > 0.05) && PageTabs.Any(t => t.Opacity > 0.05);
+                    void Report(string what) => Log.Write($"livecheck: dots {what}: dots [{Dots()}], icons [{Icons()}] -> {(Overlap() ? "FAIL: dots over icons" : "ok")}");
+                    // A5: icons always, then the layout changed (a tab hidden, the order changed), then shown again
+                    var mode = _settings.TabIcons; var hidden = _settings.HiddenTabs.ToList(); var order = _settings.TabOrder.ToList();
+                    _settings.TabIcons = "always"; ApplyTabIconsMode(); await Task.Delay(400); Report("always, start");
+                    _settings.HiddenTabs = [.. hidden, "TabWeather"]; ApplyTabLayout(); await Task.Delay(400); Report("always, a tab hidden");
+                    _settings.TabOrder = [.. OrderedTabs().Select(t => t.Name).Reverse()]; ApplyTabLayout(); await Task.Delay(400); Report("always, order reversed");
+                    _settings.HiddenTabs = hidden; _settings.TabOrder = order; ApplyTabLayout(); await Task.Delay(400); Report("always, back");
+                    _settings.TabIcons = "hover"; ApplyTabIconsMode(); await Task.Delay(400); Report("hover, mouse away");
+                    ShowTabIcons(true, animate: true); await Task.Delay(600); Report("hover, mouse on the tabs");
+                    _settings.HiddenTabs = [.. hidden, "TabWeather"]; ApplyTabLayout(); await Task.Delay(400); Report("hover, mouse on the tabs, a tab hidden");
+                    ShowTabIcons(false, animate: true); await Task.Delay(600); Report("hover, mouse left");
+                    _settings.HiddenTabs = hidden; ApplyTabLayout(); _settings.TabIcons = mode; ApplyTabIconsMode();
+                    // A7: five cards, closed one by one under the cursor, then Clear all; the island must neither fold nor shrink
+                    TabHome.IsChecked = true; await Task.Delay(400);
+                    for (int i = 0; i < 5; i++) HomeMissed.Add(new("", null, "Card " + i, "body", DateTime.Now, null));
+                    HomeMissed.TestHover(true); await Task.Delay(900);
+                    double before = Island.Height;
+                    var heights = new List<double>();
+                    for (int i = 0; i < 4; i++) { HomeMissed.TestClose(0); await Task.Delay(500); heights.Add(Island.Height); }
+                    Log.Write($"livecheck: cards: island {before:0} px with 5 cards, after each close [{string.Join(", ", heights.Select(h => h.ToString("0")))}], mode {_mode} -> {(heights.All(h => h >= before - 1) && _mode == Mode.Expanded ? "ok" : "FAIL")}");
+                    HomeMissed.ClearAll(); await Task.Delay(600);
+                    Log.Write($"livecheck: clear all under the cursor: island {Island.Height:0} px, {HomeMissed.Count} cards, mode {_mode} -> {(Island.Height >= before - 1 && _mode == Mode.Expanded ? "ok" : "FAIL")}");
+                    HomeMissed.TestHover(false); await Task.Delay(900);
+                    Log.Write($"livecheck: cursor left the stack: island {Island.Height:0} px (shrank once: {(Island.Height < before - 1 ? "ok" : "FAIL")}), stack {HomeMissed.Visibility}");
+                    // A2: each choice registered at once, the others let go (Ctrl+Shift+Space is the probe: free unless chosen)
+                    var keys = _settings.CommandHotkey;
+                    foreach (var k in CommandHotkeys.Select(h => h.Name).Append(""))
+                    {
+                        _settings.CommandHotkey = k;
+                        bool ok = RegisterCommandHotkey();
+                        bool probeFree = Native.RegisterHotKey(IntPtr.Zero, 99, Native.MOD_CONTROL | 0x4 | Native.MOD_NOREPEAT, 0x20);
+                        if (probeFree) Native.UnregisterHotKey(IntPtr.Zero, 99);
+                        bool want = k != "Ctrl+Shift+Space";
+                        Log.Write($"livecheck: command bar shortcut '{(k == "" ? "off" : k)}': registered={ok}, Ctrl+Shift+Space free for others={probeFree} -> {(probeFree == want ? "ok" : "FAIL")}");
+                    }
+                    _settings.CommandHotkey = keys; RegisterCommandHotkey();
+                    Application.Current.Shutdown();
+                    return;
+                }
                 if (action == "stacktest")   // test: the notification stack — folded, fanned out, a card swiped away and one sprung back; pictures of the stack only (demo items, with --cover)
                 {
                     var dir = args.ElementAtOrDefault(r + 2) ?? System.IO.Path.GetTempPath();
