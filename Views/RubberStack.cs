@@ -106,8 +106,14 @@ public sealed class RubberStack : StackPanel
 
     // ------------------------------------------------------------------ where the pill goes
 
+    /// <summary>
+    /// Where a button is laid out, without its own render transform: the island's tabs scale from 0.55 to 1 when
+    /// they melt in from the dots, and a place taken mid-animation put the pill a quarter of a button off (19 px
+    /// right and down) until the next layout change. The pill scales with the button by itself.
+    /// </summary>
     private Rect BoundsOf(FrameworkElement el) =>
-        el.IsArrangeValid && el.ActualWidth > 0 ? new Rect(el.TranslatePoint(new Point(0, 0), this), new Size(el.ActualWidth, el.ActualHeight)) : Rect.Empty;
+        !el.IsArrangeValid || el.ActualWidth <= 0 ? Rect.Empty
+        : new Rect(VisualTreeHelper.GetParent(el) == this ? (Point)VisualTreeHelper.GetOffset(el) : el.TranslatePoint(new Point(0, 0), this), new Size(el.ActualWidth, el.ActualHeight));
 
     private double Center(Rect r) => Horizontal ? r.X + r.Width / 2 : r.Y + r.Height / 2;
     private double Length(Rect r) => Horizontal ? r.Width : r.Height;

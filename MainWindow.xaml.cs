@@ -746,14 +746,29 @@ public partial class MainWindow : Window
                     string Dots() => string.Join(",", DotsRow.Children.OfType<UIElement>().Select(d => d.Opacity.ToString("0.0")));
                     string Icons() => string.Join(",", PageTabs.Select(t => t.Opacity.ToString("0.0")));
                     bool Overlap() => DotsRow.Children.OfType<UIElement>().Any(d => d.Opacity > 0.05) && PageTabs.Any(t => t.Opacity > 0.05);
-                    void Report(string what) => Log.Write($"livecheck: dots {what}: dots [{Dots()}], icons [{Icons()}] -> {(Overlap() ? "FAIL: dots over icons" : "ok")}");
+                    void Report(string what)
+                    {
+                        Log.Write($"livecheck: dots {what}: dots [{Dots()}], icons [{Icons()}] -> {(Overlap() ? "FAIL: dots over icons" : "ok")}");
+                        // the pill under the tabs sits on the chosen tab (its layout place, not a frame of its scale animation)
+                        var chosen = PageTabs.FirstOrDefault(t => t.IsChecked == true);
+                        if (chosen == null || chosen.Opacity < 0.5) return;
+                        var at = VisualTreeHelper.GetOffset(chosen);
+                        var pill = TabStrip.TestState;
+                        double off = Math.Max(Math.Abs(pill.From - at.X), Math.Abs(pill.To - (at.X + chosen.ActualWidth)));
+                        Log.Write($"livecheck: pill {what}: {pill.From:0}…{pill.To:0}{(pill.Moving ? " (moving)" : "")}, tab {at.X:0}…{at.X + chosen.ActualWidth:0} -> {(off <= 2 ? "ok" : pill.Moving ? "still on its way" : $"FAIL: off by {off:0} px")}");
+                    }
                     // A5: icons always, then the layout changed (a tab hidden, the order changed), then shown again
                     var mode = _settings.TabIcons; var hidden = _settings.HiddenTabs.ToList(); var order = _settings.TabOrder.ToList();
                     _settings.TabIcons = "always"; ApplyTabIconsMode(); await Task.Delay(400); Report("always, start");
                     _settings.HiddenTabs = [.. hidden, "TabWeather"]; ApplyTabLayout(); await Task.Delay(400); Report("always, a tab hidden");
                     _settings.TabOrder = [.. OrderedTabs().Select(t => t.Name).Reverse()]; ApplyTabLayout(); await Task.Delay(400); Report("always, order reversed");
+                    await Task.Delay(1500); Report("always, order reversed, 2 s later");
                     _settings.HiddenTabs = hidden; _settings.TabOrder = order; ApplyTabLayout(); await Task.Delay(400); Report("always, back");
+                    await Task.Delay(1500); Report("always, back, 2 s later");
                     _settings.TabIcons = "hover"; ApplyTabIconsMode(); await Task.Delay(400); Report("hover, mouse away");
+                    _settings.HiddenTabs = [.. hidden, "TabWeather"]; ApplyTabLayout(); await Task.Delay(400);
+                    ShowTabIcons(true, animate: true); await Task.Delay(700); Report("hover, layout changed while folded, then the mouse came");
+                    _settings.HiddenTabs = hidden; ApplyTabLayout(); ShowTabIcons(false, animate: false); await Task.Delay(400);
                     ShowTabIcons(true, animate: true); await Task.Delay(600); Report("hover, mouse on the tabs");
                     _settings.HiddenTabs = [.. hidden, "TabWeather"]; ApplyTabLayout(); await Task.Delay(400); Report("hover, mouse on the tabs, a tab hidden");
                     ShowTabIcons(false, animate: true); await Task.Delay(600); Report("hover, mouse left");
