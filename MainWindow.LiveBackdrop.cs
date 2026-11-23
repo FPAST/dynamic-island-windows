@@ -59,7 +59,9 @@ public partial class MainWindow
                 return new IntPtr(-1);                 // HTTRANSPARENT
             });
             LiveGlass.Prepare(w);
-            LiveGlass.Blur(h, true);
+            // the blur-behind accent fills the whole window rectangle whatever its region (Windows 11 measured: square
+            // corners); the compositor's host backdrop drawn into the window keeps to the region
+            if (!HostBackdrop(h)) LiveGlass.Blur(h, true);
             Native.SetWindowDisplayAffinity(h, _excluded == true ? Native.WDA_EXCLUDEFROMCAPTURE : 0);
         };
         w.Show();   // off screen until the outline places it
@@ -115,6 +117,62 @@ public partial class MainWindow
         if (!changed) return;
         _liveRgn = rgn;
         SetWindowRgn(_liveBackHwnd, CreatePolygonRgn(rgn, rgn.Length, 2), true);   // WINDING; the system owns the region from here
+    }
+
+    [DllImport("user32.dll")] private static extern int GetWindowRgnBox(IntPtr h, out Native.RECT r);
+    [DllImport("user32.dll")] private static extern bool IsWindowVisible(IntPtr h);
+    [DllImport("user32.dll")] private static extern int GetWindowRgn(IntPtr h, IntPtr rgn);
+    [DllImport("gdi32.dll")] private static extern IntPtr CreateRectRgn(int l, int t, int r, int b);
+    [DllImport("gdi32.dll")] private static extern bool PtInRegion(IntPtr rgn, int x, int y);
+    [DllImport("gdi32.dll")] private static extern bool DeleteObject(IntPtr o);
+
+    /// <summary>Tests: the backdrop's window and region on the screen against the island's own rectangle (pixels).</summary>
+    private string LiveBackdropCheck()
+    {
+        var tl = Island.PointToScreen(new Point(0, 0));
+        var br = Island.PointToScreen(new Point(Island.ActualWidth, Island.ActualHeight));
+        Native.GetWindowRect(_liveBackHwnd, out var b);
+        int kind = GetWindowRgnBox(_liveBackHwnd, out var r);   // 0 error/none, 1 null, 2 simple, 3 complex
+        var probe = CreateRectRgn(0, 0, 1, 1);
+        GetWindowRgn(_liveBackHwnd, probe);
+        bool corner = PtInRegion(probe, 1, b.Bottom - b.Top - 2), middle = PtInRegion(probe, (b.Right - b.Left) / 2, (b.Bottom - b.Top) / 2);
+        DeleteObject(probe);
+        return $"island {tl.X:0},{tl.Y:0}-{br.X:0},{br.Y:0}; backdrop visible={IsWindowVisible(_liveBackHwnd)} window {b.Left},{b.Top}-{b.Right},{b.Bottom}; " +
+               $"region kind {kind} at {b.Left + r.Left},{b.Top + r.Top}-{b.Left + r.Right},{b.Top + r.Bottom}, {_liveRgn.Length} points, bottom-left corner in it={corner}, middle in it={middle}";
+    }
+
+    // ---------------------------------------------------------------- the compositor's blurred backdrop
+
+    [StructLayout(LayoutKind.Sequential)] private struct DispatcherQueueOptions { public int Size, ThreadType, ApartmentType; }
+    [DllImport("CoreMessaging.dll")] private static extern int CreateDispatcherQueueController(DispatcherQueueOptions options, out IntPtr controller);
+    [DllImport("dwmapi.dll")] private static extern int DwmSetWindowAttribute(IntPtr h, int attr, ref int value, int size);
+
+    [ComImport, Guid("29E691FA-4567-4DCA-B319-D0F207EB6807"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface ICompositorDesktopInterop { void CreateDesktopWindowTarget(IntPtr hwnd, [MarshalAs(UnmanagedType.Bool)] bool isTopmost, out IntPtr target); }
+
+    private IntPtr _liveQueue;
+    private Windows.UI.Composition.Compositor? _liveCompositor;
+    private Windows.UI.Composition.Desktop.DesktopWindowTarget? _liveTarget;
+
+    /// <summary>A visual filling the window with what's behind it, blurred by the compositor. False where Windows can't.</summary>
+    private bool HostBackdrop(IntPtr h)
+    {
+        try
+        {
+            if (_liveQueue == IntPtr.Zero && CreateDispatcherQueueController(new DispatcherQueueOptions { Size = 12, ThreadType = 2, ApartmentType = 2 }, out _liveQueue) != 0) return false;
+            int on = 1;
+            if (DwmSetWindowAttribute(h, 17, ref on, 4) != 0) return false;   // DWMWA_USE_HOSTBACKDROPBRUSH (Windows 11)
+            var c = _liveCompositor ??= new Windows.UI.Composition.Compositor();
+            WinRT.CastExtensions.As<ICompositorDesktopInterop>(c).CreateDesktopWindowTarget(h, true, out var raw);
+            _liveTarget = Windows.UI.Composition.Desktop.DesktopWindowTarget.FromAbi(raw);
+            var v = c.CreateSpriteVisual();
+            v.RelativeSizeAdjustment = System.Numerics.Vector2.One;
+            v.Brush = c.CreateHostBackdropBrush();
+            _liveTarget.Root = v;
+            Log.Write("live glass: the compositor's host backdrop");
+            return true;
+        }
+        catch (Exception e) { Log.Error("live glass: host backdrop", e); return false; }
     }
 
     /// <summary>The backdrop right under the island in z-order, where the island window is now.</summary>

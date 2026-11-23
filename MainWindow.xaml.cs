@@ -2649,8 +2649,9 @@ public partial class MainWindow : Window
                     var stripes = TestBackdrop(moving: false);
                     void Shot(string name)
                     {
-                        var tl = Island.PointToScreen(new Point(-20, 0));
-                        var br = Island.PointToScreen(new Point(Island.ActualWidth + 20, Island.ActualHeight + 20));
+                        double m = args.Contains("wide") ? 260 : 20;
+                        var tl = Island.PointToScreen(new Point(-m, 0));
+                        var br = Island.PointToScreen(new Point(Island.ActualWidth + m, Island.ActualHeight + m));
                         var rect = new System.Drawing.Rectangle((int)tl.X, (int)tl.Y, (int)(br.X - tl.X), (int)(br.Y - tl.Y));
                         var px = CaptureService.CaptureSmall(rect, rect.Width, rect.Height, null)!;
                         CaptureService.SavePng(BitmapSource.Create(rect.Width, rect.Height, 96, 96, PixelFormats.Bgr32, null, px, rect.Width * 4), System.IO.Path.Combine(dir, name + ".png"));
@@ -2660,6 +2661,7 @@ public partial class MainWindow : Window
                     if (_liquidPixels != null && _frostBmp != null)
                         CaptureService.SavePng(BitmapSource.Create(_frostBmp.PixelWidth, _frostBmp.PixelHeight, 96, 96, PixelFormats.Bgr32, null, _liquidPixels, _frostBmp.PixelWidth * 4),
                                                System.IO.Path.Combine(dir, "liquid-bent-backdrop.png"));
+                    if (_liveBackHwnd != IntPtr.Zero) Log.Write("liquidtest: " + LiveBackdropCheck());
                     Log.Write($"liquidtest: liquid={LiquidGlass} frost covers={_frostCovers} blur={(FrostBlur.Effect as System.Windows.Media.Effects.BlurEffect)?.Radius}, lens on the GPU={FrostLens.Effect != null}");
                     stripes.Close();
                     Application.Current.Shutdown();
@@ -2779,6 +2781,7 @@ public partial class MainWindow : Window
                         Log.Write($"glassbench: {name}: " + TopCosts(_costs, (long)(wall / 1000 * System.Diagnostics.Stopwatch.Frequency), cpu / wall * 100 / Environment.ProcessorCount).Replace(Environment.NewLine, " | "));
                         string Frost(string n) => _costs.TryGetValue(n, out var c) ? $"{n} {c.Ticks * 1000.0 / System.Diagnostics.Stopwatch.Frequency / (wall / 1000):0.00} ms/s, avg {c.Ticks * 1000.0 / System.Diagnostics.Stopwatch.Frequency / c.Calls:0.00} ms, max {c.Max * 1000.0 / System.Diagnostics.Stopwatch.Frequency:0.0} ms" : n + " -";
                         Log.Write($"glassbench: {name}: UI thread: {Frost("frost")}; {Frost("frost grab")}; {Frost("frost show")}");
+                        if (_liveBackHwnd != IntPtr.Zero) Log.Write($"glassbench: {name}: " + LiveBackdropCheck());
                     }
                     await Task.Delay(dragOnly ? 5000 : 8000);
                     if (!dragOnly)
