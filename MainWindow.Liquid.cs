@@ -313,7 +313,7 @@ public partial class MainWindow
             }
         }
 
-        bool playing = _lastMedia?.IsPlaying == true && !_hidden && !_fullscreenHidden;
+        bool playing = _lastMedia?.IsPlaying == true && !_hidden && !_fullscreenHidden && _settings.MusicWaves;
         double peak = playing ? _audio.Peak : 0;
         _audioLevel += (peak - _audioLevel) * (peak > _audioLevel ? 0.45 : 0.08);
         if (!playing && _audioLevel < 0.005) _audioLevel = 0;
@@ -462,8 +462,9 @@ public partial class MainWindow
         var pts = new List<Point>(260);
         double L = 2 * (W - 2 * R) + 2 * (H - 2 * R) + 2 * Math.PI * R;
         int waves = Math.Max(3, (int)Math.Round(L / 150));
-        bool playing = _lastMedia?.IsPlaying == true;
+        bool playing = _lastMedia?.IsPlaying == true && _settings.MusicWaves;
         double drip = (playing ? 1.2 + _audioLevel * 9 : _audioLevel * 9) * LiquidK;
+
         double s = 0;
 
         void Add(double x, double y, double nx, double ny, double ds, double bottomT = -1)

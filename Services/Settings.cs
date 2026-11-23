@@ -63,6 +63,9 @@ public sealed class Settings
     public string Character { get; set; } = "eyes";
     /// <summary>Edge reaches for the cursor, breathes with music, glows on events.</summary>
     public bool Reactive { get; set; } = true;
+    /// <summary>The edge moves with the music (drips with the waves, a swell with live response); off = only touches move it.</summary>
+    public bool MusicWaves { get; set; } = true;
+
     /// <summary>Orange light under the island while a Claude character is on.</summary>
     public bool ClaudeGlow { get; set; } = true;
     /// <summary>Characters look hand-drawn: ink outlines that "boil", animated on twos (12 fps).</summary>

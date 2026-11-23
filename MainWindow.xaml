@@ -1066,6 +1066,9 @@
                     </DockPanel>
                     <CheckBox x:Name="ReactiveSwitch" Style="{StaticResource Switch}" Click="Reactive_Click" Content="Живой отклик"/>
                     <CheckBox x:Name="LiquidSwitch" Style="{StaticResource Switch}" Click="Liquid_Click" Content="Живые волны"/>
+                    <CheckBox x:Name="MusicWavesSwitch" Style="{StaticResource Switch}" Click="Reactive_Click" Content="Волны от музыки"
+                              ToolTip="Край острова качается в такт музыке. Без этого волны остаются только от касаний"/>
+
                     <v:Scrubber x:Name="LiquidSlider" Minimum="10" Maximum="100" Step="1" Margin="0,0,0,6" Visibility="Collapsed"
                                 ValueChanged="LiquidSlider_ValueChanged"/>
                   </StackPanel>

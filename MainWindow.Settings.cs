@@ -140,6 +140,7 @@ public partial class MainWindow
     private void Reactive_Click(object sender, RoutedEventArgs e)
     {
         _settings.Reactive = ReactiveSwitch.IsChecked == true;
+        _settings.MusicWaves = MusicWavesSwitch.IsChecked == true;
         _settings.Save();
         UpdateShape(false);
     }
@@ -170,6 +171,8 @@ public partial class MainWindow
         LiquidSlider.Visibility = _settings.LiquidWaves ? Visibility.Visible : Visibility.Collapsed;
         RefreshLookControls();
         ReactiveSwitch.IsChecked = _settings.Reactive;
+        MusicWavesSwitch.IsChecked = _settings.MusicWaves;
+
         ClaudeGlowSwitch.IsChecked = _settings.ClaudeGlow;
         CleanDesktopSwitch.IsChecked = _settings.CleanDesktop;
         HandDrawnSwitch.IsChecked = _settings.HandDrawn;
