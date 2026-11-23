@@ -118,11 +118,17 @@ public partial class MainWindow
         if (m == null) return;
         var key = LikeKey(m);
         if (_settings.LikedTracks.Remove(key))
+        {
+            _settings.LikedFrom.Remove(key);
             ShowToast("", L.T("Убрано из избранного"), key);
+        }
         else
         {
             _settings.LikedTracks.Insert(0, key);
-            if (_settings.LikedTracks.Count > 500) _settings.LikedTracks.RemoveAt(_settings.LikedTracks.Count - 1);
+            // where it plays, to open it there again (a browser: the page title names the site)
+            var source = MusicSources.Find(m.AppId) ?? (PlaybackClock.SourceLeadMs(m.AppId) > 0 ? MusicSources.Find("", MusicSources.BrowserTitleWith(m.Title)) : null);
+            if (source != null) _settings.LikedFrom[key] = source.Name;
+            if (_settings.LikedTracks.Count > 500) { _settings.LikedFrom.Remove(_settings.LikedTracks[^1]); _settings.LikedTracks.RemoveAt(_settings.LikedTracks.Count - 1); }
             ShowToast("", L.T("Добавлено в избранное"), key, null, new SolidColorBrush(Color.FromRgb(0xFF, 0x5C, 0x8A)));
             Character.Emote(Views.Emotion.Love);
         }
@@ -139,7 +145,7 @@ public partial class MainWindow
         if (show) BuildLikedList();
     }
 
-    /// <summary>Liked tracks; a click copies "Artist — Title" (to find it in any service).</summary>
+    /// <summary>Liked tracks; a click opens the track in the service it was playing in, or copies "Artist — Title".</summary>
     private void BuildLikedList()
     {
         LikedList.Children.Clear();
@@ -150,15 +156,17 @@ public partial class MainWindow
         }
         foreach (var t in _settings.LikedTracks.Take(100))
         {
+            var source = MusicSources.Named(_settings.LikedFrom.GetValueOrDefault(t));
             var b = new Button
             {
                 Style = (Style)FindResource("GhostPill"), Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(0, 0, 0, 4),
                 HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Left,
-                Content = new TextBlock { Text = t, TextTrimming = TextTrimming.CharacterEllipsis }, ToolTip = L.T("Скопировать название"),
+                Content = new TextBlock { Text = t, TextTrimming = TextTrimming.CharacterEllipsis }, ToolTip = source != null ? L.F("Открыть в {0}", source.Name) : L.T("Скопировать название"),
             };
             var text = t;
             b.Click += (_, _) =>
             {
+                if (source != null && MusicSources.Open(source, text)) { ShowToast("\uE8D6", L.F("Открываю в {0}", source.Name), text); return; }
                 try { Clipboard.SetText(text); ShowToast("", L.T("Скопировано"), text); } catch (Exception ex) { Log.Write("lyrics: copy: " + ex.GetType().Name + ": " + ex.Message); }
             };
             LikedList.Children.Add(b);

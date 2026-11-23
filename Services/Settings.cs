@@ -151,6 +151,8 @@ public sealed class Settings
 
     /// <summary>Tracks liked with the heart on the music page ("Artist — Title"), newest first.</summary>
     public List<string> LikedTracks { get; set; } = [];
+    /// <summary>Where each liked track was playing (a service's name, see MusicSources): a click opens it there.</summary>
+    public Dictionary<string, string> LikedFrom { get; set; } = [];
     /// <summary>Light graphics for weak PCs: no frosted glass, glow, colour split or bulge. Null = decide by the hardware.</summary>
     public bool? LiteGraphics { get; set; }
     /// <summary>Tint strength over the frosted glass, 20…100 %.</summary>

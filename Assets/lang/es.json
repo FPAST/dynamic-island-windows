@@ -1118,5 +1118,7 @@
  "Хук не найден в настройках — нажмите «Отключить» и «Подключить» снова.": "El hook no está en la configuración: pulse Desconectar y luego Conectar de nuevo.",
  "Проверка прошла: событие дошло до острова за {0} мс ({1}).": "Comprobación correcta: el evento llegó a la isla en {0} ms ({1}).",
  "Событие не дошло до острова за 5 с ({0}, код выхода {1}).": "El evento no llegó a la isla en 5 s ({0}, código de salida {1}).",
- "Подробности — в журнале и в {0}.": "Detalles en el registro y en {0}."
+ "Подробности — в журнале и в {0}.": "Detalles en el registro y en {0}.",
+ "Открыть в {0}": "Abrir en {0}",
+ "Открываю в {0}": "Abriendo en {0}"
 }
