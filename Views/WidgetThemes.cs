@@ -50,7 +50,7 @@ public static class WidgetThemes
                 return new WidgetTheme(id, L.T("Свой цвет"), Color.FromArgb(0xA6, c.R, c.G, c.B), Color.FromArgb(0x96, D(c.R, 0.62), D(c.G, 0.62), D(c.B, 0.62)),
                                        lum < 0.72, Color.FromArgb(0xF2, D(c.R, 0.85), D(c.G, 0.85), D(c.B, 0.85)));
             }
-            catch { }
+            catch { /* not a colour: the default look */ }
         }
         return All.FirstOrDefault(t => t.Id == id) ?? All[0];
     }

@@ -237,7 +237,7 @@ public sealed partial class CalendarService
                 result = TimeZoneInfo.ConvertTime(dt, tz, TimeZoneInfo.Local);
                 return true;
             }
-            catch { }
+            catch { /* unknown TZID: taken as local */ }
         }
         result = dt; // floating time = local
         return true;

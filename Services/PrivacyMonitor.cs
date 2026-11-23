@@ -48,7 +48,7 @@ public static class PrivacyMonitor
                 }
             }
         }
-        catch { }
+        catch (Exception ex) { Log.Error("privacy monitor", ex); }
         return apps.Where(a => !a.Equals("DynamicIsland", StringComparison.OrdinalIgnoreCase)).Distinct().ToList();
     }
 

@@ -51,7 +51,7 @@ public static class ShellIcons
                 finally { DeleteObject(hbm); }
             }
         }
-        catch { }
+        catch { /* no icon */ }
         return Cache[(path, size)] = result;
     }
 

@@ -120,7 +120,7 @@ public sealed class MediaService
                     s.GetPlaybackInfo().PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing);
                 if (playing != null && playing != _session) Attach(playing);
             }
-            catch { }
+            catch (Exception ex) { Log.Error("media: sessions", ex); }
         }
 
         if (_session != null) { _legacy = null; return; }
@@ -220,7 +220,7 @@ public sealed class MediaService
     public bool CanRepeat { get { lock (_lock) return _session != null && _canRepeat; } }
 
     /// <summary>Off → whole list → this track → off. Players that don't support it simply ignore the request.</summary>
-    public async void CycleRepeat()
+    public async Task CycleRepeat()
     {
         try
         {
@@ -234,7 +234,7 @@ public sealed class MediaService
             };
             if (await s.TryChangeAutoRepeatModeAsync(next)) { lock (_lock) _repeat = next; Changed?.Invoke(); }
         }
-        catch { }
+        catch (Exception ex) { Log.Write("media: repeat: " + ex.GetType().Name + ": " + ex.Message); }
     }
 
     private void ReadPlayback(GlobalSystemMediaTransportControlsSession s)
@@ -320,39 +320,39 @@ public sealed class MediaService
         }
     }
 
-    public async void TogglePlayPause()
+    public async Task TogglePlayPause()
     {
         try
         {
             if (_session != null) await _session.TryTogglePlayPauseAsync();
             else if (_legacy != null) LegacyPlayers.PlayPause(_legacy);
         }
-        catch { }
+        catch (Exception ex) { Log.Write("media: play/pause: " + ex.GetType().Name + ": " + ex.Message); }
     }
 
-    public async void Next()
+    public async Task Next()
     {
         try
         {
             if (_session != null) await _session.TrySkipNextAsync();
             else if (_legacy != null) LegacyPlayers.Next(_legacy);
         }
-        catch { }
+        catch (Exception ex) { Log.Write("media: next: " + ex.GetType().Name + ": " + ex.Message); }
     }
 
-    public async void Previous()
+    public async Task Previous()
     {
         try
         {
             if (_session != null) await _session.TrySkipPreviousAsync();
             else if (_legacy != null) LegacyPlayers.Previous(_legacy);
         }
-        catch { }
+        catch (Exception ex) { Log.Write("media: previous: " + ex.GetType().Name + ": " + ex.Message); }
     }
 
-    public async void Seek(TimeSpan position)
+    public async Task Seek(TimeSpan position)
     {
-        try { if (_session != null) await _session.TryChangePlaybackPositionAsync(position.Ticks); } catch { }
+        try { if (_session != null) await _session.TryChangePlaybackPositionAsync(position.Ticks); } catch (Exception ex) { Log.Write("media: seek: " + ex.GetType().Name + ": " + ex.Message); }
     }
 
     private static string PrettyAppName(string aumid)

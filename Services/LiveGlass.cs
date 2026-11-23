@@ -63,9 +63,9 @@ public static class LiveGlass
         var h = new WindowInteropHelper(w).Handle;
         if (HwndSource.FromHwnd(h) is { CompositionTarget: { } ct }) ct.BackgroundColor = Colors.Transparent;
         var m = new MARGINS { L = -1, R = -1, T = -1, B = -1 };
-        try { DwmExtendFrameIntoClientArea(h, ref m); } catch { }
+        try { DwmExtendFrameIntoClientArea(h, ref m); } catch { /* no DWM composition: a plain window */ }
         int noRound = roundCorners ? 2 : 1, noBorder = unchecked((int)0xFFFFFFFE);   // DWMWCP_ROUND / DONOTROUND
-        try { DwmSetWindowAttribute(h, 33, ref noRound, 4); DwmSetWindowAttribute(h, 34, ref noBorder, 4); } catch { }
+        try { DwmSetWindowAttribute(h, 33, ref noRound, 4); DwmSetWindowAttribute(h, 34, ref noBorder, 4); } catch { /* older Windows: no such attribute */ }
     }
 
     private static bool _logged;

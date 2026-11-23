@@ -66,7 +66,7 @@ public partial class MainWindow
             e.Handled = true;
             if (!track.IsMouseCaptured) return;
             track.ReleaseMouseCapture(); seekKnob(false);
-            if (_lastMedia?.Duration is { } d && d > TimeSpan.Zero && track.ActualWidth > 0) _media.Seek(d * Math.Clamp(e.GetPosition(track).X / track.ActualWidth, 0, 1));
+            if (_lastMedia?.Duration is { } d && d > TimeSpan.Zero && track.ActualWidth > 0) _ = _media.Seek(d * Math.Clamp(e.GetPosition(track).X / track.ActualWidth, 0, 1));
         };
         var pos = W("0:00", 11, null, Dim); var len = W("", 11, null, Dim);
         var times = new DockPanel { Margin = new Thickness(0, 5, 0, 0) }; DockPanel.SetDock(len, Dock.Right); times.Children.Add(len); times.Children.Add(pos);
@@ -74,9 +74,9 @@ public partial class MainWindow
         var playIcon = Glyph("", 22);
         // the three playback controls share one glass capsule
         var row = new StackPanel { Orientation = Orientation.Horizontal };
-        var prev = WKey(Glyph("\uE892", 18), Brushes.Transparent, null, () => _media.Previous(), 52, 52, name: L.T("Предыдущий трек"));
-        var play = WKey(playIcon, Solid(0xFF, 0xFF, 0xFF, 0x30), null, () => _media.TogglePlayPause(), 60, 52, 26, name: L.T("Пауза или воспроизведение"));
-        var next = WKey(Glyph("\uE893", 18), Brushes.Transparent, null, () => _media.Next(), 52, 52, name: L.T("Следующий трек"));
+        var prev = WKey(Glyph("\uE892", 18), Brushes.Transparent, null, () => _ = _media.Previous(), 52, 52, name: L.T("Предыдущий трек"));
+        var play = WKey(playIcon, Solid(0xFF, 0xFF, 0xFF, 0x30), null, () => _ = _media.TogglePlayPause(), 60, 52, 26, name: L.T("Пауза или воспроизведение"));
+        var next = WKey(Glyph("\uE893", 18), Brushes.Transparent, null, () => _ = _media.Next(), 52, 52, name: L.T("Следующий трек"));
         play.Margin = new Thickness(10, 0, 10, 0);
         row.Children.Add(prev); row.Children.Add(play); row.Children.Add(next);
         var controls = GlassGroup(row, 32);
@@ -414,7 +414,7 @@ public partial class MainWindow
         foreach (var (name, zone) in ChosenCities().Take(6))
         {
             TimeZoneInfo? tz = null;
-            try { tz = TimeZoneInfo.FindSystemTimeZoneById(zone); } catch { }
+            try { tz = TimeZoneInfo.FindSystemTimeZoneById(zone); } catch { /* unknown time zone: local time */ }
             var time = W("", 30, FontWeights.Light, null, big: true); DockPanel.SetDock(time, Dock.Right);
             var dn = Glyph("", 13, Dim); dn.Margin = new Thickness(0, 0, 10, 0); DockPanel.SetDock(dn, Dock.Left);
             var left = new StackPanel { VerticalAlignment = VerticalAlignment.Center };

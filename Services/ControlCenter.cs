@@ -21,7 +21,7 @@ public static class ControlCenter
         if (!_accessAsked)
         {
             _accessAsked = true;
-            try { await Radio.RequestAccessAsync(); } catch { }
+            try { await Radio.RequestAccessAsync(); } catch { /* no radios to ask about */ }
         }
         try { return await Radio.GetRadiosAsync(); }
         catch { return []; }
@@ -90,7 +90,7 @@ public static class ControlCenter
                 foreach (Match m in Regex.Matches(File.ReadAllText(pbk), @"^\[(.+)\]\s*$", RegexOptions.Multiline))
                     if (!names.Contains(m.Groups[1].Value)) names.Add(m.Groups[1].Value);
             }
-            catch { }
+            catch { /* an unreadable phonebook */ }
         }
         return names;
     }
@@ -158,7 +158,7 @@ public static class ControlCenter
                 if (hit != null) { _vpnApp = (app, hit); break; }
             }
         }
-        catch { }
+        catch (Exception ex) { Log.Write("vpn: find app: " + ex.GetType().Name + ": " + ex.Message); }
         return _vpnApp;
     }
 

@@ -174,7 +174,7 @@ public partial class MainWindow
             TextToolButtons.Children.Add(tr);
 
             var paste = new Button { Style = (Style)FindResource("GhostPill"), Content = L.T("Вставить из буфера"), Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(0, 0, 6, 6) };
-            paste.Click += (_, _) => { try { if (Clipboard.ContainsText()) TextToolsBox.Text = Clipboard.GetText(); } catch { } };
+            paste.Click += (_, _) => { try { if (Clipboard.ContainsText()) TextToolsBox.Text = Clipboard.GetText(); } catch (Exception ex) { Log.Write("text tools: paste: " + ex.GetType().Name + ": " + ex.Message); } };
             TextToolButtons.Children.Add(paste);
 
             var copy = new Views.CopyButton(L.T("Копировать")) { Style = (Style)FindResource("AccentPill"), Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(0, 0, 6, 6), Text = () => TextToolsBox.Text };
@@ -185,7 +185,7 @@ public partial class MainWindow
         // start from what is on the clipboard: usually that's the text you want to fix
         if (TextToolsBox.Text.Length == 0)
         {
-            try { if (Clipboard.ContainsText()) TextToolsBox.Text = Clipboard.GetText(); } catch { }
+            try { if (Clipboard.ContainsText()) TextToolsBox.Text = Clipboard.GetText(); } catch { /* clipboard busy: start empty */ }
         }
         TextToolsStatus.Text = TextTools.Stats(TextToolsBox.Text);
     }

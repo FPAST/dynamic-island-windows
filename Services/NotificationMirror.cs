@@ -37,7 +37,7 @@ public sealed class NotificationMirror
                 using var k = root.OpenSubKey(@"Software\Policies\Microsoft\Windows\Explorer");
                 if (k?.GetValue("DisableNotificationCenter") is int v && v != 0) return true;
             }
-            catch { }
+            catch { /* no access to the policy: not disabled */ }
         }
         return false;
     }

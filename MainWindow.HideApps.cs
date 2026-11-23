@@ -42,7 +42,7 @@ public partial class MainWindow
                 if (p.ProcessName is "explorer" or "ApplicationFrameHost" or "TextInputHost") continue;
                 names.Add(p.ProcessName);
             }
-            catch { }
+            catch { /* exited meanwhile or protected */ }
             finally { p.Dispose(); }
         }
         HideAppPicker.Items.Clear();

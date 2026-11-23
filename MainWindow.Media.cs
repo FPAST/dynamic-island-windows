@@ -25,7 +25,7 @@ public partial class MainWindow
     private async Task InitMediaAsync()
     {
         _media.Changed += () => Dispatcher.BeginInvoke(UpdateMediaUi);
-        ArtRecord.Toggled += () => _media.TogglePlayPause();
+        ArtRecord.Toggled += () => _ = _media.TogglePlayPause();
         SeekSlider.Format = v => _lastMedia is { } sm && sm.Duration > TimeSpan.Zero ? FormatTime(TimeSpan.FromSeconds(v * sm.Duration.TotalSeconds)) : "0:00";
         SeekSlider.Released += v =>
         {
@@ -33,7 +33,7 @@ public partial class MainWindow
             var to = TimeSpan.FromSeconds(sm.Duration.TotalSeconds * v);
             // pictures and tests: the demo song moves, the user's real player is left alone
             if (_demoMedia != null) { _demoMedia = _demoMedia with { Position = to, PositionUpdatedAt = DateTimeOffset.Now }; UpdateMediaUi(); return; }
-            _media.Seek(to);
+            _ = _media.Seek(to);
         };
         // while the thumb is held, the time on the left is where the song will jump to
         SeekSlider.ValueChanged += (_, e) =>
@@ -183,9 +183,9 @@ public partial class MainWindow
         }
     }
 
-    private void PlayPause_Click(object sender, RoutedEventArgs e) => _media.TogglePlayPause();
-    private void Next_Click(object sender, RoutedEventArgs e) => _media.Next();
-    private void Prev_Click(object sender, RoutedEventArgs e) => _media.Previous();
+    private void PlayPause_Click(object sender, RoutedEventArgs e) => _ = _media.TogglePlayPause();
+    private void Next_Click(object sender, RoutedEventArgs e) => _ = _media.Next();
+    private void Prev_Click(object sender, RoutedEventArgs e) => _ = _media.Previous();
 
     private void HomeMusic_Click(object sender, MouseButtonEventArgs e)
     {
@@ -262,7 +262,7 @@ public partial class MainWindow
         var to = lineTime - TimeSpan.FromMilliseconds(LyricsShiftMs);
         if (to < TimeSpan.Zero) to = TimeSpan.Zero;
         if (Settings.ReadOnly || _demoMedia != null) { if (_lastMedia != null) _lastMedia = _lastMedia with { Position = to, PositionUpdatedAt = DateTimeOffset.Now }; }
-        else _media.Seek(to);
+        else _ = _media.Seek(to);
         _lyricsClock.Seeked(to, System.Diagnostics.Stopwatch.GetTimestamp());
         UpdateLyricLine();
         TickMusicLyrics();

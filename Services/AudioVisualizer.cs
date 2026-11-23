@@ -70,7 +70,7 @@ public sealed class AudioVisualizer : IDisposable
         _rec = null;
         if (rec == null) return;
         try { rec.StopRecording(); } catch (Exception e) { Log.Write("visualiser stop: " + e.Message); }
-        try { rec.Dispose(); } catch { }
+        try { rec.Dispose(); } catch { /* already disposed */ }
         Array.Clear(Bands);
     }
 

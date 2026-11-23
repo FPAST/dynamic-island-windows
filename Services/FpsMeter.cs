@@ -48,7 +48,7 @@ public sealed class FpsMeter : IDisposable
                     {
                         Log.Write("fps: " + e.Message);
                         _session = null;   // it died by itself: say "not running", so the helper's numbers are used
-                        try { session.Dispose(); } catch { }
+                        try { session.Dispose(); } catch { /* already disposed */ }
                     }
                 }
             }) { IsBackground = true, Name = "FPS" }.Start();
@@ -64,7 +64,7 @@ public sealed class FpsMeter : IDisposable
     {
         var s = _session;
         _session = null;
-        try { s?.Dispose(); } catch { }
+        try { s?.Dispose(); } catch { /* already disposed */ }
         lock (_lock) _presents.Clear();
     }
 
@@ -150,10 +150,10 @@ public sealed class FpsMeter : IDisposable
                 File.WriteAllText(tmp, json);
                 File.Move(tmp, HelperFile, true);
             }
-            catch { }
+            catch (Exception ex) { Log.Error("fps helper: write", ex); }
             Thread.Sleep(500);
         }
-        try { File.Delete(HelperFile); } catch { }
+        try { File.Delete(HelperFile); } catch { /* already gone */ }
     }
 
     private static bool IsLink(string path)

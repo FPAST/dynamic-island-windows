@@ -79,7 +79,7 @@ public partial class MainWindow
     private void Repeat_Click(object sender, RoutedEventArgs e)
     {
         Kick(1.5);
-        if (_demoMedia == null && _media.CanRepeat) { _media.CycleRepeat(); return; }
+        if (_demoMedia == null && _media.CanRepeat) { _ = _media.CycleRepeat(); return; }
         var m = _lastMedia;
         if (m == null) return;
         _ownRepeatKey = _ownRepeatKey == null ? LikeKey(m) : null;
@@ -100,14 +100,14 @@ public partial class MainWindow
             if (m.IsPlaying && m.Duration > TimeSpan.FromSeconds(5) && m.Duration - m.CurrentPosition < TimeSpan.FromSeconds(1.2))
             {
                 _ownRepeatActionAt = DateTime.Now;
-                _media.Seek(TimeSpan.Zero);
+                _ = _media.Seek(TimeSpan.Zero);
             }
         }
         else if (m.IsPlaying && m.CurrentPosition < TimeSpan.FromSeconds(4))
         {
             // the player moved on anyway (it doesn't allow jumping back): one step back
             _ownRepeatActionAt = DateTime.Now;
-            _media.Previous();
+            _ = _media.Previous();
         }
         else _ownRepeatKey = null;   // the user picked something else: repeat ends
     }
@@ -159,7 +159,7 @@ public partial class MainWindow
             var text = t;
             b.Click += (_, _) =>
             {
-                try { Clipboard.SetText(text); ShowToast("", L.T("Скопировано"), text); } catch { }
+                try { Clipboard.SetText(text); ShowToast("", L.T("Скопировано"), text); } catch (Exception ex) { Log.Write("lyrics: copy: " + ex.GetType().Name + ": " + ex.Message); }
             };
             LikedList.Children.Add(b);
         }

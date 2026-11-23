@@ -231,7 +231,7 @@ public partial class MainWindow
 
     // ================================================================ every second
 
-    private async void SlowTick()
+    private async Task SlowTick()
     {
         CheckAlarms();
         UpdateWidgetPause();
@@ -242,7 +242,7 @@ public partial class MainWindow
         if (!_downloadsBusy)
         {
             _downloadsBusy = true;
-            _ = Task.Run(() => { try { _downloads.Poll(); } catch { } }).ContinueWith(_ => _downloadsBusy = false);
+            _ = Task.Run(() => { try { _downloads.Poll(); } catch (Exception ex) { Log.Error("downloads: poll", ex); } }).ContinueWith(_ => _downloadsBusy = false);
         }
         if (_settings.ShowProgress && !_gameMode && _demoMedia == null && !_progressBusy)
         {
@@ -278,7 +278,7 @@ public partial class MainWindow
                              Process.GetProcessesByName("Discord").Length > 0;
                     speaking = inCall && _audioProbe.AppState("discord").Peak > 0.03;
                 }
-                catch { }
+                catch (Exception ex) { Log.Error("discord: call probe", ex); }
                 return (inCall, speaking);
             }).ContinueWith(t =>
             {
@@ -382,7 +382,7 @@ public partial class MainWindow
             if (File.Exists(wav)) new System.Media.SoundPlayer(wav).Play();
             else System.Media.SystemSounds.Asterisk.Play();
         }
-        catch { }
+        catch (Exception ex) { Log.Write("calendar: sound: " + ex.GetType().Name + ": " + ex.Message); }
     }
 
     // ================================================================ System tab

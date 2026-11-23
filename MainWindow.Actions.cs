@@ -91,7 +91,7 @@ public partial class MainWindow
                 b.Background = rec ? TintBrush("#FF453A", 0xFF) : TintBrush(top, 0x22);
                 if (rec) b.Foreground = Brushes.White;
             }
-            b.Click += (_, _) => RunAction(id);
+            b.Click += (_, _) => _ = RunAction(id);
             ActionsGrid.Children.Add(b);
         }
 
@@ -128,7 +128,7 @@ public partial class MainWindow
         Remeasure();
     }
 
-    public async void RunAction(string id)
+    public async Task RunAction(string id)
     {
         if (_busy) return;
         _busy = true;

@@ -160,7 +160,7 @@ public partial class MainWindow
                       _settings.AutoUpdateCheck ? L.F("Установлена последняя версия · {0}", Updater.Current.ToString(3)) : L.T("Автопроверка выключена: новые версии сами не придут."),
                       _settings.AutoUpdateCheck ? null : L.T("Включить"),
                       _settings.AutoUpdateCheck ? null : () => { _settings.AutoUpdateCheck = true; _settings.Save(); AutoUpdateSwitch.IsChecked = true; })
-                : new(L.T("Обновления"), CheckState.Warn, L.F("Доступна версия {0} (у вас {1})", _update.Version.ToString(3), Updater.Current.ToString(3)), L.T("Обновить"), StartUpdate));
+                : new(L.T("Обновления"), CheckState.Warn, L.F("Доступна версия {0} (у вас {1})", _update.Version.ToString(3), Updater.Current.ToString(3)), L.T("Обновить"), () => _ = StartUpdate()));
 
         // calendar
         if (_settings.CalendarIcs.Trim().Length == 0)

@@ -189,7 +189,7 @@ public sealed class WallpaperService
         {
             uint n = dw.GetMonitorDevicePathCount();
             var fit = WallpaperFit.Fill;
-            try { fit = (WallpaperFit)dw.GetPosition(); } catch { }
+            try { fit = (WallpaperFit)dw.GetPosition(); } catch { /* unknown: Fill */ }
             var bg = dw.GetBackgroundColor();   // COLORREF 0x00BBGGRR
             var color = Color.FromRgb((byte)bg, (byte)(bg >> 8), (byte)(bg >> 16));
             var monitors = new List<(string Id, Rect Px)>();
@@ -215,7 +215,7 @@ public sealed class WallpaperService
                     path = previews.GetValueOrDefault(index) ?? previews.Values.First();
                     monitorFit = WallpaperFit.Fill;
                 }
-                else try { path = dw.GetWallpaper(id); } catch { }
+                else try { path = dw.GetWallpaper(id); } catch { /* no wallpaper on that monitor */ }
                 index++;
                 if (string.IsNullOrEmpty(path) || !File.Exists(path))
                 {

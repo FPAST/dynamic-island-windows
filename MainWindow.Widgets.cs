@@ -89,6 +89,13 @@ public partial class MainWindow
     private Window? _widgetBar;
     private Rect _widgetBarRect;
     private readonly List<Action> _galleryUpdaters = [];
+
+    /// <summary>The gallery's chips show which widgets are on now.</summary>
+    private void RefreshGallery()
+    {
+        foreach (var u in _galleryUpdaters.ToList())
+            try { u(); } catch (Exception ex) { Log.Write("widget gallery: " + ex.GetType().Name + ": " + ex.Message); }
+    }
     private int _widgetTicks;
 
     private bool HasBattery => BatteryPercent() >= 0;
@@ -372,7 +379,7 @@ public partial class MainWindow
         win.Closed += (_, _) => { if (ReferenceEquals(_widgetBar, win)) { _widgetBar = null; _galleryUpdaters.Clear(); } };
         _widgetBar = win;
         win.Show();
-        foreach (var u in _galleryUpdaters) try { u(); } catch { }
+        RefreshGallery();
     }
 
     /// <summary>Big glass panels (gallery, widget editor): see-through over the blurred desktop, unless glass is off.</summary>
@@ -485,7 +492,7 @@ public partial class MainWindow
             if (dragging != null) { Placed(dragging); Materialize(dragging); dragging = null; }
             else if (_widgets.TryGetValue(id, out var placed)) Materialize(placed);   // already there: show where
             else AddWidget(id);
-            foreach (var u in _galleryUpdaters) try { u(); } catch { }
+            RefreshGallery();
         };
         add.MouseLeftButtonUp += (_, e) => { e.Handled = true; if (_widgets.ContainsKey(id)) RemoveWidget(id); else AddWidget(id); Paint(); };
 
@@ -630,7 +637,7 @@ public partial class MainWindow
         if (undo && _widgets.ContainsKey(id) && !Settings.ReadOnly)
         {
             var name = WidgetKinds.FirstOrDefault(k => k.Id == id)?.Name ?? id;
-            ShowToast("\uE7A7", L.F("«{0}» убран", name), L.T("Нажмите, чтобы вернуть"), () => { AddWidget(id); foreach (var u in _galleryUpdaters) try { u(); } catch { } }, ms: 5000);
+            ShowToast("\uE7A7", L.F("«{0}» убран", name), L.T("Нажмите, чтобы вернуть"), () => { AddWidget(id); RefreshGallery(); }, ms: 5000);
         }
         _openWidgets.Remove(id);
         if (_widgets.Remove(id, out var w)) w.Close();
@@ -693,7 +700,7 @@ public partial class MainWindow
         w.AltHeld += _ => EditWidgets(true);
         w.Resizing += ResizingWidget;
         w.Resized += ResizedWidget;
-        w.RemoveClicked += win => { RemoveWidget(win.Id); foreach (var u in _galleryUpdaters) try { u(); } catch { } };
+        w.RemoveClicked += win => { RemoveWidget(win.Id); RefreshGallery(); };
         w.Clicked += win => ExpandWidget(win.Id);
         w.ClickedAway += win => CollapseWidget(win.Id);
         w.Card.Card.ContextMenu = new ContextMenu();
@@ -1114,7 +1121,7 @@ public partial class MainWindow
         foreach (var (name, zone) in ChosenCities().Take(3))
         {
             TimeZoneInfo? tz = null;
-            try { tz = TimeZoneInfo.FindSystemTimeZoneById(zone); } catch { }
+            try { tz = TimeZoneInfo.FindSystemTimeZoneById(zone); } catch { /* unknown time zone: local time */ }
             var city = W(L.T(name), 13, FontWeights.SemiBold);
             var diff = W("", 11, null, Dim);
             var time = W("", 30, FontWeights.Light, null, big: true);
@@ -1308,7 +1315,7 @@ public partial class MainWindow
             tile.Child = g;
             tile.ToolTip = AllActions.FirstOrDefault(a => a.Id == id).Label;
             var action = id;
-            tile.MouseLeftButtonUp += (_, e) => { e.Handled = true; if (!_widgetsEditing) RunAction(action); };
+            tile.MouseLeftButtonUp += (_, e) => { e.Handled = true; if (!_widgetsEditing) _ = RunAction(action); };
             grid.Children.Add(tile);
         }
         body.Children.Add(grid);
@@ -1373,7 +1380,7 @@ public partial class MainWindow
                         var free = Bytes(d.AvailableFreeSpace).Split(' ');
                         v = free[0]; s = L.F("{0} свободно", free[1]);
                     }
-                    catch { }
+                    catch { /* drive not ready */ }
                     break;
                 case "battery":
                     int b = BatteryPercent();

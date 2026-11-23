@@ -95,7 +95,7 @@ public sealed class AudioService
                 int score = AudioMatch.Score(appId, name, Native.PackageFamilyOf(pid));
                 if (score == 0 || score < bestScore) continue;
                 float peak = 0;
-                try { peak = s.AudioMeterInformation.MasterPeakValue; } catch { }
+                try { peak = s.AudioMeterInformation.MasterPeakValue; } catch { /* the session went away */ }
                 if (s.State == NAudio.CoreAudioApi.Interfaces.AudioSessionState.AudioSessionStateActive) peak += 0.001f;
                 if (score > bestScore || peak > bestPeak) { best = s; bestScore = score; bestPeak = peak; }
             }
@@ -177,13 +177,13 @@ public sealed class AudioService
                     {
                         var s = sessions[i];
                         if (s.State != NAudio.CoreAudioApi.Interfaces.AudioSessionState.AudioSessionStateActive) continue;
-                        try { names.Add(Process.GetProcessById((int)s.GetProcessID).ProcessName); } catch { }
+                        try { names.Add(Process.GetProcessById((int)s.GetProcessID).ProcessName); } catch { /* exited meanwhile */ }
                     }
                 }
-                catch { }
+                catch { /* the device went away */ }
             }
         }
-        catch { }
+        catch (Exception ex) { Log.Error("audio: recording apps", ex); }
         return names;
     }
 
@@ -191,7 +191,7 @@ public sealed class AudioService
     public bool? MicMuted
     {
         get { try { return Mic?.AudioEndpointVolume.Mute; } catch { return null; } }
-        set { try { var m = Mic; if (m != null && value.HasValue) m.AudioEndpointVolume.Mute = value.Value; } catch { } }
+        set { try { var m = Mic; if (m != null && value.HasValue) m.AudioEndpointVolume.Mute = value.Value; } catch (Exception ex) { Log.Write("audio: mic mute: " + ex.GetType().Name + ": " + ex.Message); } }
     }
 
     public float MicPeak
@@ -245,7 +245,7 @@ public sealed class AudioService
                 if (result.Count >= 8) break;
             }
         }
-        catch { }
+        catch (Exception ex) { Log.Error("audio: app sounds", ex); }
         return result;
     }
 
@@ -257,7 +257,7 @@ public sealed class AudioService
             foreach (var (n, s) in LiveSessions())
                 if (n.Equals(name, StringComparison.OrdinalIgnoreCase)) s.SimpleAudioVolume.Volume = value;
         }
-        catch { }
+        catch (Exception ex) { Log.Write("audio: app volume: " + ex.GetType().Name + ": " + ex.Message); }
     }
 
     public void ToggleAppSoundMute(string name)
@@ -272,20 +272,20 @@ public sealed class AudioService
                 s.SimpleAudioVolume.Mute = to.Value;
             }
         }
-        catch { }
+        catch (Exception ex) { Log.Write("audio: app mute: " + ex.GetType().Name + ": " + ex.Message); }
     }
 
     /// <summary>The volume of the speakers (0..1); -1 when there are none.</summary>
     public float Master
     {
         get { try { return Device?.AudioEndpointVolume.MasterVolumeLevelScalar ?? -1; } catch { return -1; } }
-        set { try { if (Device != null) Device.AudioEndpointVolume.MasterVolumeLevelScalar = Math.Clamp(value, 0f, 1f); } catch { } }
+        set { try { if (Device != null) Device.AudioEndpointVolume.MasterVolumeLevelScalar = Math.Clamp(value, 0f, 1f); } catch (Exception ex) { Log.Write("audio: master volume: " + ex.GetType().Name + ": " + ex.Message); } }
     }
 
     public bool MasterMuted
     {
         get { try { return Device?.AudioEndpointVolume.Mute ?? false; } catch { return false; } }
-        set { try { if (Device != null) Device.AudioEndpointVolume.Mute = value; } catch { } }
+        set { try { if (Device != null) Device.AudioEndpointVolume.Mute = value; } catch (Exception ex) { Log.Write("audio: master mute: " + ex.GetType().Name + ": " + ex.Message); } }
     }
 
     public void SetVolume(string appId, float value)
@@ -297,6 +297,6 @@ public sealed class AudioService
             if (s != null) s.SimpleAudioVolume.Volume = value;
             else if (Device != null) Device.AudioEndpointVolume.MasterVolumeLevelScalar = value;
         }
-        catch { }
+        catch (Exception ex) { Log.Write("audio: set volume: " + ex.GetType().Name + ": " + ex.Message); }
     }
 }

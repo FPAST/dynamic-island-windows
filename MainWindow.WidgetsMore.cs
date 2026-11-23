@@ -790,7 +790,7 @@ public partial class MainWindow
             var list = new Dictionary<string, long>();
             foreach (var p in Process.GetProcesses())
             {
-                try { list[p.ProcessName] = list.GetValueOrDefault(p.ProcessName) + p.WorkingSet64; } catch { }
+                try { list[p.ProcessName] = list.GetValueOrDefault(p.ProcessName) + p.WorkingSet64; } catch { /* exited meanwhile or protected */ }
                 finally { p.Dispose(); }
             }
             _topProcs = list.Where(kv => kv.Key is not "Idle" and not "System" and not "Memory Compression" and not "Registry")

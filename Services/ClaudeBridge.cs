@@ -117,7 +117,7 @@ public sealed class ClaudeBridge
         string response = "";
         if (!IsTrusted(ctx.Request))
         {
-            try { ctx.Response.StatusCode = 403; ctx.Response.Close(); } catch { }
+            try { ctx.Response.StatusCode = 403; ctx.Response.Close(); } catch { /* the caller went away */ }
             return;
         }
         try
@@ -208,7 +208,7 @@ public sealed class ClaudeBridge
             await ctx.Response.OutputStream.WriteAsync(bytes);
             ctx.Response.Close();
         }
-        catch { }
+        catch { /* the hook gave up before the answer */ }
     }
 
     private static string Describe(string? tool, JsonNode? input)

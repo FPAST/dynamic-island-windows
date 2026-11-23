@@ -908,7 +908,7 @@ public partial class MainWindow : Window
                     ShowDropTarget(); await Task.Delay(900); Shot("near"); Log.Write("droptest: a file near: " + St());
                     ShowDropped(files.ToArray()); await Task.Delay(700); Shot("dropped"); Log.Write("droptest: dropped: " + St());
                     var sw = System.Diagnostics.Stopwatch.StartNew();
-                    WorkOnDrop(files.ToArray(), L.T("Сжимаю в ZIP"), L.T("Архив готов"), p => FileDropActions.Zip(files, p));
+                    _ = WorkOnDrop(files.ToArray(), L.T("Сжимаю в ZIP"), L.T("Архив готов"), p => FileDropActions.Zip(files, p));
                     await Task.Delay(250); Shot("working"); Log.Write("droptest: 0.25 s into ZIP: " + St());
                     var marks = new List<string>();
                     while (_dropWorking && sw.Elapsed.TotalSeconds < 30)
@@ -2416,7 +2416,7 @@ public partial class MainWindow : Window
                     }
                     var fg = Native.GetForegroundWindow();
                     Native.GetWindowThreadProcessId(fg, out uint fpid);
-                    string fname = ""; try { fname = System.Diagnostics.Process.GetProcessById((int)fpid).ProcessName; } catch { }
+                    string fname = ""; try { fname = System.Diagnostics.Process.GetProcessById((int)fpid).ProcessName; } catch { /* exited meanwhile */ }
                     _settings.HideInApps = [];
                     bool before = IsHiddenApp(fg);
                     _settings.HideInApps = [fname];
@@ -2736,11 +2736,11 @@ public partial class MainWindow : Window
                 }
                 if (action == "kick") { Kick(6); Squish(0.92); await Task.Delay(120); Unsquish(3); return; }
                 if (action == "timer") { _timer.SetKind(TimerKind.Timer); _timer.SetDuration(TimeSpan.FromMinutes(secs > 0 ? secs : 5)); _timer.Start(); return; }
-                RunAction(action);
+                _ = RunAction(action);
                 if (action == "record" && secs > 0)
                 {
                     await Task.Delay(secs * 1000);
-                    RunAction(action);
+                    _ = RunAction(action);
                 }
             });
         }
@@ -2863,8 +2863,8 @@ public partial class MainWindow : Window
             {
                 case 1: ToggleHidden(); break;
                 case 2: ToggleTheme(); break;
-                case 3: RunAction("region"); break;
-                case 4: RunAction("record"); break;
+                case 3: _ = RunAction("region"); break;
+                case 4: _ = RunAction("record"); break;
                 case 5 or 6: ToggleCommandBar(); break;
                 case 7: ToggleOpenFromKeyboard(); break;
             }
@@ -3930,7 +3930,7 @@ public partial class MainWindow : Window
             ContextMenuStrip = new Forms.ContextMenuStrip(),
         };
         _tray.ContextMenuStrip.Items.Add(L.T("Показать / спрятать  (Ctrl+Alt+I)"), null, (_, _) => ToggleHidden());
-        _tray.ContextMenuStrip.Items.Add(L.T("Скриншот области  (Ctrl+Alt+S)"), null, (_, _) => RunAction("region"));
+        _tray.ContextMenuStrip.Items.Add(L.T("Скриншот области  (Ctrl+Alt+S)"), null, (_, _) => _ = RunAction("region"));
         _tray.ContextMenuStrip.Items.Add(L.T("Выровнять по центру"), null, (_, _) => AlignIsland());
         _tray.ContextMenuStrip.Items.Add(L.T("Сменить тему  (Ctrl+Alt+T)"), null, (_, _) => ToggleTheme());
         _tray.ContextMenuStrip.Items.Add(L.T("Изменить виджеты"), null, (_, _) => EditWidgets(true));

@@ -202,7 +202,7 @@ public partial class MainWindow
     {
         _settings.IslandPhoto = false;
         _settings.Save();
-        try { File.Delete(PhotoPath); } catch { }
+        try { File.Delete(PhotoPath); } catch { /* no photo file */ }
         ApplyPhoto();
         BuildThemeGallery();
     }

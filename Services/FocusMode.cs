@@ -56,6 +56,6 @@ public static class FocusMode
             using var k = Registry.CurrentUser.CreateSubKey(Key);
             k.SetValue(Value, enabled, RegistryValueKind.DWord);
         }
-        catch { }
+        catch (Exception ex) { Log.Write("focus mode: registry: " + ex.GetType().Name + ": " + ex.Message); }
     }
 }
