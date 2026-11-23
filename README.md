@@ -220,7 +220,7 @@ The same button works for the portable version: it cleans up and deletes its own
 | `Ctrl` + `Alt` + `S` | screenshot of a region |
 | `Ctrl` + `Alt` + `R` | start / stop screen recording |
 | `Ctrl` + `Alt` + `T` | dark ↔ light theme |
-| `Alt` + `Space` or `Ctrl` + `Alt` + `Space` | command bar |
+| `Alt` + `Space` or `Ctrl` + `Alt` + `Space` | command bar (another shortcut or none: Settings → Behavior) |
 
 In the screenshot editor: `Ctrl+Z` undo, `Ctrl+C` copy, `Ctrl+S` save, `Esc` close.
 
@@ -335,6 +335,23 @@ The screenshots in this README are made by the app itself from demo data (no rea
 ```bash
 DynamicIsland.exe --snapshot docs/screenshots
 ```
+
+### Code signing
+
+The GitHub Actions build signs `DynamicIsland.exe`, `DynamicIsland.dll` and the installer with Authenticode when the
+repository has a code-signing certificate in its secrets; without them it builds unsigned, as before. To turn it on,
+in **Settings → Secrets and variables → Actions** add:
+
+| Secret | What it is |
+|---|---|
+| `SIGN_CERT_PFX` | the certificate with its private key, a `.pfx` file as base64: `[Convert]::ToBase64String([IO.File]::ReadAllBytes("cert.pfx"))` in PowerShell |
+| `SIGN_CERT_PASSWORD` | the `.pfx` file's password |
+| `SIGN_TIMESTAMP_URL` | optional: your certificate authority's RFC 3161 timestamp server (default `http://timestamp.digicert.com`) |
+
+The certificate is written to the runner's temp folder only for the signing steps and deleted afterwards; it is never
+uploaded with the artifacts. Check a build with `signtool verify /pa /v DynamicIsland.exe` or in the file's
+Properties → Digital Signatures. A certificate kept in a cloud HSM (Azure Trusted Signing and the like) needs that
+service's own signing step instead of `signtool /f`.
 
 ### Project layout
 
