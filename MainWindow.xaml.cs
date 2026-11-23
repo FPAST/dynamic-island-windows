@@ -2760,6 +2760,7 @@ public partial class MainWindow : Window
                     Island.IsHitTestVisible = false; _settings.ExpandOnHover = false; NoClickOutside = true;
                     bool liquid = args.ElementAtOrDefault(r + 2) != "plain";
                     bool mag = args.ElementAtOrDefault(r + 3) == "mag";
+                    bool dragOnly = args.Contains("drag");   // only the drag phase (glassbench liquid drag)
                     ApplyThemePreset(BuiltInThemes.First(t => t.Id == (liquid ? "liquid" : "midnight")));
                     _settings.Glass = true; _settings.LiteGraphics = false;
                     _settings.CaptureHidden = !mag; ApplyCaptureExclusion(); ApplyGlass();
@@ -2779,7 +2780,9 @@ public partial class MainWindow : Window
                         string Frost(string n) => _costs.TryGetValue(n, out var c) ? $"{n} {c.Ticks * 1000.0 / System.Diagnostics.Stopwatch.Frequency / (wall / 1000):0.00} ms/s, avg {c.Ticks * 1000.0 / System.Diagnostics.Stopwatch.Frequency / c.Calls:0.00} ms, max {c.Max * 1000.0 / System.Diagnostics.Stopwatch.Frequency:0.0} ms" : n + " -";
                         Log.Write($"glassbench: {name}: UI thread: {Frost("frost")}; {Frost("frost grab")}; {Frost("frost show")}");
                     }
-                    await Task.Delay(8000);
+                    await Task.Delay(dragOnly ? 5000 : 8000);
+                    if (!dragOnly)
+                    {
                     SetMode(Mode.Compact);
                     await Phase("folded", 10);
                     TabHome.IsChecked = true; _pinnedOpen = true; Expand();
@@ -2799,10 +2802,45 @@ public partial class MainWindow : Window
                     Log.Write($"glassbench: open/fold x2: {gg.Count} frames, {1000 / Math.Max(1, gg.DefaultIfEmpty(0).Average()):0} fps avg, worst {gg.DefaultIfEmpty(0).Max():0} ms, slow (>20 ms) {gg.Count(x => x > 20) * 100.0 / Math.Max(1, gg.Count):0}%, new pictures {_frostShownCount}");
                     Log.Write($"glassbench: open/fold: " + TopCosts(_costs, System.Diagnostics.Stopwatch.Frequency * 7, 0).Replace(Environment.NewLine, " | "));
                     Log.Write("glassbench: Smoothness: " + PerfSummary());
+                    }
                     var backdrop = TestBackdrop(moving: true);
+                    if (!dragOnly)
+                    {
                     await Phase("folded over motion", 10);
                     TabHome.IsChecked = true; _pinnedOpen = true; Expand();
                     await Phase("open over motion", 10);
+                    }
+                    // dragging the folded pill over the stripes, back and forth (a made-up cursor): does the glass stay on?
+                    _pinnedOpen = false; SetMode(Mode.Compact); await Task.Delay(1500);
+                    foreach (var speed in new[] { 500.0, 1500.0 })
+                    {
+                        var home = new Point(Left, Top);
+                        int frames = 0, covered = 0;
+                        EventHandler count = (_, _) => { frames++; if (_frostCovers && FrostHost.Opacity > 0.5) covered++; };
+                        ResetCosts(); _frostShownCount = 0; _frostGrabCount = 0; _frostGrabTicks = 0;
+                        me.Refresh(); var c0 = me.TotalProcessorTime; var t0 = DateTime.Now;
+                        CompositionTarget.Rendering += count;
+                        var from = new Point(Left + Width / 2, Top + 20);
+                        _pressCursor = from; _pressWindow = home; _pressed = true; _dragging = true; _posActive = true;
+                        _px.Snap(Left); _py.Snap(Top);
+                        _px.Stiffness = _py.Stiffness = 1500; _px.Damping = _py.Damping = 72;
+                        StartRendering();
+                        foreach (var dir in new[] { 1, -1, 1, -1 })
+                        {
+                            _testCursor = (from, new Vector(dir * speed, dir * speed * 0.15), DateTime.UtcNow);
+                            await Task.Delay((int)(300000 / speed));   // 300 DIP each way
+                            from = CursorDip();
+                        }
+                        CompositionTarget.Rendering -= count;
+                        me.Refresh();
+                        double wall = (DateTime.Now - t0).TotalMilliseconds, cpu = (me.TotalProcessorTime - c0).TotalMilliseconds;
+                        Log.Write($"glassbench: {(liquid ? "liquid" : "plain")} drag at {speed} DIP/s: CPU {cpu / wall * 100 / Environment.ProcessorCount:0.00}% of the PC, grabs {_frostGrabCount / (wall / 1000):0.0}/s, " +
+                                  $"new pictures {_frostShownCount / (wall / 1000):0.0}/s, glass on in {covered * 100.0 / Math.Max(1, frames):0}% of {frames} frames");
+                        _testCursor = null; _pressed = false; _dragging = false;
+                        _px.Stiffness = _py.Stiffness = 560; _px.Damping = _py.Damping = 38;
+                        MoveWindow(home.X, home.Y);
+                        await Task.Delay(1500);
+                    }
                     backdrop.Close();
                     Application.Current.Shutdown();
                     return;

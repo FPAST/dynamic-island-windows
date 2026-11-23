@@ -1,3 +1,4 @@
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media.Effects;
 using System.Windows.Media.Media3D;
@@ -19,6 +20,7 @@ public partial class MainWindow
     private byte[]? _liquidPixels;
 
     private GlassEffect? _lens;
+    private bool _frostShiftedOff;
     private bool _lensTried;
 
     /// <summary>Lighter blur than plain frost: matte, yet you can tell what's behind and see it bend.</summary>
@@ -36,6 +38,8 @@ public partial class MainWindow
     /// <summary>
     /// The glass's picture under the island, and the lens over the island's current size: a band around the
     /// island on every side (room for the picture's margin and the drip), the bend as wide as Refract's.
+    /// Each picture lies where it was taken on the screen: when the island has moved since, the picture is
+    /// shifted back, so what's behind stands still; one that no longer covers the island fades to the solid fill.
     /// </summary>
     private void PlaceFrost(double w, double h)
     {
@@ -44,10 +48,22 @@ public partial class MainWindow
         Canvas.SetTop(FrostLens, -band);
         FrostLens.Width = Math.Max(1, w + 2 * band);
         FrostLens.Height = Math.Max(1, h + 2 * band);
-        Canvas.SetLeft(Frost, band + w / 2 - _layerHalf[0]);
-        Canvas.SetTop(Frost, band);
-        Canvas.SetLeft(FrostNext, band + w / 2 - _layerHalf[1]);
-        Canvas.SetTop(FrostNext, band);
+        Point now = default;
+        bool placed = PresentationSource.FromVisual(Island) != null;
+        if (placed) now = Island.PointToScreen(new Point(w / 2, 0));
+        double k = Dpi * UiScale;
+        var layers = FrostLayers;
+        for (int i = 0; i < 2; i++)
+        {
+            double dx = placed && _layerAt[i] != default ? (_layerAt[i].X - now.X) / k : 0, dy = placed && _layerAt[i] != default ? (_layerAt[i].Y - now.Y) / k : 0;
+            Canvas.SetLeft(layers[i], band + w / 2 - _layerHalf[i] + dx);
+            Canvas.SetTop(layers[i], band - _layerAbove[i] + dy);
+            if (i != _frostFront || _frostBmps[i] == null || FrostHost.Opacity < 0.5) continue;
+            // the shown picture must still reach past every edge of the island (the drip aside)
+            bool covers = dx - _layerHalf[i] <= -w / 2 + 0.5 && dx + _layerHalf[i] >= w / 2 - 0.5 && dy - _layerAbove[i] <= 0.5 && dy - _layerAbove[i] + layers[i].Height >= h - 0.5;
+            if (!covers) { _frostShiftedOff = true; SetFrostCovers(false, fade: true); }
+            else if (_frostShiftedOff) { _frostShiftedOff = false; SetFrostCovers(true, fade: true); }
+        }
         if (FrostLens.Effect is not GlassEffect lens || w < 2 || h < 2) return;
         double rr = Math.Min(Radius(h), Math.Min(w, h) / 2);
         double bend = Math.Max(6, Math.Min(h * 0.42, rr * 1.2 + 6)), push = bend * 0.9;

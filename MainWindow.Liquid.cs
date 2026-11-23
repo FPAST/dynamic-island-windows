@@ -305,6 +305,7 @@ public partial class MainWindow
                 Native.MoveTo(_hwnd, (int)Math.Round(_px.Value * dpi.DpiScaleX), (int)Math.Round(_py.Value * dpi.DpiScaleY));
             }
             else { Left = _px.Value; Top = _py.Value; }
+            if (FrostHost.IsVisible) { PlaceFrost(Island.ActualWidth, Island.ActualHeight); CaptureFrost(); }   // the glass's picture stays where it was taken
             if (!_dragging && _px.IsSettled && _py.IsSettled)
             {
                 _posActive = false;
