@@ -1,4 +1,7 @@
+using System.Windows.Controls;
 using System.Windows.Media.Effects;
+using System.Windows.Media.Media3D;
+using DynamicIsland.Views;
 
 namespace DynamicIsland;
 
@@ -6,7 +9,8 @@ namespace DynamicIsland;
 /// Liquid glass (the "Жидкое стекло" theme): the island is clear frosted glass over what's really behind it,
 /// and near its edge the glass acts like a lens — it bends the picture from just outside the rim inwards,
 /// and splits the colours a little (red bends more than blue), the way thick curved glass does.
-/// Done on the small screen grab the frosted glass already takes, so it costs next to nothing.
+/// The lens is a pixel shader (GlassEffect) on the glass's picture, before its blur; where the shader can't be
+/// compiled, Refract does the same on the CPU.
 /// </summary>
 public partial class MainWindow
 {
@@ -14,10 +18,42 @@ public partial class MainWindow
 
     private byte[]? _liquidPixels;
 
+    private GlassEffect? _lens;
+    private bool _lensTried;
+
     /// <summary>Lighter blur than plain frost: matte, yet you can tell what's behind and see it bend.</summary>
     private void ApplyLiquidBlur()
     {
-        if (Frost.Effect is BlurEffect b) b.Radius = LiquidGlass ? 6 : 36;
+        if (FrostBlur.Effect is BlurEffect b) b.Radius = LiquidGlass ? 6 : 36;
+        if (LiquidGlass && !_lensTried) { _lensTried = true; _lens = GlassEffect.TryCreate(); }
+        var lens = LiquidGlass ? _lens : null;
+        if (FrostLens.Effect == lens) return;
+        FrostLens.Effect = lens;
+        FrostLens.ClipToBounds = lens != null;   // the lens's picture is exactly the island and a band around it
+        PlaceFrost(Island.ActualWidth, Island.ActualHeight);
+    }
+
+    /// <summary>
+    /// The glass's picture under the island, and the lens over the island's current size: a band around the
+    /// island on every side (room for the picture's margin and the drip), the bend as wide as Refract's.
+    /// </summary>
+    private void PlaceFrost(double w, double h)
+    {
+        double band = FrostMargin + DripRoom;
+        Canvas.SetLeft(FrostLens, -band);
+        Canvas.SetTop(FrostLens, -band);
+        FrostLens.Width = Math.Max(1, w + 2 * band);
+        FrostLens.Height = Math.Max(1, h + 2 * band);
+        Canvas.SetLeft(Frost, band + w / 2 - _frostHalf);
+        Canvas.SetTop(Frost, band);
+        if (FrostLens.Effect is not GlassEffect lens || w < 2 || h < 2) return;
+        double rr = Math.Min(Radius(h), Math.Min(w, h) / 2);
+        double bend = Math.Max(6, Math.Min(h * 0.42, rr * 1.2 + 6)), push = bend * 0.9;
+        lens.Geometry = new Point4D(w + 2 * band, h + 2 * band, band, rr);
+        // pulled inwards (it reads from inside the glass), red a little further than blue, colours 25 % richer,
+        // and the light gathered in the rim: fitted to Refract's look (the shader's lens eases in more softly)
+        lens.Lens = new Point4D(bend * 1.3, -push * 0.8, -push * 0.2, 1.25);
+        lens.Light = new Point4D(0, 0, 0.5, 1);
     }
 
     /// <summary>

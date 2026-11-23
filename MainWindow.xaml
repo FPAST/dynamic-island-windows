@@ -75,11 +75,15 @@
         <!-- frosted glass: what's behind the island, blurred, clipped to its shape -->
         <Canvas x:Name="FrostHost" Visibility="Collapsed">
           <Canvas.CacheMode><BitmapCache/></Canvas.CacheMode>
-          <Image x:Name="Frost" Stretch="Fill">
-            <Image.Effect>
+          <Canvas x:Name="FrostBlur">
+            <Canvas.Effect>
               <BlurEffect Radius="36" KernelType="Gaussian" RenderingBias="Performance"/>
-            </Image.Effect>
-          </Image>
+            </Canvas.Effect>
+            <!-- liquid glass: the lens (GlassEffect) bends the picture along the rim, before the blur -->
+            <Canvas x:Name="FrostLens" Background="Transparent" ClipToBounds="True">
+              <Image x:Name="Frost" Stretch="Fill"/>
+            </Canvas>
+          </Canvas>
         </Canvas>
         <!-- your own photo (Settings > Appearance > Themes), under the tint -->
         <Canvas x:Name="PhotoHost" Visibility="Collapsed">

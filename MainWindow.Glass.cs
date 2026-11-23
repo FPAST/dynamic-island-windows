@@ -290,7 +290,7 @@ public partial class MainWindow
         }
         ApplyLiquidBlur();
         var shown = px;
-        if (LiquidGlass)
+        if (LiquidGlass && FrostLens.Effect == null)
         {
             double sb = w / (half * 2);   // DIP → grab pixels
             shown = Refract(px, w, h, (half - islandW / 2) * sb, islandW * sb, islandH * sb, Radius(islandH) * sb);
@@ -300,7 +300,7 @@ public partial class MainWindow
         _frostHeight = height;
         Frost.Width = half * 2;
         Frost.Height = height;
-        Canvas.SetLeft(Frost, Island.ActualWidth / 2 - half);
+        PlaceFrost(Island.ActualWidth, Island.ActualHeight);
         FrostHost.BeginAnimation(OpacityProperty, null);
         FrostHost.Opacity = 1;
         SetFrostCovers(true);
@@ -326,8 +326,7 @@ public partial class MainWindow
         Season.Height = Math.Max(1, Island.Height);
         PhotoImage.Width = Math.Max(1, width);
         PhotoImage.Height = Math.Max(1, Island.Height);
-        Canvas.SetLeft(Frost, width / 2 - _frostHalf);
-        Canvas.SetTop(Frost, 0);
+        PlaceFrost(width, Island.Height);
         AuraHost.Clip = g;
         AuraFill.Width = width;
         AuraFill.Height = Island.Height + 12;

@@ -2623,7 +2623,7 @@ public partial class MainWindow : Window
                 {
                     Settings.ReadOnly = true;
                     var dir = args.ElementAtOrDefault(r + 2) ?? System.IO.Path.GetTempPath();
-                    Island.IsHitTestVisible = false; _settings.ExpandOnHover = false;
+                    Island.IsHitTestVisible = false; _settings.ExpandOnHover = false; NoClickOutside = true;
                     _frostTestBackdrop = (w, h) =>
                     {
                         var px = new byte[w * h * 4];
@@ -2642,18 +2642,26 @@ public partial class MainWindow : Window
                     ApplyThemePreset(preset);
                     _settings.CaptureHidden = true; ApplyCaptureExclusion();
                     await Task.Delay(3000);
+                    // the lens is a ps_3_0 shader, which RenderTargetBitmap (software) leaves out: the pictures are taken
+                    // from the screen, the island visible to capture, over a window of test stripes ("cpu": Refract's look)
+                    if (args.ElementAtOrDefault(r + 3) == "cpu") { _lensTried = true; _lens = null; ApplyLiquidBlur(); }
+                    _settings.CaptureHidden = false; ApplyCaptureExclusion();
+                    var stripes = TestBackdrop(moving: false);
                     void Shot(string name)
                     {
-                        var rtb = new RenderTargetBitmap((int)Root.ActualWidth, (int)Root.ActualHeight, 96, 96, PixelFormats.Pbgra32);
-                        rtb.Render(Root);
-                        CaptureService.SavePng(rtb, System.IO.Path.Combine(dir, name + ".png"));
+                        var tl = Island.PointToScreen(new Point(-20, 0));
+                        var br = Island.PointToScreen(new Point(Island.ActualWidth + 20, Island.ActualHeight + 20));
+                        var rect = new System.Drawing.Rectangle((int)tl.X, (int)tl.Y, (int)(br.X - tl.X), (int)(br.Y - tl.Y));
+                        var px = CaptureService.CaptureSmall(rect, rect.Width, rect.Height, null)!;
+                        CaptureService.SavePng(BitmapSource.Create(rect.Width, rect.Height, 96, 96, PixelFormats.Bgr32, null, px, rect.Width * 4), System.IO.Path.Combine(dir, name + ".png"));
                     }
                     SetMode(Mode.Compact); await Task.Delay(2500); _frostSkips = 7; CaptureFrost(); await Task.Delay(300); Shot("liquid-compact");
                     TabMusic.IsChecked = true; _pinnedOpen = true; Expand(); await Task.Delay(2500); CaptureFrost(); await Task.Delay(300); Shot("liquid-open");
                     if (_liquidPixels != null && _frostBmp != null)
                         CaptureService.SavePng(BitmapSource.Create(_frostBmp.PixelWidth, _frostBmp.PixelHeight, 96, 96, PixelFormats.Bgr32, null, _liquidPixels, _frostBmp.PixelWidth * 4),
                                                System.IO.Path.Combine(dir, "liquid-bent-backdrop.png"));
-                    Log.Write($"liquidtest: liquid={LiquidGlass} frost covers={_frostCovers} blur={(Frost.Effect as System.Windows.Media.Effects.BlurEffect)?.Radius}");
+                    Log.Write($"liquidtest: liquid={LiquidGlass} frost covers={_frostCovers} blur={(FrostBlur.Effect as System.Windows.Media.Effects.BlurEffect)?.Radius}, lens on the GPU={FrostLens.Effect != null}");
+                    stripes.Close();
                     Application.Current.Shutdown();
                     return;
                 }
@@ -2768,6 +2776,8 @@ public partial class MainWindow : Window
                                   $"grabs {_frostGrabCount / (wall / 1000):0.0}/s at {(_frostGrabCount > 0 ? _frostGrabTicks * 1000.0 / System.Diagnostics.Stopwatch.Frequency / _frostGrabCount : 0):0.00} ms off the UI thread, " +
                                   $"new pictures {_frostShownCount / (wall / 1000):0.0}/s, mode {_mode}, covers={_frostCovers}, glass opacity {FrostHost.Opacity:0.00}");
                         Log.Write($"glassbench: {name}: " + TopCosts(_costs, (long)(wall / 1000 * System.Diagnostics.Stopwatch.Frequency), cpu / wall * 100 / Environment.ProcessorCount).Replace(Environment.NewLine, " | "));
+                        string Frost(string n) => _costs.TryGetValue(n, out var c) ? $"{n} {c.Ticks * 1000.0 / System.Diagnostics.Stopwatch.Frequency / (wall / 1000):0.00} ms/s, avg {c.Ticks * 1000.0 / System.Diagnostics.Stopwatch.Frequency / c.Calls:0.00} ms, max {c.Max * 1000.0 / System.Diagnostics.Stopwatch.Frequency:0.0} ms" : n + " -";
+                        Log.Write($"glassbench: {name}: UI thread: {Frost("frost")}; {Frost("frost grab")}; {Frost("frost show")}");
                     }
                     await Task.Delay(12000);
                     SetMode(Mode.Compact);
@@ -2789,22 +2799,7 @@ public partial class MainWindow : Window
                     Log.Write($"glassbench: open/fold x4: {gg.Count} frames, {1000 / Math.Max(1, gg.DefaultIfEmpty(0).Average()):0} fps avg, worst {gg.DefaultIfEmpty(0).Max():0} ms, slow (>20 ms) {gg.Count(x => x > 20) * 100.0 / Math.Max(1, gg.Count):0}%, new pictures {_frostShownCount}");
                     Log.Write($"glassbench: open/fold: " + TopCosts(_costs, System.Diagnostics.Stopwatch.Frequency * 7, 0).Replace(Environment.NewLine, " | "));
                     Log.Write("glassbench: Smoothness: " + PerfSummary());
-                    // a moving backdrop (stripes sliding under the island, like a video), under the island in z-order
-                    var stripes = new LinearGradientBrush { StartPoint = new Point(0, 0), EndPoint = new Point(80, 30), MappingMode = BrushMappingMode.Absolute, SpreadMethod = GradientSpreadMethod.Repeat };
-                    stripes.GradientStops.Add(new GradientStop(Color.FromRgb(0xFF, 0x5A, 0x5F), 0));
-                    stripes.GradientStops.Add(new GradientStop(Color.FromRgb(0x2E, 0x9B, 0xFF), 0.5));
-                    stripes.GradientStops.Add(new GradientStop(Color.FromRgb(0xFF, 0xB3, 0x40), 1));
-                    var slide = new TranslateTransform();
-                    stripes.Transform = slide;
-                    var tl0 = Island.PointToScreen(new Point(0, 0));
-                    var backdrop = new Window
-                    {
-                        WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, ShowInTaskbar = false, ShowActivated = false, Topmost = true,
-                        Left = tl0.X / Dpi - 150, Top = 0, Width = Island.ActualWidth * 1.2 + 300, Height = 420, Background = stripes,
-                    };
-                    backdrop.Show();
-                    Native.SetWindowPos(_hwnd, new IntPtr(-1), 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010);   // the island back on top
-                    slide.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(0, 160, TimeSpan.FromSeconds(2)) { RepeatBehavior = RepeatBehavior.Forever });
+                    var backdrop = TestBackdrop(moving: true);
                     await Phase("folded over motion", 20);
                     TabHome.IsChecked = true; _pinnedOpen = true; Expand();
                     await Phase("open over motion", 20);
@@ -3275,6 +3270,27 @@ public partial class MainWindow : Window
     }
 
     private bool _windowFitted;
+
+    /// <summary>Tests: a window of coloured stripes under the island (in z-order), still or sliding like a video.</summary>
+    private Window TestBackdrop(bool moving)
+    {
+        var stripes = new LinearGradientBrush { StartPoint = new Point(0, 0), EndPoint = new Point(80, 30), MappingMode = BrushMappingMode.Absolute, SpreadMethod = GradientSpreadMethod.Repeat };
+        stripes.GradientStops.Add(new GradientStop(Color.FromRgb(0xFF, 0x5A, 0x5F), 0));
+        stripes.GradientStops.Add(new GradientStop(Color.FromRgb(0x2E, 0x9B, 0xFF), 0.5));
+        stripes.GradientStops.Add(new GradientStop(Color.FromRgb(0xFF, 0xB3, 0x40), 1));
+        var slide = new TranslateTransform();
+        stripes.Transform = slide;
+        var screen = System.Windows.Forms.Screen.FromHandle(_hwnd).Bounds;
+        var w = new Window
+        {
+            WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, ShowInTaskbar = false, ShowActivated = false, Topmost = true,
+            Left = screen.Left / Dpi + screen.Width / Dpi / 2 - 600, Top = screen.Top / Dpi, Width = 1200, Height = 560, Background = stripes,
+        };
+        w.Show();
+        Native.SetWindowPos(_hwnd, new IntPtr(-1), 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010);   // the island back on top
+        if (moving) slide.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(0, 160, TimeSpan.FromSeconds(2)) { RepeatBehavior = RepeatBehavior.Forever });
+        return w;
+    }
 
     private static bool PerfNoResize;
 
