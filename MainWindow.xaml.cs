@@ -115,6 +115,7 @@ public partial class MainWindow : Window
 
     private async Task OnLoadedAsync(string[] args)
     {
+#if DEBUG   // tests, pictures and demo videos: not in the release build
         int snap = Array.IndexOf(args, "--snapshot");
         int promo = Array.IndexOf(args, "--promo");
         int review = Array.IndexOf(args, "--review");
@@ -122,6 +123,7 @@ public partial class MainWindow : Window
         int tiktok = Array.IndexOf(args, "--tiktok"), tiktokScreen = Array.IndexOf(args, "--tiktok-screen");
         if (snap >= 0 || promo >= 0 || review >= 0 || live >= 0 || tiktok >= 0 || tiktokScreen >= 0 || args.Contains("--cover")) BeginDemo();
         if (live >= 0) StartLiveDemo(args.ElementAtOrDefault(live + 1) ?? "demo-commands.txt");
+#endif
 
         // the last start never got as far as showing the island: light graphics before any glass or effect runs
         bool rescued = StartupGuard.PreviousFailed && _settings.LiteGraphics != true;
@@ -167,6 +169,7 @@ public partial class MainWindow : Window
                 System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         if (_settings.Hidden) HideIsland(animate: false);
 
+#if DEBUG   // tests, pictures and demo videos: not in the release build
         int i = Array.IndexOf(args, "--expand");
         if (i >= 0)
         {
@@ -184,7 +187,9 @@ public partial class MainWindow : Window
                 tab.IsChecked = true;
             }
         }
+#endif
 
+#if DEBUG   // tests, pictures and demo videos: not in the release build
         // --run <action> [seconds]: trigger a quick action (testing without touching the keyboard)
         int r = Array.IndexOf(args, "--run");
         if (r >= 0 && r + 1 < args.Length)
@@ -2893,7 +2898,9 @@ public partial class MainWindow : Window
                 }
             });
         }
+#endif
 
+#if DEBUG   // tests, pictures and demo videos: not in the release build
         if (snap >= 0)
             _ = RunSnapshotsAsync(snap + 1 < args.Length ? args[snap + 1] : System.IO.Path.Combine(AppContext.BaseDirectory, "snapshots"));
         if (review >= 0) _ = RunReviewAsync(args.ElementAtOrDefault(review + 1) ?? "review");
@@ -2903,6 +2910,7 @@ public partial class MainWindow : Window
         if (tiktokScreen >= 0) _ = RunTikTokAsync(args.ElementAtOrDefault(tiktokScreen + 1) ?? "tiktok", screen: true);
         if (promo >= 0)
             _ = RunPromoAsync(args.ElementAtOrDefault(promo + 1) ?? "promo", args.ElementAtOrDefault(promo + 2) ?? "ru");
+#endif
 
         await SafelyAsync("media", InitMediaAsync);
         await SafelyAsync("weather", InitWeatherAsync);

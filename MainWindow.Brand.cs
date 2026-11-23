@@ -1,3 +1,4 @@
+#if DEBUG   // demo videos and pictures: not in the release build
 using System.Globalization;
 using System.IO;
 using System.Windows;
@@ -185,3 +186,4 @@ public partial class MainWindow
         Application.Current.Shutdown();
     }
 }
+#endif

@@ -1,3 +1,4 @@
+#if DEBUG   // demo videos and pictures: not in the release build
 using System.IO;
 using System.Text.Json;
 using System.Windows;
@@ -350,3 +351,4 @@ public partial class MainWindow
         await At(57.6);
     }
 }
+#endif
