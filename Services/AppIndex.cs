@@ -30,7 +30,10 @@ public sealed class AppIndex
         {
             try
             {
-                foreach (var f in Directory.EnumerateFiles(root, "*.lnk", SearchOption.AllDirectories))
+                // the localised folder names ("Программы") are junctions nobody may list: walking into one ended the
+                // whole scan, quietly, so some programs were never found
+                var walk = new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true, AttributesToSkip = FileAttributes.ReparsePoint };
+                foreach (var f in Directory.EnumerateFiles(root, "*.lnk", walk))
                 {
                     var name = System.IO.Path.GetFileNameWithoutExtension(f);
                     if (name.Contains("uninstall", StringComparison.OrdinalIgnoreCase) ||
