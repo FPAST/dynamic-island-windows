@@ -21,6 +21,13 @@ public partial class MainWindow
 
     private readonly DispatcherTimer _frostTimer = new() { Interval = TimeSpan.FromMilliseconds(700) };
     private const double FrostMargin = 28;      // a little of the screen around the island, for the blur to pull in
+
+    /// <summary>
+    /// How far the bottom edge can drip below the island with the music (LiquidGeometry: up to 10.2 × the waves'
+    /// strength). The glass's picture reaches that much lower: cut at the island's own bottom, its blur faded to
+    /// 0.81 at the tip of a drip and the dripping part looked thinner than the rest.
+    /// </summary>
+    private double DripRoom => Liquid && _settings.MusicWaves && !_settings.Docked ? Math.Ceiling(10.2 * LiquidK) : 0;
     private double _frostHalf = 200, _frostHeight = 80;
     private WriteableBitmap? _frostBmp;
     private byte[]? _frostPixels;
@@ -188,7 +195,7 @@ public partial class MainWindow
     {
         if (!IslandGlass || Lite || !FrostCanGrab || _hidden || _fullscreenHidden || !IsLoaded || !Island.IsVisible || _dragging || _posActive) return false;
         double iw = Math.Max(coming.Width, Island.ActualWidth), ih = Math.Max(coming.Height, Island.ActualHeight);
-        if (_frostCovers && iw / 2 + FrostMargin <= _frostHalf + 0.5 && ih + FrostMargin <= _frostHeight + 0.5) return true;   // already big enough
+        if (_frostCovers && iw / 2 + FrostMargin <= _frostHalf + 0.5 && ih + FrostMargin + DripRoom <= _frostHeight + 0.5) return true;   // already big enough
         // waits briefly for the picture: opening without it would show the island solid (grey) for a moment
         return GrabFrost(iw, ih, waitMs: 40);
     }
@@ -210,7 +217,7 @@ public partial class MainWindow
         {
             // only the island and a thin margin, at a quarter of the resolution (it is blurred anyway),
             // into one reused bitmap - no new image (and no garbage) every time
-            double half = islandW / 2 + FrostMargin, height = islandH + FrostMargin;
+            double half = islandW / 2 + FrostMargin, height = islandH + FrostMargin + DripRoom;
             var top = Island.PointToScreen(new Point(Island.ActualWidth / 2, 0));
             double dpi = Dpi;
             double k = dpi * UiScale;
