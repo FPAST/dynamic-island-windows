@@ -24,18 +24,27 @@ public static class ClaudeHooks
     // Claude Code / Codex (outside the package) would not find the script there
     internal static string ScriptPath => Path.Combine(Path.GetDirectoryName(ClaudeBridge.TokenPath)!, Marker);
 
-    /// <summary>A hooks file whose entries already run the script from ScriptPath (JSON escapes the backslashes).</summary>
-    internal static bool PointsHere(string json) =>
-        json.Replace(@"\\", @"\").Contains(ScriptPath, StringComparison.OrdinalIgnoreCase);
+    /// <summary>
+    /// The hooks run Atoll itself (DynamicIsland.exe --hook): no hidden PowerShell, which antivirus programs
+    /// complained about, and about 0.3 s instead of 1.6 s per event. The Store version keeps the script: its exe in
+    /// WindowsApps can't be started from outside the package.
+    /// </summary>
+    private static bool UseExe => !AppPackage.IsPackaged && Environment.ProcessPath is { } p && p.EndsWith("DynamicIsland.exe", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>The command a hook for this event runs.</summary>
+    internal static string HookCommand(string evt, bool codex = false) => UseExe
+        ? $"\"{Environment.ProcessPath}\" --hook {evt}{(codex ? " --src codex" : "")}"
+        : $"powershell -NoProfile -ExecutionPolicy Bypass -File \"{ScriptPath}\" {evt}{(codex ? " codex" : "")}";
+
+    /// <summary>One of the island's hook entries: the script (up to 2.0.0) or the exe.</summary>
+    internal static bool IsOurs(string? text) => text != null &&
+        (text.Contains(Marker, StringComparison.OrdinalIgnoreCase) || text.Contains("DynamicIsland.exe", StringComparison.OrdinalIgnoreCase) && text.Contains("--hook", StringComparison.Ordinal));
 
     public static bool IsInstalled
     {
         get
         {
-            try
-            {
-                return File.Exists(SettingsPath) && File.ReadAllText(SettingsPath).Contains(Marker);
-            }
+            try { return File.Exists(SettingsPath) && IsOurs(File.ReadAllText(SettingsPath)); }
             catch { return false; }
         }
     }
@@ -47,22 +56,27 @@ public static class ClaudeHooks
         if (!claude && !codex) return;
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(ScriptPath)!);
-            File.Copy(Path.Combine(AppContext.BaseDirectory, "Assets", Marker), ScriptPath, overwrite: true);
-            // hooks set up before 1.8.1 run the script from %LOCALAPPDATA%: point them at the new copy
-            if (claude && !PointsHere(File.ReadAllText(SettingsPath))) { Install(); Log.Write("claude hooks: moved to " + ScriptPath); }
-            // hooks set up before 2.0 have no PostToolUse: add it, so the island can show Claude's plan
-            else if (claude && !HasPlanHook()) { Install(); Log.Write("claude hooks: added PostToolUse for the task list"); }
-            if (codex && !CodexHooks.PointsHere()) { CodexHooks.Install(); Log.Write("codex hooks: moved to " + ScriptPath); }
+            if (!UseExe)
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(ScriptPath)!);
+                File.Copy(Path.Combine(AppContext.BaseDirectory, "Assets", Marker), ScriptPath, overwrite: true);
+            }
+            // hooks that run the script (up to 2.0.0) or another copy of Atoll: point them at this one; hooks set up
+            // before 2.0 have no PostToolUse, so the island can't show Claude's plan: add it
+            if (claude && (InstalledCommand("Stop") != HookCommand("Stop") || !HasPlanHook())) { Install(); Log.Write("claude hooks: now " + HookCommand("<event>")); }
+            if (codex && CodexHooks.InstalledCommand() != HookCommand("Stop", codex: true)) { CodexHooks.Install(); Log.Write("codex hooks: now " + HookCommand("<event>", codex: true)); }
         }
         catch (Exception e) { Log.Write("claude hooks: refresh failed: " + e.Message); }
     }
 
     public static void Install()
     {
-        // stable copy of the script, independent of where the app is built
-        Directory.CreateDirectory(Path.GetDirectoryName(ScriptPath)!);
-        File.Copy(Path.Combine(AppContext.BaseDirectory, "Assets", Marker), ScriptPath, overwrite: true);
+        if (!UseExe)
+        {
+            // stable copy of the script, independent of where the app is built
+            Directory.CreateDirectory(Path.GetDirectoryName(ScriptPath)!);
+            File.Copy(Path.Combine(AppContext.BaseDirectory, "Assets", Marker), ScriptPath, overwrite: true);
+        }
 
         var root = Load();
         var hooks = root["hooks"] as JsonObject ?? new JsonObject();
@@ -76,7 +90,7 @@ public static class ClaudeHooks
             var hook = new JsonObject
             {
                 ["type"] = "command",
-                ["command"] = $"powershell -NoProfile -ExecutionPolicy Bypass -File \"{ScriptPath}\" {evt}",
+                ["command"] = HookCommand(evt),
                 ["timeout"] = evt == "PermissionRequest" ? 120 : 10,
             };
             var entry = new JsonObject();
@@ -94,7 +108,7 @@ public static class ClaudeHooks
     internal static string? OurCommand(JsonArray? list, string key) =>
         list?.SelectMany(e => (e?["hooks"] as JsonArray) ?? [])
             .Select(h => h?[key] is JsonValue v && v.TryGetValue<string>(out var c) ? c : null)
-            .FirstOrDefault(c => c != null && c.Contains(Marker, StringComparison.OrdinalIgnoreCase));
+            .FirstOrDefault(IsOurs);
 
     /// <summary>
     /// Git Bash, which Claude Code on Windows runs its hooks with (CLAUDE_CODE_GIT_BASH_PATH, or next to git.exe);
@@ -161,7 +175,7 @@ public static class ClaudeHooks
 
     private static bool HasPlanHook()
     {
-        try { return Load()["hooks"] is JsonObject h && h["PostToolUse"]?.ToJsonString().Contains(Marker) == true; }
+        try { return Load()["hooks"] is JsonObject h && IsOurs(h["PostToolUse"]?.ToJsonString()); }
         catch (Exception e) { Log.Write("claude hooks: read: " + e.Message); return true; }
     }
 
@@ -183,7 +197,7 @@ public static class ClaudeHooks
     private static void RemoveOurs(JsonArray list)
     {
         for (int i = list.Count - 1; i >= 0; i--)
-            if (list[i]?.ToJsonString().Contains(Marker) == true)
+            if (IsOurs(list[i]?.ToJsonString()))
                 list.RemoveAt(i);
     }
 

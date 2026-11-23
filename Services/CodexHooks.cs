@@ -20,8 +20,6 @@ public static class CodexHooks
 
     private static string ScriptPath => ClaudeHooks.ScriptPath;
 
-    internal static bool PointsHere() => File.Exists(HooksPath) && ClaudeHooks.PointsHere(File.ReadAllText(HooksPath));
-
     /// <summary>Codex is (or was) used on this computer.</summary>
     public static bool CodexFound => Directory.Exists(Path.GetDirectoryName(HooksPath));
 
@@ -29,7 +27,7 @@ public static class CodexHooks
     {
         get
         {
-            try { return File.Exists(HooksPath) && File.ReadAllText(HooksPath).Contains(Marker); }
+            try { return File.Exists(HooksPath) && ClaudeHooks.IsOurs(File.ReadAllText(HooksPath)); }
             catch { return false; }
         }
     }
@@ -43,8 +41,11 @@ public static class CodexHooks
 
     public static void Install()
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(ScriptPath)!);
-        File.Copy(Path.Combine(AppContext.BaseDirectory, "Assets", Marker), ScriptPath, overwrite: true);
+        if (!ClaudeHooks.HookCommand("Stop").Contains("--hook"))
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(ScriptPath)!);
+            File.Copy(Path.Combine(AppContext.BaseDirectory, "Assets", Marker), ScriptPath, overwrite: true);
+        }
 
         var root = Load();
         var hooks = root["hooks"] as JsonObject ?? new JsonObject();
@@ -54,7 +55,7 @@ public static class CodexHooks
             var list = hooks[evt] as JsonArray ?? new JsonArray();
             hooks[evt] = list;
             RemoveOurs(list);
-            var command = $"powershell -NoProfile -ExecutionPolicy Bypass -File \"{ScriptPath}\" {evt} codex";
+            var command = ClaudeHooks.HookCommand(evt, codex: true);
             list.Add(new JsonObject
             {
                 ["hooks"] = new JsonArray
@@ -91,7 +92,7 @@ public static class CodexHooks
     private static void RemoveOurs(JsonArray list)
     {
         for (int i = list.Count - 1; i >= 0; i--)
-            if (list[i]?.ToJsonString().Contains(Marker) == true)
+            if (ClaudeHooks.IsOurs(list[i]?.ToJsonString()))
                 list.RemoveAt(i);
     }
 

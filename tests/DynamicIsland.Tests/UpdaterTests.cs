@@ -77,3 +77,16 @@ public class ClaudeBridgeTests
     [Fact] public void OnlyFromThisComputer() => Assert.False(Trusted(local: false));
     [Fact] public void OnlyWithTheSecret() { Assert.False(Trusted(token: "")); Assert.False(Trusted(token: new string('B', 64))); Assert.False(Trusted(token: Good[..63])); }
 }
+
+public class HookEntryTests
+{
+    [Theory]
+    [InlineData(@"powershell -NoProfile -ExecutionPolicy Bypass -File ""C:\Users\a\.atoll\claude-hook.ps1"" Stop", true)]
+    [InlineData(@"""C:\Users\a\AppData\Local\Programs\DynamicIsland\DynamicIsland.exe"" --hook Stop", true)]
+    [InlineData(@"""C:\Program Files\Some\other.exe"" --hook Stop", false)]
+    [InlineData(@"""C:\x\DynamicIsland.exe"" --safe", false)]
+    [InlineData("npx prettier --write", false)]
+    [InlineData(null, false)]
+    public void OnlyTheIslandsOwnHooksAreRecognised(string? command, bool ours) =>
+        Assert.Equal(ours, DynamicIsland.Services.ClaudeHooks.IsOurs(command));
+}
