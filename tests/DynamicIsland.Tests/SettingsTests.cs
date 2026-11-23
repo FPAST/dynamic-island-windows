@@ -74,4 +74,44 @@ public class SettingsTests : IDisposable
         Assert.Equal("Lviv", back.City);
     }
 
+    [Fact]
+    public void APlainGeminiKeyIsEncryptedOnLoad()
+    {
+        const string key = "AIzaPlainTextKey1234567890";
+        File.WriteAllText(Settings.FilePath, $$"""{ "City": "Rivne", "GeminiVoiceApiKey": "{{key}}" }""");
+        var s = Settings.Load();
+        Assert.Equal(key, s.GeminiVoiceApiKey);
+        var file = File.ReadAllText(Settings.FilePath);
+        Assert.DoesNotContain(key, file);
+        Assert.DoesNotContain("\"GeminiVoiceApiKey\"", file);
+        Assert.Contains("GeminiVoiceApiKeySealed", file);
+        Assert.Equal("Rivne", Settings.Load().City);
+        Assert.Equal(key, Settings.Load().GeminiVoiceApiKey);
+    }
+
+    [Fact]
+    public void TheKeyNeverReachesTheLog()
+    {
+        const string key = "AIzaLogSecret9876543210";
+        var s = new Settings { GeminiVoiceApiKey = key };
+        Assert.NotEqual("", s.GeminiVoiceApiKeySealed);
+        Assert.DoesNotContain(key, s.GeminiVoiceApiKeySealed);
+        var was = Log.FilePath;
+        Log.FilePath = Path.Combine(_dir, "log.txt");
+        try
+        {
+            Log.Write("test: a message with " + key + " inside");
+            var text = File.ReadAllText(Log.FilePath);
+            Assert.Contains("<key>", text);
+            Assert.DoesNotContain(key, text);
+        }
+        finally { Log.FilePath = was; }
+    }
+
+    [Fact]
+    public void AKeySealedElsewhereIsDroppedNotThrown()
+    {
+        File.WriteAllText(Settings.FilePath, """{ "GeminiVoiceApiKeySealed": "bm90IGEgcmVhbCBzZWFsZWQga2V5" }""");
+        Assert.Equal("", Settings.Load().GeminiVoiceApiKey);
+    }
 }

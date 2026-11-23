@@ -1,6 +1,9 @@
 using System.IO;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 
 namespace DynamicIsland.Services;
 
@@ -244,7 +247,49 @@ public sealed class Settings
 
     // chat
     public string ChatProvider { get; set; } = "gemini";
-    public string GeminiVoiceApiKey { get; set; } = "";
+    private string _geminiKey = "", _geminiKeySealed = "";
+
+    /// <summary>The Gemini key itself: kept in memory only, never written as text (see <see cref="GeminiVoiceApiKeySealed"/>).</summary>
+    [JsonIgnore]
+    public string GeminiVoiceApiKey
+    {
+        get => _geminiKey;
+        set
+        {
+            value ??= "";
+            if (value == _geminiKey) return;
+            _geminiKey = value;
+            _geminiKeySealed = Seal(value);
+            Log.Hide(value);
+        }
+    }
+
+    /// <summary>The Gemini key as written to the file: encrypted for this Windows user (DPAPI), base64.</summary>
+    public string GeminiVoiceApiKeySealed
+    {
+        get => _geminiKeySealed;
+        set
+        {
+            _geminiKeySealed = value ?? "";
+            _geminiKey = Unseal(_geminiKeySealed);
+            Log.Hide(_geminiKey);
+        }
+    }
+
+    private static string Seal(string text) => text.Length == 0 ? ""
+        : Convert.ToBase64String(ProtectedData.Protect(Encoding.UTF8.GetBytes(text), null, DataProtectionScope.CurrentUser));
+
+    private static string Unseal(string sealedText)
+    {
+        if (sealedText.Length == 0) return "";
+        try { return Encoding.UTF8.GetString(ProtectedData.Unprotect(Convert.FromBase64String(sealedText), null, DataProtectionScope.CurrentUser)); }
+        catch (Exception ex)
+        {
+            // another Windows user's or another PC's file: the key has to be entered again
+            Log.Write("settings: the Gemini key can't be decrypted (" + ex.GetType().Name + ")");
+            return "";
+        }
+    }
     /// <summary>Desktop widgets that are on, and where each one sits (left, top in DIPs).</summary>
     public List<string> DesktopWidgets { get; set; } = [];
     public Dictionary<string, double[]> WidgetPlaces { get; set; } = [];
@@ -298,14 +343,27 @@ public sealed class Settings
         Settings s;
         bool existed = File.Exists(FilePath);
         FirstRun = !existed;
+        string? plainKey = null;
         try
         {
-            s = existed ? JsonSerializer.Deserialize<Settings>(File.ReadAllText(FilePath)) ?? new Settings() : new Settings();
+            if (existed)
+            {
+                var text = File.ReadAllText(FilePath);
+                s = JsonSerializer.Deserialize<Settings>(text) ?? new Settings();
+                // up to 2.0.0 the Gemini key was written as plain text
+                plainKey = (JsonNode.Parse(text) as JsonObject)?["GeminiVoiceApiKey"]?.GetValue<string>();
+            }
+            else s = new Settings();
         }
         catch (Exception ex)
         {
             Log.Write("settings: unreadable, starting fresh (" + ex.GetType().Name + ")");
             s = new Settings();
+        }
+        if (!string.IsNullOrEmpty(plainKey))
+        {
+            if (s.GeminiVoiceApiKey.Length == 0) s.GeminiVoiceApiKey = plainKey;
+            s.Save();   // written again without the plain key
         }
 
         if (existed) s.Onboarded = true;   // people who already use it never get the welcome steps
