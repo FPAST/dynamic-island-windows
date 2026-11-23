@@ -21,6 +21,49 @@ public class KaraokeViewRenderTests
         if (error != null) throw error;
     }
 
+    [Fact]
+    public void TheSameWordsAgainStartTheLightOver()
+    {
+        Exception? error = null;
+        var t = new Thread(() =>
+        {
+            try
+            {
+                var view = new KaraokeView { MaxLineWidth = 2000 };
+                view.Resources["Fg"] = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.White);
+                view.Resources["Accent"] = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.White);
+                view.SetLine("Hey, hey, hey", TimeSpan.Zero, TimeSpan.FromSeconds(3));
+                view.SetLine("Hey, hey, hey", TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(6));   // the line again, 3 s later
+                Thread.Sleep(1000);
+                view.Sync(TimeSpan.FromSeconds(3), playing: false);   // the second one has just begun: nothing is lit
+                Assert.True(Brightest(view, fromShare: 0.3) < 150, "the repeated line came up already lit (the light did not start over)");
+            }
+            catch (Exception e) { error = e; }
+        });
+        t.SetApartmentState(ApartmentState.STA);
+        t.Start();
+        t.Join();
+        if (error != null) throw error;
+    }
+
+    /// <summary>The brightest ink right of a share of the view's width (the light's soft edge sits at the very start).</summary>
+    private static int Brightest(KaraokeView view, double fromShare)
+    {
+        view.Measure(new System.Windows.Size(2000, 20));
+        view.Arrange(new System.Windows.Rect(view.DesiredSize));
+        int w = (int)Math.Ceiling(view.ActualWidth), h = 20;
+        var host = new System.Windows.Controls.Border { Background = System.Windows.Media.Brushes.Black, Child = view };
+        host.Measure(new System.Windows.Size(w, h)); host.Arrange(new System.Windows.Rect(0, 0, w, h));
+        var bmp = new System.Windows.Media.Imaging.RenderTargetBitmap(w, h, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+        bmp.Render(host);
+        var px = new byte[w * h * 4];
+        bmp.CopyPixels(px, w * 4, 0);
+        int m = 0;
+        for (int y = 0; y < h; y++)
+            for (int x = (int)(w * fromShare); x < w; x++) m = Math.Max(m, px[(y * w + x) * 4 + 2]);
+        return m;
+    }
+
     private static void Check(string text)
     {
         var view = new KaraokeView { MaxLineWidth = 2000 };

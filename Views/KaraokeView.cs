@@ -47,7 +47,8 @@ public sealed class KaraokeView : FrameworkElement
     /// <summary>A new line starts: its words, when it starts in the song and when the next one does.</summary>
     public void SetLine(string text, TimeSpan start, TimeSpan next)
     {
-        if (text == _text) return;
+        // the same words again (a repeated "Hey!", a chorus line twice) are a new line all the same: the light starts over
+        if (text == _text && start == _start) return;
         _old = _line; _oldScale = _scale;
         _text = text;
         _line = Format(text, out _scale);
