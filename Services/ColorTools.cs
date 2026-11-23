@@ -74,8 +74,11 @@ public static class AudioMatch
         if (exe == proc || exe.EndsWith("\\" + proc) || exe.EndsWith("/" + proc)) return 90;
         // a hash (Firefox and its forks name their media sessions after their install path's hash)
         if (exe.Length >= 12 && exe.All(Uri.IsHexDigit)) return proc is "firefox" or "librewolf" or "waterfox" or "zen" or "floorp" ? 40 : 0;
+        // the Yandex Music app reports "ru.yandex.desktop.music" from "Яндекс Музыка.exe"
+        if (id.Contains("yandex") && id.Contains("music") && (proc.Contains("яндекс") || proc.Replace(" ", "").Contains("yandexmusic"))) return 80;
+        // words any player could have would match the wrong app ("desktop" GitHub Desktop, "music" YouTube Music Desktop)
         var tokens = exe.Split(['.', '_', '!', ' ', '-', '\\', '/'], StringSplitOptions.RemoveEmptyEntries)
-                        .Where(t => t.Length >= 4 && t != "microsoft" && t != "app" && !t.All(Uri.IsHexDigit));
+                        .Where(t => t.Length >= 4 && t is not ("microsoft" or "app" or "desktop" or "music" or "player" or "media") && !t.All(Uri.IsHexDigit));
         return tokens.Any(t => proc.Contains(t) || t.Contains(proc)) ? 60 : 0;
     }
 }

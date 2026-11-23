@@ -95,7 +95,7 @@ public sealed class MediaService
                 {
                     var l = _legacy;
                     return l == null ? null
-                        : new MediaSnapshot(l.Title, l.Artist, l.App, l.App, null, l.Playing,
+                        : new MediaSnapshot(l.Title, l.Artist, L.T(l.App), l.App, null, l.Playing,
                             TimeSpan.Zero, default, TimeSpan.Zero);
                 }
                 return new MediaSnapshot(_title, _artist, _source, _appId, _art, _playing, _position, _positionAt, _duration) { Album = _album };
@@ -382,11 +382,14 @@ public sealed class MediaService
     /// <summary>The session of Atoll's own player (radio, files).</summary>
     public static bool IsOwn(string aumid) => aumid.Contains("DynamicIsland", StringComparison.OrdinalIgnoreCase);
 
-    private static string PrettyAppName(string aumid)
+    public static string PrettyAppName(string aumid)
     {
         if (string.IsNullOrEmpty(aumid)) return "";
         if (aumid.StartsWith("msedgewebview2", StringComparison.OrdinalIgnoreCase) && WebPlayerName.Length > 0) return WebPlayerName;
         if (IsOwn(aumid)) return "Atoll";
+        // the Yandex Music app ("ru.yandex.desktop.music") and its old Store version ("A025C540.Yandex.Music_…!App")
+        if (aumid.Contains("yandex", StringComparison.OrdinalIgnoreCase) && aumid.Contains("music", StringComparison.OrdinalIgnoreCase))
+            return L.T("Яндекс Музыка");
         // installed web apps: "Chrome._crx_<id>", "MSEdge._crx_<id>"
         var crx = aumid.IndexOf("._crx_", StringComparison.OrdinalIgnoreCase);
         if (crx > 0) return (aumid[..crx].Equals("MSEdge", StringComparison.OrdinalIgnoreCase) ? "Edge" : aumid[..crx]) + L.T(" · веб-приложение");
