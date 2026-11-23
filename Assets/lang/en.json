@@ -1098,5 +1098,7 @@
  "Уведомления": "Notifications",
  "Показать все": "Show all",
  "Очистить все": "Clear all",
- "Время вышло: 25:00": "Time is up: 25:00"
+ "Время вышло: 25:00": "Time is up: 25:00",
+ "Командная строка клавишами": "Command bar shortcut",
+ "Если Alt+Space занят другой программой, работает Ctrl+Alt+Space.": "If another program owns Alt+Space, Ctrl+Alt+Space works."
 }

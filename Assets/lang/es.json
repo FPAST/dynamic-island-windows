@@ -1098,5 +1098,7 @@
  "Уведомления": "Notificaciones",
  "Показать все": "Mostrar todo",
  "Очистить все": "Borrar todo",
- "Время вышло: 25:00": "Se acabó el tiempo: 25:00"
+ "Время вышло: 25:00": "Se acabó el tiempo: 25:00",
+ "Командная строка клавишами": "Atajo de la barra de comandos",
+ "Если Alt+Space занят другой программой, работает Ctrl+Alt+Space.": "Si otro programa usa Alt+Espacio, funciona Ctrl+Alt+Espacio."
 }

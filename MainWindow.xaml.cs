@@ -2776,12 +2776,36 @@ public partial class MainWindow : Window
         foreach (var (id, vk, name) in new[] { (1, 0x49u, "I"), (2, 0x54u, "T"), (3, 0x53u, "S"), (4, 0x52u, "R") })
             if (!Native.RegisterHotKey(_hwnd, id, mods, vk))
                 Log.Write($"Ctrl+Alt+{name} is taken by another program");
-        // command bar: Alt+Space, and Ctrl+Alt+Space in case another launcher already owns Alt+Space
-        if (!Native.RegisterHotKey(_hwnd, 5, Native.MOD_ALT | Native.MOD_NOREPEAT, 0x20))
-            Log.Write("Alt+Space is taken by another program (use Ctrl+Alt+Space)");
-        Native.RegisterHotKey(_hwnd, 6, mods, 0x20);
+        RegisterCommandHotkey();
         RegisterOpenHotkey();
     }
+
+    // ---------------------------------------------------------------- the command bar's shortcut
+
+    public static readonly (string Name, uint Mods, uint Vk)[] CommandHotkeys =
+    [
+        ("Alt+Space", Native.MOD_ALT, 0x20),
+        ("Ctrl+Alt+Space", Native.MOD_CONTROL | Native.MOD_ALT, 0x20),
+        ("Ctrl+Shift+Space", Native.MOD_CONTROL | 0x4, 0x20),
+    ];
+
+    /// <summary>
+    /// Registers the command bar's shortcut; false when another program already owns it. Alt+Space (the default)
+    /// also takes Ctrl+Alt+Space, as before 2.0.1, in case another launcher already owns Alt+Space.
+    /// </summary>
+    private bool RegisterCommandHotkey()
+    {
+        if (_hwnd == IntPtr.Zero) return true;
+        Native.UnregisterHotKey(_hwnd, 5);
+        Native.UnregisterHotKey(_hwnd, 6);
+        var hk = CommandHotkeys.FirstOrDefault(h => h.Name == _settings.CommandHotkey);
+        if (hk.Name == null) return true;   // off
+        bool ok = Native.RegisterHotKey(_hwnd, 5, hk.Mods | Native.MOD_NOREPEAT, hk.Vk);
+        if (!ok) Log.Write($"{hk.Name} is taken by another program");
+        if (hk.Name == "Alt+Space") ok |= Native.RegisterHotKey(_hwnd, 6, Native.MOD_CONTROL | Native.MOD_ALT | Native.MOD_NOREPEAT, 0x20);
+        return ok;
+    }
+
 
     // ---------------------------------------------------------------- open / fold the island from the keyboard
 

@@ -203,6 +203,13 @@ public partial class MainWindow
         }
         OpenHotkeyBox.SelectedIndex = Math.Max(0, Array.FindIndex(OpenHotkeys, h => h.Name == _settings.OpenHotkey) is int i && i >= 0 ? i : OpenHotkeys.Length);
         OpenHotkeyStatus.Text = L.T("Ещё раз — свернуть. Esc или клик мимо — тоже.");
+        if (CommandHotkeyBox.Items.Count == 0)
+        {
+            foreach (var h in CommandHotkeys) CommandHotkeyBox.Items.Add(h.Name);
+            CommandHotkeyBox.Items.Add(L.T("Выключено"));
+        }
+        CommandHotkeyBox.SelectedIndex = Array.FindIndex(CommandHotkeys, h => h.Name == _settings.CommandHotkey) is int ci && ci >= 0 ? ci : CommandHotkeys.Length;
+        CommandHotkeyStatus.Text = CommandHotkeyHint();
         DonateButton.Visibility = DonateUrl.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         RefreshFpsAccess();
         KaraokeSwitch.IsChecked = _settings.Karaoke;
@@ -368,7 +375,23 @@ public partial class MainWindow
             : L.T("Это сочетание уже занято другой программой — выберите другое.");
     }
 
+    private string CommandHotkeyHint() => _settings.CommandHotkey == "Alt+Space"
+        ? L.T("Если Alt+Space занят другой программой, работает Ctrl+Alt+Space.") : "";
+
+
+    private void CommandHotkey_Changed(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (_settingsLoading || CommandHotkeyBox.SelectedIndex < 0) return;
+        int i = CommandHotkeyBox.SelectedIndex;
+        _settings.CommandHotkey = i < CommandHotkeys.Length ? CommandHotkeys[i].Name : "";
+        _settings.Save();
+        CommandHotkeyStatus.Text = RegisterCommandHotkey()
+            ? CommandHotkeyHint()
+            : L.T("Это сочетание уже занято другой программой — выберите другое.");
+    }
+
     private void LiquidSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+
     {
         if (_settingsLoading || !IsLoaded) return;
         _settings.LiquidStrength = (int)Math.Round(LiquidSlider.Value);

@@ -1187,6 +1187,15 @@
                         <TextBlock x:Name="OpenHotkeyStatus" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,2,0,0"/>
                       </StackPanel>
                     </DockPanel>
+                    <DockPanel Margin="0,0,0,10">
+                      <ComboBox x:Name="CommandHotkeyBox" DockPanel.Dock="Right" Style="{StaticResource SoftCombo}" Width="200"
+                                SelectionChanged="CommandHotkey_Changed"/>
+                      <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="Командная строка клавишами" FontSize="13"/>
+                        <TextBlock x:Name="CommandHotkeyStatus" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                      </StackPanel>
+                    </DockPanel>
+
                     <CheckBox x:Name="LiteSwitch" Style="{StaticResource Switch}" Click="Lite_Click" ToolTip="Без стекла, свечения и эффектов: заметно меньше нагрузка" Content="Облегчённая графика для слабых ПК"/>
                     <v:CopyButton x:Name="PerfReportButton" Style="{StaticResource GhostPill}" HorizontalAlignment="Left" Padding="12,6" Margin="0,0,0,10"
                             Click="CopyPerfReport_Click" ToolTip="Если остров дёргается — отправьте этот отчёт разработчику"/>

@@ -1098,5 +1098,7 @@
  "Уведомления": "Mitteilungen",
  "Показать все": "Alle anzeigen",
  "Очистить все": "Alle löschen",
- "Время вышло: 25:00": "Zeit ist um: 25:00"
+ "Время вышло: 25:00": "Zeit ist um: 25:00",
+ "Командная строка клавишами": "Befehlszeile per Tastenkürzel",
+ "Если Alt+Space занят другой программой, работает Ctrl+Alt+Space.": "Ist Alt+Leertaste von einem anderen Programm belegt, funktioniert Strg+Alt+Leertaste."
 }

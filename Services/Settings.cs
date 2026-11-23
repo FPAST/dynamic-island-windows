@@ -133,6 +133,9 @@ public sealed class Settings
     public List<string> HideInApps { get; set; } = [];
     /// <summary>Shortcut that opens / folds the island: "Ctrl+Alt+O", "Ctrl+Alt+A", "Alt+Q", "Ctrl+Shift+Space" or "" (off).</summary>
     public string OpenHotkey { get; set; } = "Ctrl+Alt+O";
+    /// <summary>Shortcut of the command bar: "Alt+Space" (with Ctrl+Alt+Space), "Ctrl+Alt+Space", "Ctrl+Shift+Space" or "" (off).</summary>
+    public string CommandHotkey { get; set; } = "Alt+Space";
+
     /// <summary>Tracks liked with the heart on the music page ("Artist — Title"), newest first.</summary>
     public List<string> LikedTracks { get; set; } = [];
     /// <summary>Light graphics for weak PCs: no frosted glass, glow, colour split or bulge. Null = decide by the hardware.</summary>
