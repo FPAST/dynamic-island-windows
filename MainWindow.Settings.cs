@@ -374,15 +374,26 @@ public partial class MainWindow
     {
         if (_settingsLoading || OpenHotkeyBox.SelectedIndex < 0) return;
         int i = OpenHotkeyBox.SelectedIndex;
-        _settings.OpenHotkey = i < OpenHotkeys.Length ? OpenHotkeys[i].Name : "";
+        var chosen = i < OpenHotkeys.Length ? OpenHotkeys[i].Name : "";
+        // Ctrl+Shift+Space is offered for both: one shortcut can do only one of them
+        if (chosen.Length > 0 && chosen == _settings.CommandHotkey)
+        {
+            _settingsLoading = true;
+            OpenHotkeyBox.SelectedIndex = Array.FindIndex(OpenHotkeys, h => h.Name == _settings.OpenHotkey) is int was && was >= 0 ? was : OpenHotkeys.Length;
+            _settingsLoading = false;
+            OpenHotkeyStatus.Text = L.T("Это сочетание уже открывает командную строку — выберите другое.");
+            return;
+        }
+        _settings.OpenHotkey = chosen;
         _settings.Save();
         OpenHotkeyStatus.Text = RegisterOpenHotkey()
             ? L.T("Ещё раз — свернуть. Esc или клик мимо — тоже.")
             : L.T("Это сочетание уже занято другой программой — выберите другое.");
     }
 
-    private string CommandHotkeyHint() => _settings.CommandHotkey == "Alt+Space"
-        ? L.T("Если Alt+Space занят другой программой, работает Ctrl+Alt+Space.") : "";
+    private string CommandHotkeyHint() => _settings.CommandHotkey != "Alt+Space" ? ""
+        : _commandKeyBackupOnly ? L.T("Alt+Space занят другой программой — работает Ctrl+Alt+Space.")
+        : L.T("Если Alt+Space занят другой программой, работает Ctrl+Alt+Space.");
 
 
     private void ShotMode_Changed(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
@@ -397,7 +408,16 @@ public partial class MainWindow
     {
         if (_settingsLoading || CommandHotkeyBox.SelectedIndex < 0) return;
         int i = CommandHotkeyBox.SelectedIndex;
-        _settings.CommandHotkey = i < CommandHotkeys.Length ? CommandHotkeys[i].Name : "";
+        var chosen = i < CommandHotkeys.Length ? CommandHotkeys[i].Name : "";
+        if (chosen.Length > 0 && chosen == _settings.OpenHotkey)
+        {
+            _settingsLoading = true;
+            CommandHotkeyBox.SelectedIndex = Array.FindIndex(CommandHotkeys, h => h.Name == _settings.CommandHotkey) is int was && was >= 0 ? was : CommandHotkeys.Length;
+            _settingsLoading = false;
+            CommandHotkeyStatus.Text = L.T("Это сочетание уже открывает остров — выберите другое.");
+            return;
+        }
+        _settings.CommandHotkey = chosen;
         _settings.Save();
         CommandHotkeyStatus.Text = RegisterCommandHotkey()
             ? CommandHotkeyHint()

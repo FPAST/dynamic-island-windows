@@ -2950,6 +2950,8 @@ public partial class MainWindow : Window
     /// Registers the command bar's shortcut; false when another program already owns it. Alt+Space (the default)
     /// also takes Ctrl+Alt+Space, as before 2.0.1, in case another launcher already owns Alt+Space.
     /// </summary>
+    private bool _commandKeyBackupOnly;
+
     private bool RegisterCommandHotkey()
     {
         if (_hwnd == IntPtr.Zero) return true;
@@ -2959,8 +2961,9 @@ public partial class MainWindow : Window
         if (hk.Name == null) return true;   // off
         bool ok = Native.RegisterHotKey(_hwnd, 5, hk.Mods | Native.MOD_NOREPEAT, hk.Vk);
         if (!ok) Log.Write($"{hk.Name} is taken by another program");
-        if (hk.Name == "Alt+Space") ok |= Native.RegisterHotKey(_hwnd, 6, Native.MOD_CONTROL | Native.MOD_ALT | Native.MOD_NOREPEAT, 0x20);
-        return ok;
+        bool backup = hk.Name == "Alt+Space" && Native.RegisterHotKey(_hwnd, 6, Native.MOD_CONTROL | Native.MOD_ALT | Native.MOD_NOREPEAT, 0x20);
+        _commandKeyBackupOnly = !ok && backup;   // the settings say so instead of a general hint
+        return ok || backup;
     }
 
 

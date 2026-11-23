@@ -1120,5 +1120,8 @@
  "Событие не дошло до острова за 5 с ({0}, код выхода {1}).": "O evento não chegou à ilha em 5 s ({0}, código de saída {1}).",
  "Подробности — в журнале и в {0}.": "Detalhes no registro e em {0}.",
  "Открыть в {0}": "Abrir em {0}",
- "Открываю в {0}": "Abrindo em {0}"
+ "Открываю в {0}": "Abrindo em {0}",
+ "Это сочетание уже открывает командную строку — выберите другое.": "Este atalho já abre a barra de comandos — escolha outro.",
+ "Это сочетание уже открывает остров — выберите другое.": "Este atalho já abre a ilha — escolha outro.",
+ "Alt+Space занят другой программой — работает Ctrl+Alt+Space.": "Outro programa usa Alt+Espaço — Ctrl+Alt+Espaço funciona."
 }
