@@ -65,16 +65,20 @@ public static class PrivacyMonitor
 
     private static bool IsRunning(string path, string name)
     {
-        foreach (var p in System.Diagnostics.Process.GetProcessesByName(name))
+        var all = System.Diagnostics.Process.GetProcessesByName(name);
+        try
         {
-            try
+            foreach (var p in all)
             {
-                if (string.Equals(p.MainModule?.FileName, path, StringComparison.OrdinalIgnoreCase)) return true;
+                try
+                {
+                    if (string.Equals(p.MainModule?.FileName, path, StringComparison.OrdinalIgnoreCase)) return true;
+                }
+                catch { return true; } // can't read the path (elevated process) - name match is enough
             }
-            catch { return true; } // can't read the path (elevated process) - name match is enough
-            finally { p.Dispose(); }
+            return false;
         }
-        return false;
+        finally { foreach (var p in all) p.Dispose(); }
     }
 
     private static string PackagedName(string family)

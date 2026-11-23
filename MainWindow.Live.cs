@@ -275,7 +275,7 @@ public partial class MainWindow
                 try
                 {
                     inCall = _audioProbe.AppsRecording().Any(a => a.Contains("discord", StringComparison.OrdinalIgnoreCase)) &&
-                             Process.GetProcessesByName("Discord").Length > 0;
+                             Running("Discord");
                     speaking = inCall && _audioProbe.AppState("discord").Peak > 0.03;
                 }
                 catch (Exception ex) { Log.Error("discord: call probe", ex); }
@@ -338,9 +338,21 @@ public partial class MainWindow
     private static void FocusApp(string app)
     {
         var token = app.Split(' ')[0];
-        var p = Process.GetProcesses().FirstOrDefault(x =>
-            x.MainWindowHandle != IntPtr.Zero && x.ProcessName.Contains(token, StringComparison.OrdinalIgnoreCase));
-        if (p != null) Native.SetForegroundWindow(p.MainWindowHandle);
+        var all = Process.GetProcesses();
+        try
+        {
+            var p = all.FirstOrDefault(x => x.MainWindowHandle != IntPtr.Zero && x.ProcessName.Contains(token, StringComparison.OrdinalIgnoreCase));
+            if (p != null) Native.SetForegroundWindow(p.MainWindowHandle);
+        }
+        finally { foreach (var p in all) p.Dispose(); }
+    }
+
+    /// <summary>A program by its name is running (the process objects are freed at once).</summary>
+    private static bool Running(string name)
+    {
+        var all = Process.GetProcessesByName(name);
+        foreach (var p in all) p.Dispose();
+        return all.Length > 0;
     }
 
     private void CheckCalendar()

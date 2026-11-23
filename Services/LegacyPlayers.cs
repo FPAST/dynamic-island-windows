@@ -42,34 +42,43 @@ public static class LegacyPlayers
         // Yandex Music for Windows doesn't always report to Windows media controls: read its window title
         foreach (var name in YandexNames)
         {
-            foreach (var p in Process.GetProcessesByName(name))
+            foreach (var title in WindowTitles(name))
             {
-                var title = p.MainWindowTitle.Trim();
                 if (title.Length == 0 || YandexNames.Any(n => title.Equals(n, StringComparison.OrdinalIgnoreCase)) ||
                     title.StartsWith("Яндекс Музыка", StringComparison.OrdinalIgnoreCase) || title.StartsWith("Yandex Music", StringComparison.OrdinalIgnoreCase))
                     continue;
-                int cut = title.IndexOf(". Слушать", StringComparison.Ordinal);
-                if (cut > 0) title = title[..cut];
+                var t = title;
+                int cut = t.IndexOf(". Слушать", StringComparison.Ordinal);
+                if (cut > 0) t = t[..cut];
                 // "Track — Artist"
-                var i = title.IndexOf(" — ", StringComparison.Ordinal);
-                if (i < 0) i = title.IndexOf(" - ", StringComparison.Ordinal);
+                var i = t.IndexOf(" — ", StringComparison.Ordinal);
+                if (i < 0) i = t.IndexOf(" - ", StringComparison.Ordinal);
                 return i > 0
-                    ? new Track("Яндекс Музыка", title[(i + 3)..].Trim(), title[..i].Trim(), true)
-                    : new Track("Яндекс Музыка", "", title, true);
+                    ? new Track("Яндекс Музыка", t[(i + 3)..].Trim(), t[..i].Trim(), true)
+                    : new Track("Яндекс Музыка", "", t, true);
             }
         }
 
-        var aimp = Process.GetProcessesByName("AIMP").FirstOrDefault();
-        if (aimp != null)
+        var aimp = WindowTitles("AIMP").FirstOrDefault();
+        if (aimp != null && aimp.Length > 0 && !aimp.StartsWith("AIMP", StringComparison.OrdinalIgnoreCase))
         {
-            var title = aimp.MainWindowTitle.Trim();
-            if (title.Length > 0 && !title.StartsWith("AIMP", StringComparison.OrdinalIgnoreCase))
-            {
-                var (artist, song) = Split(title);
-                return new Track("AIMP", artist, song, true);
-            }
+            var (artist, song) = Split(aimp);
+            return new Track("AIMP", artist, song, true);
         }
         return null;
+    }
+
+    /// <summary>The window titles of a program's processes (asked every second: the process objects are freed at once).</summary>
+    private static List<string> WindowTitles(string name)
+    {
+        var all = Process.GetProcessesByName(name);
+        var titles = new List<string>();
+        foreach (var p in all)
+        {
+            try { titles.Add(p.MainWindowTitle.Trim()); } catch (InvalidOperationException) { /* exited meanwhile */ }
+            finally { p.Dispose(); }
+        }
+        return titles;
     }
 
     private static (string, string) Split(string s)

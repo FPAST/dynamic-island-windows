@@ -17,18 +17,32 @@ public sealed class AudioService
     {
         get
         {
-            // default device can change (headphones plugged in) - refresh every few seconds
+            // default device can change (headphones plugged in) - refresh every few seconds. Each ask is a new COM
+            // object with its own session manager, which registers a callback with Windows and is never freed unless
+            // disposed: one a second piled up (3,265 after an hour, the memory growing past 1 GB in 2.0.0)
             if (_device == null || (DateTime.Now - _deviceAt).TotalSeconds > 5)
             {
+                _deviceAt = DateTime.Now;
                 try
                 {
-                    _device = _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
-                    _deviceAt = DateTime.Now;
+                    var d = _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+                    if (_device != null && d.ID == _device.ID) d.Dispose();
+                    else { Forget(); _device = d; }
                 }
-                catch { _device = null; }
+                catch { Forget(); }
             }
             return _device;
         }
+    }
+
+    /// <summary>The device went away or changed: free it and everything taken from it.</summary>
+    private void Forget()
+    {
+        _meter = null; _meterDevice = null;
+        _found = null; _foundFor = "";
+        var d = _device;
+        _device = null;
+        try { d?.Dispose(); } catch (Exception ex) { Log.Error("audio: release device", ex); }
     }
 
     private AudioMeterInformation? _meter;
@@ -55,7 +69,7 @@ public sealed class AudioService
                 if (!ReferenceEquals(d, _meterDevice) || _meter == null) { _meter = d.AudioMeterInformation; _meterDevice = d; }
                 return _peak = _meter.MasterPeakValue;
             }
-            catch { _device = null; _meter = null; return _peak = 0; }
+            catch { Forget(); return _peak = 0; }
         }
     }
 
@@ -148,12 +162,24 @@ public sealed class AudioService
         catch { return false; }
     }
 
+    private MMDevice? _mic;
+    private DateTime _micAt;
+
+    /// <summary>The default microphone, kept (and the old one freed) like <see cref="Device"/>.</summary>
     private MMDevice? Mic
     {
         get
         {
-            try { return _enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Communications); }
-            catch { return null; }
+            if (_mic != null && (DateTime.Now - _micAt).TotalSeconds <= 5) return _mic;
+            _micAt = DateTime.Now;
+            try
+            {
+                var d = _enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Communications);
+                if (_mic != null && d.ID == _mic.ID) { d.Dispose(); return _mic; }
+                _mic?.Dispose();
+                return _mic = d;
+            }
+            catch { _mic?.Dispose(); return _mic = null; }
         }
     }
 
@@ -167,6 +193,7 @@ public sealed class AudioService
         try
         {
             foreach (var dev in _enumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active))
+            using (dev)   // a new object each time, with its own session manager: freed here (it piled up every few seconds)
             {
                 try
                 {
@@ -177,7 +204,7 @@ public sealed class AudioService
                     {
                         var s = sessions[i];
                         if (s.State != NAudio.CoreAudioApi.Interfaces.AudioSessionState.AudioSessionStateActive) continue;
-                        try { names.Add(Process.GetProcessById((int)s.GetProcessID).ProcessName); } catch { /* exited meanwhile */ }
+                        try { using var p = Process.GetProcessById((int)s.GetProcessID); names.Add(p.ProcessName); } catch { /* exited meanwhile */ }
                     }
                 }
                 catch { /* the device went away */ }
