@@ -157,31 +157,36 @@ public sealed class KaraokeView : FrameworkElement
             int k = Math.Clamp((int)c, 0, _prefix.Length - 1), k2 = Math.Min(k + 1, _prefix.Length - 1);
             p = Math.Clamp((_prefix[k] + (_prefix[k2] - _prefix[k]) * (c - k)) / _line.Width, 0, 1);
         }
-        const double edge = 0.05;
-        var dim = Color.FromArgb((byte)(fg.A * 0.42), fg.R, fg.G, fg.B);
-        Brush brush;
-        if (p >= 1) brush = new SolidColorBrush(fg);
-        else
-        {
-            var g = new LinearGradientBrush { StartPoint = new Point(0, 0.5), EndPoint = new Point(1, 0.5) };
-            g.GradientStops.Add(new GradientStop(fg, 0));
-            g.GradientStops.Add(new GradientStop(fg, Math.Max(0, p - edge)));
-            g.GradientStops.Add(new GradientStop(Blend(fg, accent, 0.75), p));
-            g.GradientStops.Add(new GradientStop(dim, Math.Min(1, p + edge)));
-            g.GradientStops.Add(new GradientStop(dim, 1));
-            brush = g;
-        }
-        _line.SetForegroundBrush(brush);
-
         double rise = 13 * Math.Exp(-8.5 * t) * Math.Cos(13 * t);          // a soft spring: up, a touch past, settle
+        double x = (w - _line.Width) / 2, y = (h - _line.Height) / 2;
+        var dim = Color.FromArgb((byte)(fg.A * 0.42), fg.R, fg.G, fg.B);
+        _line.SetForegroundBrush(SungBrush(fg, accent, dim, p, x, _line.Width));
+
         double grow = 1 - 0.07 * Math.Exp(-9 * t);
         double alpha = Math.Clamp(t / 0.16, 0, 1);
-        double x = (w - _line.Width) / 2, y = (h - _line.Height) / 2;
         dc.PushOpacity(alpha);
         dc.PushTransform(new ScaleTransform(grow, grow, w / 2, h / 2));
         dc.DrawText(_line, new Point(x, y + rise));
         dc.Pop();
         dc.Pop();
+    }
+
+    /// <summary>
+    /// The light over a line drawn from <paramref name="x"/> and <paramref name="width"/> wide, lit up to share
+    /// <paramref name="p"/>. In absolute coordinates: relative to its bounding box the gradient restarts on every
+    /// glyph run, and Chinese, Japanese or Korean drawn by a fallback font is split into several runs.
+    /// </summary>
+    public static Brush SungBrush(Color fg, Color accent, Color dim, double p, double x, double width)
+    {
+        if (p >= 1) return new SolidColorBrush(fg);
+        const double edge = 0.05;
+        var g = new LinearGradientBrush { MappingMode = BrushMappingMode.Absolute, StartPoint = new Point(x, 0), EndPoint = new Point(x + Math.Max(1, width), 0) };
+        g.GradientStops.Add(new GradientStop(fg, 0));
+        g.GradientStops.Add(new GradientStop(fg, Math.Max(0, p - edge)));
+        g.GradientStops.Add(new GradientStop(Blend(fg, accent, 0.75), p));
+        g.GradientStops.Add(new GradientStop(dim, Math.Min(1, p + edge)));
+        g.GradientStops.Add(new GradientStop(dim, 1));
+        return g;
     }
 
     private static Color Blend(Color a, Color b, double t) => Color.FromArgb(255,
