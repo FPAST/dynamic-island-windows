@@ -205,7 +205,10 @@ public partial class MainWindow
         if (PageTabs.All(t => t.IsChecked != true) && TabSettings.IsChecked != true) TabHome.IsChecked = true;
         DotsRow.Children.Clear();
         UpdatePageDots();
+        // new dots come up visible: put them (and the tabs shown again) in the state the strip is in
+        ShowTabIcons(_iconsShown || _settings.TabIcons == "always", animate: false);
     }
+
 
     // ================================================================ a strip of chips you drag into order
 
