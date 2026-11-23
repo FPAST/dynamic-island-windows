@@ -123,35 +123,42 @@ public sealed class EqualizerApo
 
     /// <summary>
     /// No rights to the APO folder (it usually is in Program Files): one elevated step, after the user agrees in
-    /// the panel. It adds the Include line (with a backup) and lets this user change only WidgetEQ.txt.
-    /// The app itself is never run as administrator.
+    /// the panel. Atoll itself is started as administrator for that one step (--eq-access): it adds the Include
+    /// line (with a backup) and lets this user change only WidgetEQ.txt. No PowerShell (antivirus programs flagged
+    /// a hidden one run as administrator); the app itself keeps running without those rights.
     /// </summary>
     public bool GrantAccess()
     {
-        static string Q(string s) => "'" + s.Replace("'", "''") + "'";
-        var script = $$"""
-            $cfg = {{Q(ConfigFile)}}; $eq = {{Q(WidgetFile)}}
-            if (-not (Test-Path -LiteralPath $eq)) { New-Item -ItemType File -Path $eq | Out-Null }
-            if (Test-Path -LiteralPath $cfg) {
-              $text = [IO.File]::ReadAllText($cfg)
-              if ($text -notmatch '(?im)^\s*Include:\s*WidgetEQ\.txt\s*$') {
-                if (-not (Test-Path -LiteralPath ($cfg + '.atoll-backup'))) { Copy-Item -LiteralPath $cfg -Destination ($cfg + '.atoll-backup') }
-                $nl = if ($text.Contains("`r`n")) { "`r`n" } else { "`n" }
-                $sep = if ($text.Length -eq 0 -or $text.EndsWith("`n")) { '' } else { $nl }
-                [IO.File]::WriteAllText($cfg, $text + $sep + 'Include: WidgetEQ.txt' + $nl)
-              }
-            }
-            icacls $eq /grant ({{Q(Environment.UserDomainName + "\\" + Environment.UserName)}} + ':(M)') | Out-Null
-            """;
         try
         {
-            using var p = Process.Start(new ProcessStartInfo("powershell.exe",
-                "-NoProfile -ExecutionPolicy Bypass -EncodedCommand " + Convert.ToBase64String(Encoding.Unicode.GetBytes(script)))
+            using var p = Process.Start(new ProcessStartInfo(Environment.ProcessPath!, $"--eq-access {System.Security.Principal.WindowsIdentity.GetCurrent().User}")
             { Verb = "runas", UseShellExecute = true, WindowStyle = ProcessWindowStyle.Hidden });
             p?.WaitForExit(30000);
             return p?.ExitCode == 0;
         }
         catch (Exception e) { Log.Write("eq: grant access: " + e.Message); return false; }   // the user said no to UAC
+    }
+
+    /// <summary>
+    /// DynamicIsland.exe --eq-access &lt;SID&gt;, as administrator. The folder comes from the registry, never from the
+    /// command line, so this can't be pointed at any other file.
+    /// </summary>
+    public static int RunGrant(string[] args)
+    {
+        try
+        {
+            var user = new System.Security.Principal.SecurityIdentifier(args.ElementAtOrDefault(1) ?? "");
+            if (Find() is not { } dir) { Log.Write("eq: grant access: Equalizer APO is not installed"); return 2; }
+            var apo = new EqualizerApo(dir);
+            if (!File.Exists(apo.WidgetFile)) File.WriteAllText(apo.WidgetFile, "");
+            apo.EnsureIncluded();
+            var file = new FileInfo(apo.WidgetFile);
+            var acl = file.GetAccessControl();
+            acl.AddAccessRule(new System.Security.AccessControl.FileSystemAccessRule(user, System.Security.AccessControl.FileSystemRights.Modify, System.Security.AccessControl.AccessControlType.Allow));
+            file.SetAccessControl(acl);
+            return 0;
+        }
+        catch (Exception e) { Log.Write("eq: grant access: " + e.GetType().Name + ": " + e.Message); return 1; }
     }
 
     /// <summary>

@@ -195,16 +195,39 @@ public sealed class FpsMeter : IDisposable
         catch { return false; }   // the user said no
     }
 
-    /// <summary>Windows' own PowerShell, by its full path (what runs as administrator must not depend on the search order).</summary>
-    private static string SystemPowerShell => Path.Combine(Environment.SystemDirectory, "WindowsPowerShell", "v1.0", "powershell.exe");
+    [System.Runtime.InteropServices.DllImport("netapi32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    private static extern int NetLocalGroupAddMembers(string? server, string group, int level, IntPtr[] members, int count);
 
-    private static void AddToGroup()
+    /// <summary>
+    /// Adds a user (by SID) to "Performance Log Users" (S-1-5-32-559) through the Windows API: no PowerShell, which
+    /// antivirus programs flagged when it ran hidden as administrator. Needs administrator rights.
+    /// </summary>
+    private static void AddToGroup(System.Security.Principal.SecurityIdentifier user)
     {
-        var user = $"{Environment.UserDomainName}\\{Environment.UserName}";
-        var script = $"Add-LocalGroupMember -SID 'S-1-5-32-559' -Member '{user.Replace("'", "''")}' -ErrorAction SilentlyContinue";
-        using var p = Process.Start(new ProcessStartInfo(SystemPowerShell, $"-NoProfile -WindowStyle Hidden -Command \"{script}\"")
-        { UseShellExecute = false, CreateNoWindow = true });
-        p?.WaitForExit(30000);
+        var group = new System.Security.Principal.SecurityIdentifier("S-1-5-32-559").Translate(typeof(System.Security.Principal.NTAccount)).Value;
+        group = group[(group.LastIndexOf('\\') + 1)..];   // the name in this Windows' language
+        var sid = new byte[user.BinaryLength];
+        user.GetBinaryForm(sid, 0);
+        var pin = System.Runtime.InteropServices.GCHandle.Alloc(sid, System.Runtime.InteropServices.GCHandleType.Pinned);
+        try
+        {
+            int r = NetLocalGroupAddMembers(null, group, 0, [pin.AddrOfPinnedObject()], 1);
+            if (r != 0 && r != 1378) throw new System.ComponentModel.Win32Exception(r);   // 1378: already a member
+        }
+        finally { pin.Free(); }
+    }
+
+    private static void AddToGroup() => AddToGroup(System.Security.Principal.WindowsIdentity.GetCurrent().User!);
+
+    /// <summary>DynamicIsland.exe --perf-log-users &lt;SID&gt;, started as administrator by <see cref="GrantAccess"/>.</summary>
+    public static int RunGrant(string[] args)
+    {
+        try
+        {
+            AddToGroup(new System.Security.Principal.SecurityIdentifier(args.ElementAtOrDefault(1) ?? ""));
+            return 0;
+        }
+        catch (Exception e) { Log.Write("fps: grant access: " + e.GetType().Name + ": " + e.Message); return 1; }
     }
 
     /// <summary>
@@ -216,9 +239,7 @@ public sealed class FpsMeter : IDisposable
     {
         try
         {
-            var user = $"{Environment.UserDomainName}\\{Environment.UserName}";
-            var script = $"Add-LocalGroupMember -SID 'S-1-5-32-559' -Member '{user.Replace("'", "''")}' -ErrorAction SilentlyContinue";
-            using var p = Process.Start(new ProcessStartInfo(SystemPowerShell, $"-NoProfile -WindowStyle Hidden -Command \"{script}\"")
+            using var p = Process.Start(new ProcessStartInfo(Environment.ProcessPath!, $"--perf-log-users {System.Security.Principal.WindowsIdentity.GetCurrent().User}")
             {
                 UseShellExecute = true, Verb = "runas", WindowStyle = ProcessWindowStyle.Hidden,
             });
