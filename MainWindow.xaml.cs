@@ -737,6 +737,36 @@ public partial class MainWindow : Window
                     Application.Current.Shutdown();
                     return;
                 }
+                if (action == "sidetoast")   // test (2.0.1): a notice while the island is open goes beside it; the island stays open; a real click on it does what the notice does
+                {
+                    Settings.ReadOnly = true;
+                    _settings.ExpandOnHover = false;
+                    await Task.Delay(3000);
+                    _pinnedOpen = true; Expand(); await Task.Delay(1200);
+                    double h0 = Island.Height;
+                    bool clicked = false;
+                    ShowToast("\uE8BD", "Telegram", L.T("Новое сообщение"), () => clicked = true, new SolidColorBrush(Color.FromRgb(0x2A, 0xAB, 0xEE)), ms: 6000);
+                    await Task.Delay(600);
+                    var tl = Island.PointToScreen(new Point(0, 0)); var br = Island.PointToScreen(new Point(Island.ActualWidth, 0));
+                    var st = _sideToast?.TestState;
+                    double dpi = VisualTreeHelper.GetDpi(this).DpiScaleX;
+                    Log.Write($"sidetoast: island {_mode}, height {h0:0}→{Island.Height:0}; side notice shown={st?.Shown}, '{st?.Title}', at x={st?.Left * dpi:0} (island {tl.X:0}…{br.X:0}) -> " +
+                              (_mode == Mode.Expanded && st?.Shown == true && (st.Value.Left * dpi >= br.X - 1 || st.Value.Left * dpi + 50 <= tl.X) ? "ok" : "FAIL"));
+                    // a real click on it
+                    var p = _sideToast!.PointToScreen(new Point(_sideToast.ActualWidth / 2, _sideToast.ActualHeight / 2));
+                    Native.SetCursorPos((int)p.X, (int)p.Y); await Task.Delay(300);
+                    var under = Native.WindowFromPoint(new Native.POINT { X = (int)p.X, Y = (int)p.Y });
+                    Log.Write($"sidetoast: at {p.X:0},{p.Y:0} the window under the cursor is {(under == new System.Windows.Interop.WindowInteropHelper(_sideToast).Handle ? "the side notice" : under == _hwnd ? "the island" : "another (" + under + ")")}");
+                    Native.MouseClick(); await Task.Delay(600);
+                    Log.Write($"sidetoast: clicked: action ran={clicked}, side notice shown={_sideToast.TestState.Shown}, island {_mode} -> {(clicked && !_sideToast.TestState.Shown ? "ok" : "FAIL")}");
+                    // folded island: the notice is the island's own, as before
+                    _sideToast.Hide(animate: false);
+                    _pinnedOpen = false; SetMode(Mode.Compact); await Task.Delay(900);
+                    ShowToast("\uE916", L.T("Таймер"), "test", null); await Task.Delay(400);
+                    Log.Write($"sidetoast: folded island: mode {_mode}, side notice shown={_sideToast.TestState.Shown} -> {(_mode == Mode.Toast && !_sideToast.TestState.Shown ? "ok" : "FAIL")}");
+                    Application.Current.Shutdown();
+                    return;
+                }
                 if (action == "stackmouse")   // test (2.0.1): the notification stack with the real mouse: hover, close five cards with their ×, Clear all; the island's height every frame
                 {
                     Settings.ReadOnly = true;
@@ -3000,6 +3030,7 @@ public partial class MainWindow : Window
         _shutDown = true;
         for (int id = 1; id <= 7; id++) Native.UnregisterHotKey(_hwnd, id);
         Native.RemoveClipboardFormatListener(_hwnd);
+        _sideToast?.Close();
         ShutdownChat();
         _settings.Save();
         MagCapture.MarkClean();   // a normal exit: Windows did not take us down inside the magnifier
@@ -3961,6 +3992,7 @@ public partial class MainWindow : Window
     private Action? _toastAction;
 
     private Views.NotificationStack.Item? _toastKept;
+    private Views.SideToast? _sideToast;
 
     /// <param name="keep">A notification (a message, Claude, a timer, a download…), not an answer to what the user just
     /// did: it also goes on the Home page's stack, shown or not.</param>
@@ -3973,6 +4005,23 @@ public partial class MainWindow : Window
             HomeMissed.Add(kept);
         }
         if (_mode == Mode.Claude || _hidden) return;
+        // the island is open: the notice goes beside it, the open island stays as it is (folding it for a notice
+        // threw away what the user was doing there)
+        if (_mode == Mode.Expanded && IsLoaded && PresentationSource.FromVisual(Island) != null)
+        {
+            _sideToast ??= new Views.SideToast { HideFromCapture = HideFromCapture };
+            var tl = Island.PointToScreen(new Point(0, 0));
+            var br = Island.PointToScreen(new Point(Island.ActualWidth, Island.ActualHeight));
+            var kept2 = kept;
+            _sideToast.Show(new Rect(tl, br), glyph, badge, title, text, onClick == null && kept2 == null ? null : () =>
+            {
+                if (kept2 != null) HomeMissed.Forget(kept2);   // seen and acted on: not missed
+                onClick?.Invoke();
+            }, ms);
+            Character.Cheer();
+            MenuBuddy.Cheer();
+            return;
+        }
         _toastKept = kept;
         ToastIcon.Text = glyph;
         ToastTitle.Text = title;
