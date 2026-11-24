@@ -637,6 +637,60 @@ public partial class MainWindow : Window
                     Application.Current.Shutdown();
                     return;
                 }
+                if (action == "yieldtest")   // test: the island steps aside for a flying cursor, comes back on a rest, stays away in a game; a place for each program (a stand-in cursor, never the real one; with --cover)
+                {
+                    Settings.ReadOnly = true;
+                    _settings.ExpandOnHover = false; _settings.YieldToCursor = true; _settings.HideInFullscreen = false; _settings.GameStats = false; _settings.HideInApps.Clear();
+                    await Task.Delay(3500);
+                    _testWindowUnder = true;
+                    var c = Island.PointToScreen(new Point(Island.ActualWidth / 2, Island.ActualHeight / 2));
+                    async Task Fly(Point from, Point to, int frames)
+                    {
+                        for (int i = 1; i <= frames; i++)
+                        {
+                            var q = from + (to - from) * ((double)i / frames);
+                            _fakeCursor = new Native.POINT { X = (int)q.X, Y = (int)q.Y };
+                            await Task.Delay(33);
+                        }
+                    }
+                    bool Through() => (Native.GetWindowLong(_hwnd, Native.GWL_EXSTYLE) & 0x20) != 0;
+                    string St() => $"yielding={_yield.Yielding}, clicks go through={Through()}, opacity {Root.Opacity:0.00}";
+                    var far = new Point(c.X, c.Y + 500);
+                    _fakeCursor = new Native.POINT { X = (int)far.X, Y = (int)far.Y }; await Task.Delay(300);
+                    await Fly(far, c, 4); await Task.Delay(250);
+                    Log.Write("yieldtest: flew in (480 px in 0.13 s): " + St());
+                    await Task.Delay(500);
+                    Log.Write("yieldtest: rested on it 0.5 s: " + St());
+                    await Fly(c, far, 3); await Task.Delay(300);
+                    await Fly(far, c, 40); await Task.Delay(250);
+                    Log.Write("yieldtest: came slowly (1.3 s): " + St());
+                    await Fly(c, far, 3); await Task.Delay(300);
+                    _testFullscreen = true; await Task.Delay(400);
+                    await Fly(far, c, 40); await Task.Delay(1200);
+                    Log.Write($"yieldtest: in a full-screen game, came slowly and rested 1.2 s: front full screen={_fullscreenFront}, " + St());
+                    await Fly(c, far, 3); await Task.Delay(400);
+                    Log.Write("yieldtest: game, cursor gone: " + St());
+                    _testFullscreen = false; _testWindowUnder = false;
+                    await Fly(far, c, 4); await Task.Delay(250);
+                    Log.Write("yieldtest: over the desktop, flew in: " + St());
+                    _fakeCursor = new Native.POINT { X = -20000, Y = -20000 }; await Task.Delay(400);
+
+                    // a place for each program
+                    _settings.PlacePerApp = true; _testFrontApps = true;
+                    double usual = Left + Width / 2;
+                    _settings.AppPlaces["telegram"] = [usual - 300, Top];
+                    OnFrontApp("telegram"); await Task.Delay(1500);
+                    Log.Write($"yieldtest: Telegram in front: centre {Left + Width / 2 - usual:+0;-0} px from usual, owner={_placeOwner}");
+                    OnFrontApp("chrome"); await Task.Delay(1500);
+                    Log.Write($"yieldtest: Chrome in front (no place of its own): centre {Left + Width / 2 - usual:+0;-0} px, owner={_placeOwner ?? "usual"}");
+                    OnFrontApp("telegram"); await Task.Delay(1500);
+                    _px.Snap(Left); _px.Target = Left + 120; _posActive = true; StartRendering(); await Task.Delay(1500);   // as if dragged further while Telegram is in front
+                    Log.Write($"yieldtest: moved 120 px more with Telegram in front: its place now {_settings.AppPlaces["telegram"][0] - usual:+0;-0} px, the usual place {(_settings.CenterX ?? SystemParameters.PrimaryScreenWidth / 2) - usual:+0;-0} px");
+                    AlignIsland(); await Task.Delay(1500);
+                    Log.Write($"yieldtest: 'align' with Telegram in front: its place forgotten={!_settings.AppPlaces.ContainsKey("telegram")}, centre {Left + Width / 2 - usual:+0;-0} px");
+                    Application.Current.Shutdown();
+                    return;
+                }
                 if (action == "scrubtest")   // test: the scrubber — press jumps and wakes the capsule, steps of 5, release puts it to sleep, a set value eases over 150 ms; pictures of the bar only (with --cover)
                 {
                     var dir = args.ElementAtOrDefault(r + 2) ?? System.IO.Path.GetTempPath();
@@ -3097,8 +3151,13 @@ public partial class MainWindow : Window
 
     private void SavePosition()
     {
-        _settings.CenterX = Left + Width / 2;
-        _settings.Top = Top;
+        // moved while a program with its own place was in front (or floated to that place): it is that program's place
+        if (_placeOwner != null) _settings.AppPlaces[_placeOwner] = [Left + Width / 2, Top];
+        else
+        {
+            _settings.CenterX = Left + Width / 2;
+            _settings.Top = Top;
+        }
         _settings.Save();
     }
 
@@ -3108,6 +3167,7 @@ public partial class MainWindow : Window
     private void AlignIsland()
     {
         if (_hidden) ShowIsland();
+        if (_settings.PlacePerApp && ForgetAppPlace()) return;
         var screen = Forms.Screen.FromPoint(new System.Drawing.Point((int)(Left + Width / 2), (int)(Top + 20)));
         var dpi = VisualTreeHelper.GetDpi(this);
         double cx = (screen.Bounds.Left + screen.Bounds.Width / 2.0) / dpi.DpiScaleX;
@@ -3608,6 +3668,7 @@ public partial class MainWindow : Window
         {
             if (Math.Abs(d.X) < 6 && Math.Abs(d.Y) < 6) return;
             _dragging = true;
+            OnDragStarted();
             _expandDelay.Stop();
             _collapseDelay.Stop();
             Island.CaptureMouse();
@@ -3826,7 +3887,8 @@ public partial class MainWindow : Window
         // a game or a full-screen program is in front. Either switch needs to know it: "hide in full screen",
         // or "FPS and load in games" (the two exclude each other, so asking only when the first one is on
         // meant the game pill never appeared for anyone who chose FPS)
-        bool fullscreenApp = (_settings.HideInFullscreen || _settings.GameStats) && _hwnd != IntPtr.Zero && (_testFullscreen ?? Native.IsFullscreenAppActive(_hwnd));
+        _fullscreenFront = _hwnd != IntPtr.Zero && (_testFullscreen ?? Native.IsFullscreenAppActive(_hwnd));   // also: the island steps aside for the cursor
+        bool fullscreenApp = (_settings.HideInFullscreen || _settings.GameStats) && _fullscreenFront;
         // game mode: keep a tiny stats pill instead of hiding completely
         bool game = _demoGame || (fullscreenApp && _settings.GameStats && IsGameWindow(fg));
         // with the FPS switch on, a full-screen program that isn't a game (a browser video, a slideshow) gets "hide in full screen", which the FPS switch stands in for
@@ -3845,6 +3907,7 @@ public partial class MainWindow : Window
             UpdateAuraVisibility();
             if (fs)
             {
+                if (_yield.Reset()) ClickThrough(false);
                 Root.IsHitTestVisible = false;
                 Fade(Root, 0, 180, 0, () => { if (_fullscreenHidden) Root.Visibility = Visibility.Hidden; });
             }
@@ -3858,6 +3921,7 @@ public partial class MainWindow : Window
         }
         // a menu of ours is open: pulling the island to the very top now would put it over that menu
         if (!fs && !_dragging && _menusOpen == 0) Native.KeepTopmost(_hwnd);
+        if (!fs) WatchFrontApp(fg);
     }
 
     // ================================================================ clock & eyes
@@ -3920,6 +3984,7 @@ public partial class MainWindow : Window
         Native.GetCursorPos(out var cursor);
         if (_fakeCursor is Native.POINT fake) cursor = fake;   // screenshots / tests
         CheckClickOutside(cursor);
+        UpdateYield(cursor);
         if (_mode == Mode.Compact && !_rendering && _gazeTicks % 3 != 0)
         {
             double dx = cursor.X - (Left + Width / 2) * Dpi, dy = cursor.Y - Top * Dpi;

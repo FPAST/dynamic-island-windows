@@ -227,6 +227,8 @@ public partial class MainWindow
         HomeWeatherChip.IsChecked = _settings.HomeWeather;
         HomeAppsChip.IsChecked = _settings.HomeApps;
         HoverSwitch.IsChecked = _settings.ExpandOnHover;
+        YieldSwitch.IsChecked = _settings.YieldToCursor;
+        PlacePerAppSwitch.IsChecked = _settings.PlacePerApp;
         FullscreenSwitch.IsChecked = _settings.HideInFullscreen;
         AutostartSwitch.IsChecked = Autostart.IsEnabled;
         if (AppPackage.IsPackaged) UninstallButton.Visibility = Visibility.Collapsed;   // Store apps are removed in Windows Settings
@@ -309,6 +311,12 @@ public partial class MainWindow
         if (sender == FullscreenSwitch && FullscreenSwitch.IsChecked == true) GameStatsSwitch.IsChecked = false;
         if (sender == GameStatsSwitch && GameStatsSwitch.IsChecked == true) FullscreenSwitch.IsChecked = false;
         _settings.ExpandOnHover = HoverSwitch.IsChecked == true;
+        _settings.YieldToCursor = YieldSwitch.IsChecked == true;
+        if (_settings.PlacePerApp != (PlacePerAppSwitch.IsChecked == true))
+        {
+            _settings.PlacePerApp = PlacePerAppSwitch.IsChecked == true;
+            if (!_settings.PlacePerApp && _placeOwner != null) { _placeOwner = null; FloatToPlace(); }   // off: back to the usual place
+        }
         _settings.HideInFullscreen = FullscreenSwitch.IsChecked == true;
         _settings.GameStats = GameStatsSwitch.IsChecked == true;
         _settings.GameStatsOnlyListed = GameOnlyListedSwitch.IsChecked == true;

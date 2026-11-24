@@ -219,6 +219,12 @@ public sealed class Settings
     /// <summary>Attached to the top edge of the screen like a notch (true) or floating pill (false).</summary>
     public bool Docked { get; set; }
     public bool ExpandOnHover { get; set; } = true;
+    /// <summary>A cursor flying onto the island over another window (a game, a hand on its way to the tabs) goes through it.</summary>
+    public bool YieldToCursor { get; set; } = true;
+    /// <summary>The island remembers where it was moved for each program in front, and floats there.</summary>
+    public bool PlacePerApp { get; set; }
+    /// <summary>Process name (lower case) → [centre x, top] in DIPs.</summary>
+    public Dictionary<string, double[]> AppPlaces { get; set; } = [];
 
     // Home tab, "build it yourself"
     public bool HomeActions { get; set; } = true;

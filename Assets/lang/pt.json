@@ -1124,5 +1124,9 @@
  "Это сочетание уже открывает командную строку — выберите другое.": "Este atalho já abre a barra de comandos — escolha outro.",
  "Это сочетание уже открывает остров — выберите другое.": "Este atalho já abre a ilha — escolha outro.",
  "Alt+Space занят другой программой — работает Ctrl+Alt+Space.": "Outro programa usa Alt+Espaço — Ctrl+Alt+Espaço funciona.",
- "Снимок сохранён, но не скопирован: буфер обмена занят": "Captura salva, mas não copiada: a área de transferência está ocupada"
+ "Снимок сохранён, но не скопирован: буфер обмена занят": "Captura salva, mas não copiada: a área de transferência está ocupada",
+ "Уступать курсору": "Dar passagem ao cursor",
+ "Курсор пролетает по острову (в игре, по пути к вкладкам) — остров становится прозрачным и пропускает клики к окну под ним. Задержите на нём курсор или упритесь в верхний край — и он вернётся. В играх на весь экран не мешает совсем.": "Quando o cursor passa voando pela ilha (num jogo, a caminho das abas), a ilha fica transparente e deixa os cliques chegarem à janela por baixo. Deixe o cursor parado sobre ela ou leve-o à borda superior e ela volta. Em jogos em tela cheia não atrapalha nada.",
+ "Своё место для каждой программы": "Um lugar próprio para cada programa",
+ "Передвиньте остров, пока программа впереди, — он запомнит это место и будет сам уезжать туда, когда она впереди. «Выровнять по центру» в меню острова возвращает этой программе обычное место.": "Mova a ilha enquanto um programa está na frente e ela lembra esse lugar, indo para lá sozinha sempre que ele estiver na frente. «Centralizar» no menu da ilha devolve a esse programa o lugar habitual."
 }
