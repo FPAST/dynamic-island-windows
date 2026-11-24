@@ -2928,6 +2928,8 @@ public partial class MainWindow : Window
                     ApplyThemePreset(BuiltInThemes.First(t => t.Id == (args.FirstOrDefault(a => a.StartsWith("theme:"))?[6..] ?? "liquid")));
                     if (args.Contains("light")) { _settings.DarkTheme = false; ApplyTheme(); ApplyScene(); ApplyThemeLocal(); }
                     _settings.LiteGraphics = false; _settings.LiveGlass = false; _settings.CaptureHidden = false;
+                    if (args.Contains("solid")) _settings.Glass = false;   // what Transparency effects off leaves
+                    if (args.FirstOrDefault(a => a.StartsWith("tint:")) is { } lt) _settings.LiquidTint = int.Parse(lt[5..]);
                     ApplyCaptureExclusion(); ApplyGlass();
                     async Task Look(string what)
                     {
@@ -2942,11 +2944,18 @@ public partial class MainWindow : Window
                                 _pinnedOpen = true; Expand();
                             }
                             await Task.Delay(1800);
+                            Native.SetWindowPos(new System.Windows.Interop.WindowInteropHelper(cover).Handle, new IntPtr(-1), 0, 0, 0, 0, 0x13);
                             Native.SetWindowPos(_hwnd, new IntPtr(-1), 0, 0, 0, 0, 0x13);
-                            await Task.Delay(400);
+                            await Task.Delay(900);
                             var tl = Island.PointToScreen(new Point(-16, 0));
                             var br = Island.PointToScreen(new Point(Island.ActualWidth + 16, Island.ActualHeight + 16));
                             var rect = new System.Drawing.Rectangle((int)tl.X, Math.Max(0, (int)tl.Y - 8), (int)(br.X - tl.X), (int)(br.Y - tl.Y) + 8);
+                            // never the real screen: another program's window over the page, and the picture isn't taken
+                            bool ours = true;
+                            for (int gx = 0; gx <= 8; gx++)
+                                for (int gy = 0; gy <= 8; gy++)
+                                    ours &= Native.GetWindowThreadProcessId(WindowFromPoint(new Native.POINT { X = rect.Left + (rect.Width - 1) * gx / 8, Y = rect.Top + (rect.Height - 1) * gy / 8 }), out var pid) != 0 && pid == Environment.ProcessId;
+                            if (!ours) { Log.Write($"liquidlook: {what} {page}: another window is over the test page, skipped"); continue; }
                             var px = CaptureService.CaptureSmall(rect, rect.Width, rect.Height, null)!;
                             CaptureService.SavePng(BitmapSource.Create(rect.Width, rect.Height, 96, 96, PixelFormats.Bgr32, null, px, rect.Width * 4), System.IO.Path.Combine(dir, $"{what}-{page}.png"));
                             Log.Write($"liquidlook: {what} {page}: {LookContrast(px, rect)}");
@@ -4366,7 +4375,11 @@ public partial class MainWindow : Window
 
     // ================================================================ theme
 
-    private void ApplyTheme() => Theme.Apply(_settings.DarkTheme, _settings.IslandColor, _settings.GlassOpacity, _settings.AccentColor);
+    private void ApplyTheme()
+    {
+        Theme.Apply(_settings.DarkTheme, _settings.IslandColor, _settings.GlassOpacity, _settings.AccentColor);
+        ApplyLiquidBrushes();
+    }
 
     private void ToggleTheme()
     {
@@ -4381,7 +4394,10 @@ public partial class MainWindow : Window
 
     private void ApplyThemeLocal()
     {
-        IslandShadow.Opacity = _settings.DarkTheme ? 0.38 : 0.18;
+        bool liquid = _settings.Scene == "liquid";
+        IslandShadow.Opacity = _settings.DarkTheme && !liquid ? 0.38 : 0.18;
+        IslandShadow.BlurRadius = liquid ? 24 : 34;
+        IslandShadow.ShadowDepth = liquid ? 8 : 6;
     }
 
     private void ToggleTheme_Click(object sender, RoutedEventArgs e) => ToggleTheme();
