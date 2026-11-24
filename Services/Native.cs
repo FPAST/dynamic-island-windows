@@ -148,6 +148,18 @@ internal static class Native
     }
 
     /// <summary>Re-assert "always on top" (some apps / the taskbar push topmost windows down).</summary>
+    [DllImport("user32.dll")] private static extern IntPtr GetWindow(IntPtr h, uint cmd);
+    [DllImport("user32.dll")] public static extern bool IsZoomed(IntPtr h);
+
+    /// <summary>Is h somewhere above "other" in the window order?</summary>
+    public static bool IsAbove(IntPtr h, IntPtr other)
+    {
+        const uint GW_HWNDPREV = 3;
+        for (int i = 0; i < 2000 && other != IntPtr.Zero; i++)
+            if ((other = GetWindow(other, GW_HWNDPREV)) == h) return true;
+        return false;
+    }
+
     public static void KeepTopmost(IntPtr h)
     {
         const uint SWP_NOSIZE = 0x1, SWP_NOMOVE = 0x2, SWP_NOACTIVATE = 0x10, SWP_NOOWNERZORDER = 0x200;

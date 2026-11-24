@@ -213,7 +213,7 @@ public partial class MainWindow
             SetFrostCovers(false);
             return;
         }
-        if (!IslandGlass || Lite || !FrostCanGrab || _hidden || _fullscreenHidden || !IsLoaded || !Island.IsVisible) { PauseFrost(); if (Lite || !FrostCanGrab) FrostHost.Opacity = 0; SetFrostCovers(false); return; }
+        if (!IslandGlass || Lite || !FrostCanGrab || _hidden || _fullscreenHidden || _gameFront || !IsLoaded || !Island.IsVisible) { PauseFrost(); if (Lite || !FrostCanGrab || _gameFront) { FrostHost.BeginAnimation(OpacityProperty, null); FrostHost.Opacity = 0; } SetFrostCovers(false); return; }
         // grabbing the screen makes Windows finish composing first: never while the size is changing
         if (_rendering && !(_w.IsSettled && _h.IsSettled)) { PauseFrost(); return; }
         if (_frostTestBackdrop != null || _demoPlate != null)   // still pictures: taken again when the size changes, or after half a second
@@ -348,7 +348,7 @@ public partial class MainWindow
         try
         {
             var want = f.Want;
-            if (_frostWant == null || !IslandGlass || Lite || _shutDown || _hidden || _fullscreenHidden) return;
+            if (_frostWant == null || !IslandGlass || Lite || _shutDown || _hidden || _fullscreenHidden || _gameFront) return;
             UiStep("glass");
             Measure("frost show", () => ShowFrost(f.Px, f.W, f.H, want.Half, want.Height, want.IslandW, want.IslandH, f.At, want.Above, f.Sig));
         }
@@ -363,7 +363,7 @@ public partial class MainWindow
     private bool PrecaptureFrost(Size coming)
     {
         if (ClearGlass) return true;   // nothing to take: what is behind shows by itself
-        if (!IslandGlass || Lite || !FrostCanGrab || _hidden || _fullscreenHidden || !IsLoaded || !Island.IsVisible || _dragging || _posActive) return false;
+        if (!IslandGlass || Lite || !FrostCanGrab || _hidden || _fullscreenHidden || _gameFront || !IsLoaded || !Island.IsVisible || _dragging || _posActive) return false;
         double iw = Math.Max(coming.Width, Island.ActualWidth), ih = Math.Max(coming.Height, Island.ActualHeight);
         if (_frostCovers && iw / 2 + FrostMargin <= _frostHalf + 0.5 && ih + FrostMargin + DripRoom <= _frostHeight + 0.5) return true;   // already big enough
         // waits briefly for the picture: opening without it would show the island solid (grey) for a moment

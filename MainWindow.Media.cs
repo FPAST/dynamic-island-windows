@@ -105,7 +105,7 @@ public partial class MainWindow
         MusicBars.SetPlaying(playing);
         PlayPauseButton.Content = HomePlay.Content = BarPlay.Content = playing ? "" : "";
         UpdateEyesVisibility();
-        SetEqualizer(playing);
+        SetEqualizer(playing && !_gameFront);
         if (playing) StartRendering(); // liquid wave
 
         if (wasPlaying != playing)

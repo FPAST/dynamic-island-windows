@@ -99,7 +99,10 @@ public partial class MainWindow
         if (!_recording.IsRecording)   // recording owns the pill (red dot + elapsed, see OnTick)
         {
             if (_gameMode && _stats.Last is { } gs)
-                lives.Add(("game", "\uE7FC", GameStatsText(gs), -1, ringBrush));
+            {
+                if (_gameText == null || _tickCount % 4 == 0) _gameText = GameStatsText(gs);   // once a second: every change redraws the window over the game
+                lives.Add(("game", "\uE7FC", _gameText, -1, ringBrush));
+            }
             if (_timer.Active)
             {
                 var b = _timer.Kind == TimerKind.Pomodoro && !_timer.PomodoroWork ? (Brush)FindResource("AccentBlue") : ringBrush;
@@ -178,7 +181,8 @@ public partial class MainWindow
         if (_mode == Mode.Compact && !_hidden)
         {
             double w = CompactWidth;
-            if (Math.Abs(w - _w.Target) > 3) MorphTo(new Size(w, CompactHeight));
+            // the digits of the game pill change all the time: it grows for them, but doesn't shrink for every one
+            if (w > _w.Target + 3 || w < _w.Target - (pick.Id == "game" ? 24 : 3)) MorphTo(new Size(w, CompactHeight));
         }
 
         if (_mode == Mode.Expanded && TabTimer.IsChecked == true) UpdateTimerPage();

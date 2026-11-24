@@ -14,9 +14,11 @@ public partial class MainWindow
     private string _gamePidName = "", _gamePidPath = "";
 
     /// <summary>Is the full-screen window in front a program that gets the FPS pill (not a browser, Explorer, or — in "only listed" mode — an unlisted program)?</summary>
-    private bool IsGameWindow(IntPtr fg)
+    private bool IsGameWindow(IntPtr fg) => IsGameWindow(fg, _settings.GameStatsOnlyListed);
+
+    private bool IsGameWindow(IntPtr fg, bool onlyListed)
     {
-        if (fg == IntPtr.Zero || Native.GetWindowThreadProcessId(fg, out uint pid) == 0) return !_settings.GameStatsOnlyListed;
+        if (fg == IntPtr.Zero || Native.GetWindowThreadProcessId(fg, out uint pid) == 0) return !onlyListed;
         if (pid != _gamePid)
         {
             _gamePid = pid;
@@ -24,7 +26,25 @@ public partial class MainWindow
             catch (Exception e) { _gamePidName = ""; Log.Write($"game: no name for pid {pid}: {e.Message}"); }
             _gamePidPath = Native.ProcessPath(pid);
         }
-        return FpsMeter.CountsAsGame(_gamePidName, _gamePidPath, _settings.GameStatsOnlyListed, _settings.GameStatsApps);
+        return FpsMeter.CountsAsGame(_gamePidName, _gamePidPath, onlyListed, _settings.GameStatsApps);
+    }
+
+    /// <summary>
+    /// A game fills the screen in front, whatever the settings. Anything the island takes from the screen or redraws
+    /// goes through the same composition as the game's frames: no pictures for the glass, no waves, no equaliser.
+    /// </summary>
+    private bool _gameFront;
+    private string? _gameText;
+
+    private void SetGameFront(bool on)
+    {
+        if (on == _gameFront) return;
+        _gameFront = on;
+        _gameText = null;
+        Log.Write("game in front: " + (on ? "glass and music effects rest" : "back to normal"));
+        CaptureFrost();
+        SetEqualizer(!on && _lastMedia?.IsPlaying == true);
+        if (!on && _lastMedia?.IsPlaying == true) StartRendering();
     }
 
     private void OnGameModeChanged(bool game)

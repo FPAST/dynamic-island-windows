@@ -2,6 +2,12 @@
 
 All notable changes to Atoll (formerly "Dynamic Island for Windows"). Русская версия каждого пункта — ниже английской.
 
+## 2.1.1 — 2026-11-24
+
+- **Less load in full-screen games.** In 2.1.0 the glass kept taking pictures of the screen 4–5 times a second over a game, and the island kept redrawing with the music and re-raising itself; this could show up as small freezes. With a full-screen game in front the island now takes no pictures (it turns solid), stops its waves, equaliser and pull to the cursor, re-raises itself only when the game has really covered it, and the FPS pill changes once a second and doesn't resize for every digit. Measured on a test window: pictures 4.6 → 0 a second, island redraws 84 → 0 a second, music playing. Everything comes back when you leave the game. Games in an ordinary window are not recognised.
+
+- **Меньше нагрузки в полноэкранных играх.** В 2.1.0 стекло и поверх игры снимало экран 4–5 раз в секунду, а остров перерисовывался под музыку и постоянно поднимал себя наверх; это могло давать микрофризы. Теперь, когда впереди полноэкранная игра, остров не делает снимков (становится сплошным), не рисует волны, эквалайзер и притяжение к курсору, поднимает себя, только если игра его действительно закрыла, а пилюля с FPS меняется раз в секунду и не меняет ширину из-за каждой цифры. Замер на тестовом окне с музыкой: снимки 4,6 → 0 в секунду, перерисовки 84 → 0 в секунду. После выхода из игры всё возвращается. Игры в обычном окне не распознаются.
+
 ## 2.1.0 — 2026-11-24
 
 - **Smooth glass.** The glass's picture of what's behind the island used to change about once a second (and every six seconds folded), and dropped out while you dragged the island. Now it is taken on a thread of its own up to 20 times a second while the island is open, 4–5 times folded, and under twice a second when nothing behind moves; a new picture fades in over the old one instead of jumping. Measured (liquid glass, Ryzen 7 2700): open over a moving picture 2–3 % CPU, folded about 1 %, the UI thread spends 0.2 ms per picture instead of 1.7 ms.
