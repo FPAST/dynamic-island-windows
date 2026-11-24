@@ -2760,13 +2760,13 @@ public partial class MainWindow : Window
                 {
                     Settings.ReadOnly = true;
                     var id = args.ElementAtOrDefault(r + 2) ?? "radio";
-                    _settings.MusicPlayers = [id]; _settings.MusicSource = id; _settings.MusicFolder = args.ElementAtOrDefault(r + 4) ?? "";
-                    RefreshMusicSources();
+                    _settings.MusicFolder = args.ElementAtOrDefault(r + 4) ?? "";
                     TabMusic.IsChecked = true; _pinnedOpen = true; Expand();
                     MusicQuery.Text = args.ElementAtOrDefault(r + 3) ?? "";
-                    if (MusicQuery.Text.StartsWith("https://") && ChosenMusicSource is { } site) await OpenMusicSiteAsync(site, MusicQuery.Text); else await SearchMusicAsync();
+                    PickMusicSource(id); await Task.Delay(1500);
+                    if (MusicQuery.Text.StartsWith("https://")) await OpenMusicSiteAsync(_musicSource, MusicQuery.Text); else await SearchMusicAsync();
                     Log.Write($"musicplayer: {id}: {MusicResults.Children.Count} results");
-                    if (!args.Contains("picture") && MusicResults.Children.OfType<System.Windows.Controls.Button>().FirstOrDefault() is { } hit)
+                    if (!args.Contains("picture") && MusicResults.Children.OfType<System.Windows.Controls.DockPanel>().FirstOrDefault()?.Children.OfType<System.Windows.Controls.Button>().LastOrDefault() is { } hit)
                         hit.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
                     if (args.Contains("picture"))   // only the Music page and its settings section, never a whole window
                     {
@@ -2779,14 +2779,14 @@ public partial class MainWindow : Window
                             var png = new PngBitmapEncoder(); png.Frames.Add(BitmapFrame.Create(bmp));
                             using var fs = System.IO.File.Create(System.IO.Path.Combine(System.IO.Path.GetTempPath(), name)); png.Save(fs);
                         }
-                        await Task.Delay(2500); Shot(MusicPage, "atoll-music.png");
-                        MusicHint_Click(this, new RoutedEventArgs()); await Task.Delay(1500); Shot(MusicSettingsSection, "atoll-music-settings.png");
+                        await Task.Delay(9000); Shot(MusicPage, $"atoll-music-{id}.png");
+                        Log.Write($"musicplayer: page {MusicPage.ActualWidth:0}x{MusicPage.ActualHeight:0}, island {Island.ActualWidth:0}x{Island.ActualHeight:0}, window {Height:0}");
                         Application.Current.Shutdown();
                         return;
                     }
                     long WebMb() => (_musicWeb?.CoreWebView2?.Environment.GetProcessInfos().Sum(i => { try { using var p = System.Diagnostics.Process.GetProcessById(i.ProcessId); return p.PrivateMemorySize64; } catch { return 0L; } }) ?? 0) / 1048576;
                     void Say(string what) => Log.Write($"musicplayer: {what}: shown [{_lastMedia?.SourceApp}|{_lastMedia?.AppId}|{_lastMedia?.Title}|{_lastMedia?.Artist}|art {_lastMedia?.Art != null}] playing {_lastMedia?.IsPlaying} pos {_lastMedia?.CurrentPosition.TotalSeconds:0.0} of {_lastMedia?.Duration.TotalSeconds:0.0}, own player {_player.Playing} at {_player.Position.TotalSeconds:0.0}, web audio {_musicWeb?.CoreWebView2?.IsDocumentPlayingAudio}, lyrics {_currentLyrics?.Lines.Count ?? 0}, {Environment.WorkingSet / 1048576} MB + web {WebMb()} MB");
-                    await Task.Delay(_musicWindow != null ? 28000 : 9000); Say("started");
+                    await Task.Delay(_musicWeb != null ? 20000 : 9000); Say("started");
                     _media.Choose("DynamicIsland.exe"); await Task.Delay(500);   // only Atoll's own player: the user's is left alone
                     if (_player.Open && Services.MediaService.IsOwn(_media.Current?.AppId ?? ""))
                     {
@@ -2796,10 +2796,10 @@ public partial class MainWindow : Window
                         await _media.Next(); await Task.Delay(2500); Say("next");
                         await _media.Seek(TimeSpan.FromSeconds(20)); await Task.Delay(1500); Say("seek to 20 s");
                     }
-                    if (_musicWindow != null) { _musicWindow.WindowState = WindowState.Minimized; await Task.Delay(6000); Say("minimised"); }
+                    if (_musicWeb != null) { _pinnedOpen = false; SetMode(Mode.Compact); await Task.Delay(6000); Say("folded"); }
                     _player.Pause(); await Task.Delay(1500);
                     _musicPlayedAt = DateTime.Now - TimeSpan.FromHours(1);
-                    ReleaseIdleMusic(); await Task.Delay(3000); Say($"released (window {_musicWindow != null}, player {_player.Open})");
+                    ReleaseIdleMusic(); await Task.Delay(3000); Say($"released (site {_musicWeb != null}, player {_player.Open})");
                     Application.Current.Shutdown();
                     return;
                 }
@@ -3732,7 +3732,7 @@ public partial class MainWindow : Window
         while (d != null)
         {
             if (d is ButtonBase or TextBoxBase or Slider or ScrollBar or InkCanvas) return true;
-            if (d is FrameworkElement fe && fe.Name is "ChatHost" or "ShelfList" or "CommandResults") return true;
+            if (d is FrameworkElement fe && fe.Name is "ChatHost" or "MusicWebHost" or "MusicResults" or "ShelfList" or "CommandResults") return true;
             d = d is Visual or System.Windows.Media.Media3D.Visual3D ? VisualTreeHelper.GetParent(d) : LogicalTreeHelper.GetParent(d);
         }
         return false;

@@ -374,11 +374,8 @@
             </StackPanel>
 
             <!-- ======== MUSIC ======== -->
-            <Grid x:Name="MusicPage" Width="640" Visibility="Collapsed">
-              <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
-              </Grid.RowDefinitions>
+            <StackPanel x:Name="MusicPage" Width="720" Visibility="Collapsed">
+              <Grid x:Name="MusicFull">
               <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="214"/>
@@ -479,28 +476,55 @@
                   </StackPanel>
                 </Grid>
               </Border>
+              </Grid>
 
-              <!-- music played by Atoll itself -->
-              <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Margin="0,10,0,0">
-                <Button x:Name="MusicPlayerHint" Style="{StaticResource GhostPill}" Content="Слушать прямо в Atoll…" HorizontalAlignment="Left"
-                        ToolTip="Выбрать сервисы, радио или свои файлы" Click="MusicHint_Click"/>
-                <StackPanel x:Name="MusicPlayerRow" Visibility="Collapsed">
-                  <DockPanel>
-                    <ComboBox x:Name="MusicSourceBox" Style="{StaticResource SoftCombo}" Width="170" SelectionChanged="MusicSource_Changed"/>
-                    <Button x:Name="MusicStopButton" DockPanel.Dock="Right" Style="{StaticResource IconButton}" Content="&#xE71A;" FontSize="13" Width="30" Height="30"
-                            Margin="6,0,0,0" ToolTip="Остановить и закрыть плеер" Click="MusicStop_Click" Visibility="Collapsed"/>
-                    <Button x:Name="MusicFolderButton" DockPanel.Dock="Right" Style="{StaticResource IconButton}" Content="&#xE8B7;" FontSize="13" Width="30" Height="30"
-                            Margin="6,0,0,0" ToolTip="Выберите папку с музыкой" Click="MusicFolder_Click" Visibility="Collapsed"/>
-                    <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}" Content="&#xE721;" FontSize="13" Width="30" Height="30"
-                            Margin="6,0,0,0" ToolTip="Найти или открыть" Click="MusicSearch_Click"/>
-                    <TextBox x:Name="MusicQuery" Style="{StaticResource SoftBox}" Height="30" Margin="8,0,0,0" KeyDown="MusicQuery_KeyDown"/>
-                  </DockPanel>
-                  <ScrollViewer x:Name="MusicResultsScroll" VerticalScrollBarVisibility="Auto" MaxHeight="150" Margin="0,8,0,0" Visibility="Collapsed">
-                    <StackPanel x:Name="MusicResults"/>
-                  </ScrollViewer>
+              <!-- the player in one line, while a service's site takes the place -->
+              <Border x:Name="MusicBar" Style="{StaticResource Tile}" Padding="10,8" Visibility="Collapsed">
+                <DockPanel>
+                  <Border x:Name="BarArt" Width="42" Height="42" CornerRadius="11" Background="{DynamicResource ChipBg}"/>
+                  <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Style="{StaticResource IconButton}" Content="&#xE892;" Click="Prev_Click"/>
+                    <Button x:Name="BarPlay" Style="{StaticResource PlayButton}" Content="&#xE768;" Width="38" Height="38" FontSize="15" Margin="8,0" Click="PlayPause_Click"/>
+                    <Button Style="{StaticResource IconButton}" Content="&#xE893;" Click="Next_Click"/>
+                  </StackPanel>
+                  <StackPanel Margin="12,0" VerticalAlignment="Center">
+                    <TextBlock x:Name="BarTitle" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                    <TextBlock x:Name="BarArtist" FontSize="12" Foreground="{DynamicResource Fg2}" TextTrimming="CharacterEllipsis" Margin="0,2,0,0"/>
+                  </StackPanel>
+                </DockPanel>
+              </Border>
+
+              <!-- music played by Atoll itself: where from, the search, what was found -->
+              <Border Background="{DynamicResource TileBg}" CornerRadius="15" Padding="3" Margin="0,10,0,0">
+                <WrapPanel x:Name="MusicChips" HorizontalAlignment="Center"/>
+              </Border>
+              <DockPanel Margin="0,8,0,0">
+                <Button x:Name="MusicBackButton" Style="{StaticResource IconButton}" Content="&#xE72B;" FontSize="13" Width="32" Height="32"
+                        Margin="0,0,6,0" ToolTip="Назад" Click="MusicBack_Click" Visibility="Collapsed"/>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Margin="8,0,0,0">
+                  <Button x:Name="MusicPlaylistsButton" Style="{StaticResource ToolChip}" Content="Плейлисты" Click="MusicPlaylists_Click"/>
+                  <Button x:Name="MusicFolderButton" Style="{StaticResource IconButton}" Content="&#xE8B7;" FontSize="13" Width="32" Height="32"
+                          Margin="6,0,0,0" ToolTip="Выберите папку с музыкой" Click="MusicFolder_Click" Visibility="Collapsed"/>
+                  <Button x:Name="MusicViewButton" Style="{StaticResource IconButton}" Content="&#xE70E;" FontSize="13" Width="32" Height="32"
+                          Margin="6,0,0,0" ToolTip="Плеер со словами или сайт" Click="MusicView_Click" Visibility="Collapsed"/>
+                  <Button x:Name="MusicStopButton" Style="{StaticResource IconButton}" Content="&#xE711;" FontSize="13" Width="32" Height="32"
+                          Margin="6,0,0,0" ToolTip="Остановить и закрыть плеер" Click="MusicStop_Click" Visibility="Collapsed"/>
                 </StackPanel>
-              </StackPanel>
-            </Grid>
+                <Grid>
+                  <TextBox x:Name="MusicQuery" Style="{StaticResource SoftBox}" Height="34" KeyDown="MusicQuery_KeyDown" TextChanged="MusicQuery_TextChanged"/>
+                  <TextBlock x:Name="MusicQueryHint" Text="Песня, исполнитель или станция" Style="{StaticResource Muted}" Margin="14,0" VerticalAlignment="Center" IsHitTestVisible="False"/>
+                </Grid>
+              </DockPanel>
+              <ScrollViewer x:Name="MusicResultsScroll" VerticalScrollBarVisibility="Auto" MaxHeight="190" Margin="0,8,0,0" Visibility="Collapsed">
+                <StackPanel x:Name="MusicResults"/>
+              </ScrollViewer>
+              <Border x:Name="MusicWebFrame" CornerRadius="18" Height="430" Margin="0,8,0,0" Background="{DynamicResource TileBg}"
+                      BorderBrush="{DynamicResource TileStroke}" BorderThickness="1" Visibility="Collapsed">
+                <Grid x:Name="MusicWebHost">
+                  <TextBlock x:Name="MusicWebNote" Text="Открываю…" Style="{StaticResource Muted}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Grid>
+              </Border>
+            </StackPanel>
 
             <!-- ======== WEATHER ======== -->
             <Grid x:Name="WeatherPage" Width="680" Visibility="Collapsed">
@@ -1358,16 +1382,6 @@
                       <Border/>
                     </DockPanel>
                     <TextBlock x:Name="CodexHooksStatus" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,8,0,0"/>
-                  </StackPanel>
-                </Border>
-                  </StackPanel>
-                  <StackPanel x:Name="MusicSettingsSection" Tag="Музыка|&#xE8D6;" Visibility="Collapsed">
-                <Border Style="{StaticResource Tile}">
-                  <StackPanel>
-                    <TextBlock Style="{StaticResource Body}" Text="Слушать прямо в Atoll…"/>
-                    <StackPanel x:Name="MusicPlayersPanel" Margin="0,8,0,0"/>
-                    <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" FontSize="11" Margin="0,8,0,0"
-                               Text="Сервисы открываются своими сайтами в отдельном окне: войдите в нём сами, окно можно свернуть. Браузеру нужно 350–800 МБ памяти; через 5 минут без музыки он закрывается."/>
                   </StackPanel>
                 </Border>
                   </StackPanel>

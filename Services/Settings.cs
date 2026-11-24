@@ -249,10 +249,10 @@ public sealed class Settings
     public bool RecordSystemAudio { get; set; } = true;
     public bool RecordMicrophone { get; set; } = true;
 
-    /// <summary>Music sources that are on (see MusicPlayers): none until the user picks.</summary>
-    public List<string> MusicPlayers { get; set; } = [];
+    /// <summary>The source used last in the Music tab (see MusicPlayers).</summary>
     public string MusicSource { get; set; } = "";
     public string MusicFolder { get; set; } = "";
+    public List<RadioDirectory.Station> RadioLiked { get; set; } = [];
 
     // chat
     public string ChatProvider { get; set; } = "gemini";

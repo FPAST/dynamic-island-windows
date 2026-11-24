@@ -7,10 +7,10 @@ namespace DynamicIsland.Tests;
 public class MusicPlayersTests
 {
     [Fact]
-    public void NothingIsOnUntilTheUserPicks()
+    public void AnUnknownSourceIsTheFirstOne()
     {
-        Assert.Empty(new Settings().MusicPlayers);
-        Assert.Equal(["spotify", "radio"], MusicPlayers.Enabled(["radio", "gone", "spotify"]).Select(p => p.Id));
+        Assert.Equal("radio", MusicPlayers.ById("radio").Id);
+        Assert.Equal("ytmusic", MusicPlayers.ById("gone").Id);
     }
 
     [Fact]
@@ -19,6 +19,7 @@ public class MusicPlayersTests
         foreach (var p in MusicPlayers.All.Where(p => p.IsSite))
         {
             Assert.True(SafeShell.IsOnHost(p.Home, MusicPlayers.Hosts), p.Home);
+            Assert.True(SafeShell.IsOnHost(p.Playlists, MusicPlayers.Hosts), p.Playlists);
             Assert.True(SafeShell.IsOnHost(MusicPlayers.AddressFor(p, "a/b?c&d"), MusicPlayers.Hosts));
             Assert.Equal(p.Home, MusicPlayers.AddressFor(p, "  "));
         }
@@ -58,6 +59,7 @@ public class MusicPlayersTests
             Assert.Equal(2, Names("").Count);
             Assert.Equal(["Кукушка.mp3"], Names("кино кук"));
             Assert.Empty(Names("cover"));
+            Assert.Equal([Path.Combine(dir, "Кино")], MusicPlayers.FindFolders(dir));
             Assert.Single(MusicPlayers.FindFiles(dir, "", max: 1));
             Assert.Empty(MusicPlayers.FindFiles(Path.Combine(dir, "gone"), ""));
         }

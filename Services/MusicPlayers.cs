@@ -13,8 +13,8 @@ namespace DynamicIsland.Services;
 /// <summary>What Atoll itself can play: the services' own sites, internet radio and the user's files.</summary>
 public static class MusicPlayers
 {
-    /// <summary>A source in the Music tab; a site has an address and a search address ({0} = the escaped query).</summary>
-    public sealed record Player(string Id, string Name, string Home = "", string Search = "")
+    /// <summary>A source in the Music tab; a site has an address and a search address ({0} = the escaped query) and the page of the user's playlists.</summary>
+    public sealed record Player(string Id, string Name, string Home = "", string Search = "", string Playlists = "")
     {
         public bool IsSite => Home.Length > 0;
         public override string ToString() => L.T(Name);
@@ -22,25 +22,29 @@ public static class MusicPlayers
 
     public static readonly Player[] All =
     [
-        new("ytmusic", "YouTube Music", "https://music.youtube.com/", "https://music.youtube.com/search?q={0}"),
-        new("youtube", "YouTube", "https://www.youtube.com/", "https://www.youtube.com/results?search_query={0}"),
-        new("spotify", "Spotify", "https://open.spotify.com/", "https://open.spotify.com/search/{0}"),
-        new("soundcloud", "SoundCloud", "https://soundcloud.com/", "https://soundcloud.com/search?q={0}"),
-        new("deezer", "Deezer", "https://www.deezer.com/", "https://www.deezer.com/search/{0}"),
-        new("apple", "Apple Music", "https://music.apple.com/", "https://music.apple.com/search?term={0}"),
+        new("ytmusic", "YouTube Music", "https://music.youtube.com/", "https://music.youtube.com/search?q={0}", "https://music.youtube.com/library/playlists"),
+        new("youtube", "YouTube", "https://www.youtube.com/", "https://www.youtube.com/results?search_query={0}", "https://www.youtube.com/feed/playlists"),
+        new("spotify", "Spotify", "https://open.spotify.com/", "https://open.spotify.com/search/{0}", "https://open.spotify.com/collection/playlists"),
+        new("soundcloud", "SoundCloud", "https://soundcloud.com/", "https://soundcloud.com/search?q={0}", "https://soundcloud.com/you/sets"),
+        new("deezer", "Deezer", "https://www.deezer.com/", "https://www.deezer.com/search/{0}", "https://www.deezer.com/profile/me/playlists"),
+        new("apple", "Apple Music", "https://music.apple.com/", "https://music.apple.com/search?term={0}", "https://music.apple.com/library/all-playlists"),
         new("radio", "Радио"),
         new("files", "Свои файлы"),
     ];
 
-    /// <summary>Pop-ups that stay inside the player window: the services and their sign-in pages.</summary>
+    /// <summary>Pop-ups that stay in Atoll: the services and their sign-in pages.</summary>
     public static readonly string[] Hosts =
     [
         "youtube.com", "spotify.com", "soundcloud.com", "deezer.com", "music.apple.com",
         "accounts.google.com", "appleid.apple.com", "idmsa.apple.com", "www.facebook.com",
     ];
 
-    /// <summary>The sources that are on, in the order above; unknown ids are ignored.</summary>
-    public static Player[] Enabled(IEnumerable<string> ids) => All.Where(p => ids.Contains(p.Id)).ToArray();
+    /// <summary>The source with this id; the first one when it is unknown.</summary>
+    public static Player ById(string id) => All.FirstOrDefault(p => p.Id == id) ?? All[0];
+
+    /// <summary>The folders inside the music folder that hold music: its playlists.</summary>
+    public static List<string> FindFolders(string folder) =>
+        FindFiles(folder, "", 5000).Select(f => Path.GetDirectoryName(f)!).Distinct().Where(d => d != folder.TrimEnd('\\', '/')).ToList();
 
     public static string AddressFor(Player site, string query) =>
         string.IsNullOrWhiteSpace(query) ? site.Home : string.Format(site.Search, Uri.EscapeDataString(query.Trim()));

@@ -11,101 +11,113 @@ using DynamicIsland.Services;
 namespace DynamicIsland;
 
 /// <summary>
-/// Music played by Atoll itself: a service's own site in a window of its own (signed in by the user, nothing
-/// injected), internet radio and local files. All of them report to Windows media controls, so the Music tab
+/// Music played by Atoll itself, in the Music tab: a service's own site inside the island (signed in by the user,
+/// nothing injected), internet radio and local files. All of them report to Windows media controls, so the island
 /// drives them like any other player. What has not played for five minutes is closed and its memory freed.
 /// </summary>
 public partial class MainWindow
 {
     private readonly AtollPlayer _player = new();
-    private Window? _musicWindow;
-    private WebView2? _musicWeb;
-    private MusicPlayers.Player? _musicSite;
-    private bool _musicSourcesLoading;
+    private WebView2CompositionControl? _musicWeb;
+    private string _musicStartUrl = "";
+    private MusicPlayers.Player? _musicSite;                        // the site that is open
+    private MusicPlayers.Player _musicSource = MusicPlayers.All[0]; // the chip that is chosen
+    private bool _musicFullView;                                    // the player with lyrics instead of the open site
+    private string _musicSubfolder = "";
     private int _musicSearch;
     private DateTime _musicPlayedAt = DateTime.Now;
     private readonly System.Windows.Threading.DispatcherTimer _musicIdleTimer = new() { Interval = TimeSpan.FromSeconds(30) };
     private static readonly TimeSpan MusicIdle = TimeSpan.FromMinutes(5);
 
-    private MusicPlayers.Player? ChosenMusicSource => MusicSourceBox.SelectedItem as MusicPlayers.Player;
+    private bool MusicSiteShown => _musicWeb != null && _musicSource == _musicSite && !_musicFullView;
 
     private void InitMusicPlayer()
     {
         _player.Failed += () => Dispatcher.BeginInvoke(MusicFailed);
         _media.OwnSeek = _player.Seek;
         _musicIdleTimer.Tick += (_, _) => ReleaseIdleMusic();
+        _musicSource = MusicPlayers.ById(_settings.MusicSource);
         foreach (var p in MusicPlayers.All)
         {
-            var box = new CheckBox { Style = (Style)FindResource("Switch"), Content = p.ToString(), IsChecked = _settings.MusicPlayers.Contains(p.Id) };
-            box.Click += (_, _) =>
-            {
-                _settings.MusicPlayers.Remove(p.Id);
-                if (box.IsChecked == true) _settings.MusicPlayers.Add(p.Id);
-                else if (p == _musicSite) CloseMusicWindow();
-                else if (_player.Open && p.Id == (_player.Radio ? "radio" : "files")) _player.Close();
-                _settings.Save();
-                RefreshMusicSources();
-            };
-            MusicPlayersPanel.Children.Add(box);
+            var chip = new RadioButton { Style = (Style)FindResource("Segment"), GroupName = "MusicSource", Tag = p.Id, Content = p.ToString() };
+            chip.Click += (_, _) => PickMusicSource(p.Id);
+            MusicChips.Children.Add(chip);
         }
-        RefreshMusicSources();
+        MusicWebHost.SizeChanged += (_, _) =>
+            MusicWebHost.Clip = new RectangleGeometry(new Rect(0, 0, MusicWebHost.ActualWidth, MusicWebHost.ActualHeight), 17, 17);
+        ShowMusicPart();
     }
 
-    private void MusicFailed() => ShowToast("", L.T("Не удалось включить"), L.T("Попробуйте другую станцию или файл"));
+    private void MusicFailed() => ShowToast("\uE783", L.T("Не удалось включить"), L.T("Попробуйте другую станцию или файл"));
 
-    private void RefreshMusicSources()
+    /// <summary>A chip: opens that source right away (a site that is already open just comes back).</summary>
+    private void PickMusicSource(string id)
     {
-        var on = MusicPlayers.Enabled(_settings.MusicPlayers);
-        _musicSourcesLoading = true;
-        MusicSourceBox.Items.Clear();
-        foreach (var p in on) MusicSourceBox.Items.Add(p);
-        MusicSourceBox.SelectedItem = on.FirstOrDefault(p => p.Id == _settings.MusicSource) ?? on.FirstOrDefault();
-        _musicSourcesLoading = false;
-        MusicPlayerRow.Visibility = on.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
-        MusicPlayerHint.Visibility = on.Length > 0 ? Visibility.Collapsed : Visibility.Visible;
-        ShowMusicSource();
+        _musicSource = MusicPlayers.ById(id);
+        _settings.MusicSource = id;
+        _settings.Save();
+        _musicFullView = false;
+        _musicSubfolder = "";
+        ClearMusicResults();
+        if (_musicSource.IsSite)
+        {
+            if (_musicSite == _musicSource) ShowMusicPart();
+            else _ = OpenMusicSiteAsync(_musicSource, _musicSource.Home);
+        }
+        else _ = SearchMusicAsync();
     }
 
-    private void ShowMusicSource()
+    /// <summary>The site with a one-line player, or the full player with what was found under it.</summary>
+    private void ShowMusicPart()
+    {
+        foreach (RadioButton chip in MusicChips.Children) chip.IsChecked = (string)chip.Tag == _musicSource.Id;
+        bool site = MusicSiteShown;
+        MusicFull.Visibility = site ? Visibility.Collapsed : Visibility.Visible;
+        MusicBar.Visibility = MusicWebFrame.Visibility = site ? Visibility.Visible : Visibility.Collapsed;
+        MusicPage.Width = site ? 760 : 720;
+        RefreshMusicButtons();
+        RemeasureMusic();
+    }
+
+    private void RefreshMusicButtons()
+    {
+        static Visibility On(bool on) => on ? Visibility.Visible : Visibility.Collapsed;
+        bool open = _musicWeb != null && _musicSource == _musicSite;
+        MusicBackButton.Visibility = On(MusicSiteShown);
+        MusicViewButton.Visibility = On(open);
+        MusicViewButton.Content = MusicSiteShown ? "\uE70D" : "\uE70E";
+        MusicFolderButton.Visibility = On(_musicSource.Id == "files");
+        MusicStopButton.Visibility = On(_musicWeb != null || _player.Open);
+    }
+
+    private void RemeasureMusic() { if (_mode == Mode.Expanded && TabMusic.IsChecked == true) Remeasure(); }
+
+    private void ClearMusicResults()
     {
         _musicSearch++;   // a search still running belongs to the previous source
         MusicResults.Children.Clear();
         MusicResultsScroll.Visibility = Visibility.Collapsed;
-        MusicFolderButton.Visibility = ChosenMusicSource?.Id == "files" ? Visibility.Visible : Visibility.Collapsed;
-        RefreshMusicStop();
-        RemeasureMusic();
     }
 
-    private void RefreshMusicStop() =>
-        MusicStopButton.Visibility = _musicWindow != null || _player.Open ? Visibility.Visible : Visibility.Collapsed;
+    private void MusicView_Click(object sender, RoutedEventArgs e) { _musicFullView = !_musicFullView; ShowMusicPart(); }
 
-    private void RemeasureMusic() { if (_mode == Mode.Expanded && TabMusic.IsChecked == true) Remeasure(); }
+    private void MusicBack_Click(object sender, RoutedEventArgs e) { if (_musicWeb?.CoreWebView2 is { CanGoBack: true } c) c.GoBack(); }
 
-    private void MusicSource_Changed(object sender, SelectionChangedEventArgs e)
-    {
-        if (_musicSourcesLoading || ChosenMusicSource is not { } p) return;
-        _settings.MusicSource = p.Id;
-        _settings.Save();
-        ShowMusicSource();
-    }
-
-    private void MusicHint_Click(object sender, RoutedEventArgs e)
-    {
-        TabSettings.IsChecked = true;
-        ((RadioButton)SettingsNav.Children[SettingsSections.Children.IndexOf(MusicSettingsSection)]).IsChecked = true;
-    }
+    private void MusicQuery_TextChanged(object sender, TextChangedEventArgs e) =>
+        MusicQueryHint.Visibility = MusicQuery.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
 
     private void MusicQuery_KeyDown(object sender, KeyEventArgs e) { if (e.Key == Key.Enter) _ = SearchMusicAsync(); }
-    private void MusicSearch_Click(object sender, RoutedEventArgs e) => _ = SearchMusicAsync();
 
     private async Task SearchMusicAsync()
     {
-        if (ChosenMusicSource is not { } p) return;
+        var p = _musicSource;
         var query = MusicQuery.Text.Trim();
+        _musicFullView = false;
+        ClearMusicResults();
         if (p.IsSite) { await OpenMusicSiteAsync(p, MusicPlayers.AddressFor(p, query)); return; }
 
-        int search = ++_musicSearch;
-        MusicResults.Children.Clear();
+        ShowMusicPart();
+        int search = _musicSearch;
         try
         {
             if (p.Id == "radio")
@@ -114,19 +126,19 @@ public partial class MainWindow
                 var found = await RadioDirectory.SearchAsync(query);
                 if (search != _musicSearch) return;
                 MusicResults.Children.Clear();
-                foreach (var s in found) MusicRow(s.Name, s.Info, () => { PlayOwn(() => _player.PlayRadio(s)); _ = RadioDirectory.CountAsync(s); });
+                StationRows(found);
                 if (found.Count == 0) MusicNote(L.T("Ничего не найдено"));
             }
             else
             {
-                var folder = _settings.MusicFolder;
+                var folder = _musicSubfolder.Length > 0 ? _musicSubfolder : _settings.MusicFolder;
                 if (folder.Length == 0) { MusicNote(L.T("Выберите папку с музыкой")); return; }
                 var found = await Task.Run(() => MusicPlayers.FindFiles(folder, query));
                 if (search != _musicSearch) return;
                 for (int i = 0; i < found.Count; i++)
                 {
                     int at = i;
-                    MusicRow(Path.GetFileNameWithoutExtension(found[i]), "", () => PlayOwn(() => _player.PlayFiles(found, at)));
+                    MusicRow("\uE8D6", Path.GetFileNameWithoutExtension(found[i]), "", () => PlayOwn(() => _player.PlayFiles(found, at)));
                 }
                 if (found.Count == 0) MusicNote(L.T("Ничего не найдено"));
             }
@@ -141,28 +153,79 @@ public partial class MainWindow
         RemeasureMusic();
     }
 
+    /// <summary>A site's own playlists page, the liked stations, or the folders of the user's music.</summary>
+    private void MusicPlaylists_Click(object sender, RoutedEventArgs e) => _ = ShowPlaylistsAsync();
+
+    private async Task ShowPlaylistsAsync()
+    {
+        _musicFullView = false;
+        ClearMusicResults();
+        if (_musicSource.IsSite) { await OpenMusicSiteAsync(_musicSource, _musicSource.Playlists); return; }
+        int search = _musicSearch;
+        if (_musicSource.Id == "radio")
+        {
+            StationRows(_settings.RadioLiked);
+            if (_settings.RadioLiked.Count == 0) MusicNote(L.T("Нажмите ♥ у станции, и она появится здесь"));
+        }
+        else
+        {
+            var root = _settings.MusicFolder;
+            if (root.Length == 0) { MusicNote(L.T("Выберите папку с музыкой")); return; }
+            List<string> folders = [];
+            try { folders = await Task.Run(() => MusicPlayers.FindFolders(root)); }
+            catch (Exception ex) { Log.Write("music: folders: " + ex.GetType().Name); }
+            if (search != _musicSearch) return;
+            foreach (var f in folders.Prepend(""))
+                MusicRow("\uE8B7", f.Length == 0 ? L.T("Вся папка") : Path.GetRelativePath(root, f), "", () => { _musicSubfolder = f; MusicQuery.Text = ""; _ = SearchMusicAsync(); });
+        }
+        RemeasureMusic();
+    }
+
     private void MusicNote(string text)
     {
-        MusicResults.Children.Add(new TextBlock { Text = text, Style = (Style)FindResource("Muted"), TextWrapping = TextWrapping.Wrap });
+        MusicResults.Children.Add(new TextBlock { Text = text, Style = (Style)FindResource("Muted"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(6, 4, 0, 4) });
         MusicResultsScroll.Visibility = Visibility.Visible;
         RemeasureMusic();
     }
 
-    private void MusicRow(string title, string info, Action play)
+    private void StationRows(IEnumerable<RadioDirectory.Station> stations)
     {
-        var line = new DockPanel { Width = 590 };   // the pill centres its content
-        var right = new TextBlock { Text = info, FontSize = 11, Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
-        right.SetResourceReference(TextBlock.ForegroundProperty, "Fg3");
-        DockPanel.SetDock(right, Dock.Right);
-        line.Children.Add(right);
-        line.Children.Add(new TextBlock { Text = title, TextTrimming = TextTrimming.CharacterEllipsis });
-        var b = new Button
+        foreach (var s in stations)
         {
-            Style = (Style)FindResource("GhostPill"), Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(0, 0, 0, 4),
-            HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Stretch, Content = line,
-        };
+            bool Liked() => _settings.RadioLiked.Any(x => x.Url == s.Url);
+            var heart = new Button { Style = (Style)FindResource("IconButton"), Content = Liked() ? "\uEB52" : "\uEB51", FontSize = 12, Width = 28, Height = 28 };
+            heart.Click += (_, _) =>
+            {
+                if (Liked()) _settings.RadioLiked.RemoveAll(x => x.Url == s.Url); else _settings.RadioLiked.Insert(0, s);
+                _settings.Save();
+                heart.Content = Liked() ? "\uEB52" : "\uEB51";
+            };
+            MusicRow("\uE93E", s.Name, s.Info, () => { PlayOwn(() => _player.PlayRadio(s)); _ = RadioDirectory.CountAsync(s); }, heart);
+        }
+    }
+
+    private void MusicRow(string icon, string title, string info, Action play, Button? extra = null)
+    {
+        var line = new Grid { Width = 630 };   // the pill centres its content
+        line.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(26) });
+        line.ColumnDefinitions.Add(new ColumnDefinition());
+        line.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var sign = new TextBlock { Text = icon, FontFamily = (FontFamily)FindResource("IconFont"), FontSize = 13, VerticalAlignment = VerticalAlignment.Center };
+        var name = new TextBlock { Text = title, FontSize = 13, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
+        var right = new TextBlock { Text = info, FontSize = 11, Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+        sign.SetResourceReference(TextBlock.ForegroundProperty, "Accent");
+        right.SetResourceReference(TextBlock.ForegroundProperty, "Fg3");
+        Grid.SetColumn(name, 1);
+        Grid.SetColumn(right, 2);
+        line.Children.Add(sign);
+        line.Children.Add(name);
+        line.Children.Add(right);
+        var b = new Button { Style = (Style)FindResource("GhostPill"), Padding = new Thickness(8, 6, 8, 6), Content = line };
         b.Click += (_, _) => play();
-        MusicResults.Children.Add(b);
+        var row = new DockPanel { Margin = new Thickness(0, 0, 0, 2) };
+        if (extra != null) { DockPanel.SetDock(extra, Dock.Right); row.Children.Add(extra); }
+        row.Children.Add(b);
+        MusicResults.Children.Add(row);
         MusicResultsScroll.Visibility = Visibility.Visible;
     }
 
@@ -178,7 +241,7 @@ public partial class MainWindow
         }
         _musicPlayedAt = DateTime.Now;
         _musicIdleTimer.Start();
-        RefreshMusicStop();
+        RefreshMusicButtons();
     }
 
     private void MusicFolder_Click(object sender, RoutedEventArgs e)
@@ -187,52 +250,47 @@ public partial class MainWindow
         if (d.ShowDialog() != true) return;
         _settings.MusicFolder = d.FolderName;
         _settings.Save();
+        _musicSubfolder = "";
         _ = SearchMusicAsync();
     }
 
     private void MusicStop_Click(object sender, RoutedEventArgs e)
     {
         _player.Close();
-        CloseMusicWindow();
+        CloseMusicSite();
     }
 
     // ------------------------------------------------------------------ the services' own sites
 
     private async Task OpenMusicSiteAsync(MusicPlayers.Player site, string url)
     {
-        bool same = _musicSite == site;
         _musicSite = site;
         MediaService.WebPlayerName = site.Name;
         _musicPlayedAt = DateTime.Now;
-        if (_musicWindow != null)
+        _musicStartUrl = url;
+        if (_musicWeb != null)
         {
-            _musicWindow.Title = "Atoll · " + site.Name;
-            // the same service with no query: just show it, the song goes on
-            if (_musicWeb?.CoreWebView2 is { } open && !(same && url == site.Home)) open.Navigate(url);
-            if (_musicWindow.WindowState == WindowState.Minimized) _musicWindow.WindowState = WindowState.Normal;
-            _musicWindow.Activate();
+            _musicWeb.CoreWebView2?.Navigate(url);   // null: still starting, it goes to _musicStartUrl
+            ShowMusicPart();
             return;
         }
 
-        var web = new WebView2();
-        var window = new Window
-        {
-            Title = "Atoll · " + site.Name, Width = 1000, Height = 700, MinWidth = 360, MinHeight = 300, Content = web,
-            WindowStartupLocation = WindowStartupLocation.CenterScreen, Background = Brushes.Black,
-        };
+        // the composition control draws inside the island's transparent window, like the chat
+        var web = new WebView2CompositionControl { Visibility = Visibility.Hidden };
         _musicWeb = web;
-        _musicWindow = window;
-        window.Closed += (_, _) => { if (window == _musicWindow) CloseMusicWindow(); };
-        window.Show();
+        MusicWebNote.Visibility = Visibility.Visible;
+        MusicWebHost.Children.Add(web);
+        ShowMusicPart();
         _musicIdleTimer.Start();
-        RefreshMusicStop();
         try
         {
-            var dataDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DynamicIsland", "WebView2Music");
+            // test runs have a profile of their own: the user's sign-ins stay out of them
+            var dataDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DynamicIsland", App.TestRun ? "WebView2MusicTest" : "WebView2Music");
             var env = await CoreWebView2Environment.CreateAsync(null, dataDir);
             if (_musicWeb != web) return;   // closed meanwhile
             await web.EnsureCoreWebView2Async(env);
             if (_musicWeb != web) return;
+            web.ZoomFactor = 0.8;   // more of the page in the island
             var core = web.CoreWebView2;
             core.Settings.AreDevToolsEnabled = false;
             core.Settings.AreHostObjectsAllowed = false;
@@ -260,38 +318,42 @@ public partial class MainWindow
                 SafeShell.OpenUrl(u);
             };
             core.IsDocumentPlayingAudioChanged += (_, _) => { if (core.IsDocumentPlayingAudio) _player.Pause(); };
+            core.NavigationCompleted += (_, _) => { MusicWebNote.Visibility = Visibility.Collapsed; web.Visibility = Visibility.Visible; };
             core.ProcessFailed += (_, e) =>
             {
                 Log.Write("music: web: " + e.ProcessFailedKind);
-                if (e.ProcessFailedKind == CoreWebView2ProcessFailedKind.BrowserProcessExited && _musicWeb == web) Dispatcher.BeginInvoke(CloseMusicWindow);
+                if (e.ProcessFailedKind == CoreWebView2ProcessFailedKind.BrowserProcessExited && _musicWeb == web) Dispatcher.BeginInvoke(CloseMusicSite);
             };
-            core.Navigate(url);
+            core.Navigate(_musicStartUrl);
         }
         catch (Exception ex)
         {
             Log.Write("music: web: " + ex.GetType().Name + ": " + ex.Message);
             if (_musicWeb != web) return;
-            CloseMusicWindow();
+            CloseMusicSite();
             ShowToast("", L.T("Не удалось включить"), site.Name);
         }
     }
 
     /// <summary>Closes the site and its browser processes; the sign-in stays (cookies are on disk).</summary>
-    private void CloseMusicWindow()
+    private void CloseMusicSite()
     {
-        var window = _musicWindow;
         var web = _musicWeb;
-        _musicWindow = null; _musicWeb = null; _musicSite = null;
+        _musicWeb = null;
+        _musicSite = null;
         MediaService.WebPlayerName = "";
-        try { web?.Dispose(); } catch (Exception ex) { Log.Write("music: dispose: " + ex.GetType().Name + ": " + ex.Message); }
-        window?.Close();
-        if (!_shutDown) RefreshMusicStop();
+        try
+        {
+            if (web != null) { MusicWebHost.Children.Remove(web); web.Dispose(); }
+        }
+        catch (Exception ex) { Log.Write("music: dispose: " + ex.GetType().Name + ": " + ex.Message); }
+        if (!_shutDown) ShowMusicPart();
     }
 
     /// <summary>Nothing has played for five minutes: free the memory. A site the user is looking at stays.</summary>
     private void ReleaseIdleMusic()
     {
-        if (_player.Playing || _musicWeb?.CoreWebView2?.IsDocumentPlayingAudio == true || _musicWindow is { IsActive: true, WindowState: not WindowState.Minimized })
+        if (_player.Playing || _musicWeb?.CoreWebView2?.IsDocumentPlayingAudio == true || (_mode == Mode.Expanded && MusicWebHost.IsVisible))
         {
             _musicPlayedAt = DateTime.Now;
             return;
@@ -299,7 +361,7 @@ public partial class MainWindow
         if (DateTime.Now - _musicPlayedAt < MusicIdle) return;
         _musicIdleTimer.Stop();
         _player.Close();
-        CloseMusicWindow();
+        CloseMusicSite();
     }
 
     private void ShutdownMusicPlayer()
@@ -309,7 +371,7 @@ public partial class MainWindow
         Process? browser = null;
         try { if (_musicWeb?.CoreWebView2 is { } core) browser = Process.GetProcessById((int)core.BrowserProcessId); }
         catch (Exception ex) { Log.Write("music: shutdown: " + ex.GetType().Name); }
-        CloseMusicWindow();
+        CloseMusicSite();
         using (browser) browser?.WaitForExit(2500);   // let it write its cookies
     }
 }

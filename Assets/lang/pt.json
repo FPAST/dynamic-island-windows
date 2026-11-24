@@ -1134,9 +1134,11 @@
  "Выберите папку с музыкой": "Escolha a pasta de música",
  "Поиск не удался": "A busca falhou",
  "Радио: слов нет": "Rádio: sem letra",
- "Слушать прямо в Atoll…": "Ouvir no Atoll…",
- "Выбрать сервисы, радио или свои файлы": "Escolha serviços, rádio ou seus arquivos",
  "Остановить и закрыть плеер": "Parar e fechar o player",
- "Найти или открыть": "Buscar ou abrir",
- "Сервисы открываются своими сайтами в отдельном окне: войдите в нём сами, окно можно свернуть. Браузеру нужно 350–800 МБ памяти; через 5 минут без музыки он закрывается.": "Os serviços abrem como seus próprios sites em uma janela separada: entre na sua conta ali; a janela pode ser minimizada. O navegador precisa de 350–800 MB de memória; após 5 minutos sem música, ele fecha."
+ "Плейлисты": "Playlists",
+ "Плеер со словами или сайт": "Player com letra ou site",
+ "Песня, исполнитель или станция": "Música, artista ou estação",
+ "Открываю…": "Abrindo…",
+ "Нажмите ♥ у станции, и она появится здесь": "Toque em ♥ ao lado de uma estação e ela aparecerá aqui",
+ "Вся папка": "Pasta inteira"
 }

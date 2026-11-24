@@ -69,20 +69,21 @@ public partial class MainWindow
         bool playing = m?.IsPlaying == true;
         bool hasTrack = m != null && (m.Title.Length > 0 || m.Artist.Length > 0);
 
-        TrackTitle.Text = HomeTrack.Text = hasTrack ? (m!.Title.Length > 0 ? m.Title : L.T("Без названия")) : L.T("Ничего не играет");
-        TrackArtist.Text = HomeArtist.Text = hasTrack ? m!.Artist : L.T("Включите музыку в любом плеере");
+        TrackTitle.Text = HomeTrack.Text = BarTitle.Text = hasTrack ? (m!.Title.Length > 0 ? m.Title : L.T("Без названия")) : L.T("Ничего не играет");
+        TrackArtist.Text = HomeArtist.Text = BarArtist.Text = hasTrack ? m!.Artist : L.T("Включите музыку в любом плеере");
         TrackSource.Text = hasTrack ? m!.SourceApp : "";
 
         if (m?.Art != null)
         {
             var brush = new ImageBrush(m.Art) { Stretch = Stretch.UniformToFill };
-            MiniArt.Background = HomeArt.Background = brush;
+            MiniArt.Background = HomeArt.Background = BarArt.Background = brush;
             HomeArtPlaceholder.Visibility = Visibility.Collapsed;
         }
         else
         {
             MiniArt.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "ChipBg");
             HomeArt.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "ChipBg");
+            BarArt.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "ChipBg");
             HomeArtPlaceholder.Visibility = Visibility.Visible;
         }
         ArtRecord.SetCover(m?.Art);
@@ -102,7 +103,7 @@ public partial class MainWindow
         ArtRecord.SetPlaying(playing);
         TrackTitle.Playing = playing;
         MusicBars.SetPlaying(playing);
-        PlayPauseButton.Content = HomePlay.Content = playing ? "" : "";
+        PlayPauseButton.Content = HomePlay.Content = BarPlay.Content = playing ? "" : "";
         UpdateEyesVisibility();
         SetEqualizer(playing);
         if (playing) StartRendering(); // liquid wave
