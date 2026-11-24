@@ -1364,7 +1364,7 @@
                   <StackPanel x:Name="MusicSettingsSection" Tag="Музыка|&#xE8D6;" Visibility="Collapsed">
                 <Border Style="{StaticResource Tile}">
                   <StackPanel>
-                    <TextBlock Style="{StaticResource Caption}" Text="СЛУШАТЬ ПРЯМО В ATOLL"/>
+                    <TextBlock Style="{StaticResource Body}" Text="Слушать прямо в Atoll…"/>
                     <StackPanel x:Name="MusicPlayersPanel" Margin="0,8,0,0"/>
                     <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" FontSize="11" Margin="0,8,0,0"
                                Text="Сервисы открываются своими сайтами в отдельном окне: войдите в нём сами, окно можно свернуть. Браузеру нужно 350–800 МБ памяти; через 5 минут без музыки он закрывается."/>

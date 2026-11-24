@@ -150,7 +150,7 @@ public partial class MainWindow
 
     private void MusicRow(string title, string info, Action play)
     {
-        var line = new DockPanel();
+        var line = new DockPanel { Width = 590 };   // the pill centres its content
         var right = new TextBlock { Text = info, FontSize = 11, Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
         right.SetResourceReference(TextBlock.ForegroundProperty, "Fg3");
         DockPanel.SetDock(right, Dock.Right);
