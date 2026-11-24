@@ -75,15 +75,19 @@
         <!-- frosted glass: what's behind the island, blurred, clipped to its shape -->
         <Canvas x:Name="FrostHost" Visibility="Collapsed">
           <Canvas.CacheMode><BitmapCache/></Canvas.CacheMode>
-          <Canvas x:Name="FrostBlur">
-            <Canvas.Effect>
-              <BlurEffect Radius="36" KernelType="Gaussian" RenderingBias="Performance"/>
-            </Canvas.Effect>
-            <!-- liquid glass: the lens (GlassEffect) bends the picture along the rim, before the blur -->
-            <Canvas x:Name="FrostLens" Background="Transparent" ClipToBounds="True">
-              <!-- two pictures: a new one fades in over the one before -->
-              <Image x:Name="Frost" Stretch="Fill"/>
-              <Image x:Name="FrostNext" Stretch="Fill" Opacity="0"/>
+          <!-- liquid glass: the lens (GlassEffect) over the blurred picture; along the rim it bends the sharp one (FrostPics) -->
+          <Canvas x:Name="FrostLens">
+            <Canvas x:Name="FrostClip">
+              <Canvas x:Name="FrostBlur">
+                <Canvas.Effect>
+                  <BlurEffect Radius="36" KernelType="Gaussian" RenderingBias="Performance"/>
+                </Canvas.Effect>
+                <Canvas x:Name="FrostPics">
+                  <!-- two pictures: a new one fades in over the one before -->
+                  <Image x:Name="Frost" Stretch="Fill"/>
+                  <Image x:Name="FrostNext" Stretch="Fill" Opacity="0"/>
+                </Canvas>
+              </Canvas>
             </Canvas>
           </Canvas>
         </Canvas>
@@ -1087,6 +1091,7 @@
                         <Button Style="{StaticResource IconButton}" Width="28" Height="28" FontSize="11" Content="&#xE710;" Click="TintPlus_Click"/>
                       </StackPanel>
                     </DockPanel>
+                    <v:Scrubber x:Name="LiquidTintSlider" Minimum="0" Maximum="100" Step="5" Margin="0,4,0,8" ValueChanged="LiquidTint_ValueChanged"/>
                     <CheckBox x:Name="FadeSwitch" Style="{StaticResource Switch}" Click="Fade_Click" Content="Прозрачный низ"/>
                     <CheckBox x:Name="LiveGlassSwitch" Style="{StaticResource Switch}" Click="LiveGlass_Click" Content="Живое стекло — плавно, без преломления по краю"/>
                   </StackPanel>

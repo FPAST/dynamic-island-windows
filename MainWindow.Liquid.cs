@@ -165,8 +165,8 @@ public partial class MainWindow
         var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
         fx.BeginAnimation(DropShadowEffect.ColorProperty, new ColorAnimation(color, Colors.Black, dur) { EasingFunction = ease, FillBehavior = FillBehavior.Stop });
         fx.BeginAnimation(DropShadowEffect.OpacityProperty, new DoubleAnimation(1, fx.Opacity, dur) { EasingFunction = ease, FillBehavior = FillBehavior.Stop });
-        fx.BeginAnimation(DropShadowEffect.BlurRadiusProperty, new DoubleAnimation(52, 34, dur) { EasingFunction = ease, FillBehavior = FillBehavior.Stop });
-        fx.BeginAnimation(DropShadowEffect.ShadowDepthProperty, new DoubleAnimation(0, 6, dur) { EasingFunction = ease, FillBehavior = FillBehavior.Stop });
+        fx.BeginAnimation(DropShadowEffect.BlurRadiusProperty, new DoubleAnimation(52, fx.BlurRadius, dur) { EasingFunction = ease, FillBehavior = FillBehavior.Stop });
+        fx.BeginAnimation(DropShadowEffect.ShadowDepthProperty, new DoubleAnimation(0, fx.ShadowDepth, dur) { EasingFunction = ease, FillBehavior = FillBehavior.Stop });
     }
 
     /// <summary>The vivid colour of an album cover (for the equaliser, glow and character accents).</summary>

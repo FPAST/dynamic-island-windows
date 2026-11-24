@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using System.Windows.Media.Effects;
 using System.Windows.Media.Media3D;
 using DynamicIsland.Views;
@@ -26,13 +27,91 @@ public partial class MainWindow
     /// <summary>Lighter blur than plain frost: matte, yet you can tell what's behind and see it bend.</summary>
     private void ApplyLiquidBlur()
     {
-        if (FrostBlur.Effect is BlurEffect b) b.Radius = LiquidGlass ? 6 : 36;
         if (LiquidGlass && !_lensTried) { _lensTried = true; _lens = GlassEffect.TryCreate(); }
         var lens = LiquidGlass ? _lens : null;
+        if (FrostBlur.Effect is BlurEffect b) b.Radius = lens != null ? 22 : LiquidGlass ? 6 : 36;
         if (FrostLens.Effect == lens) return;
         FrostLens.Effect = lens;
-        FrostLens.ClipToBounds = lens != null;   // the lens's picture is exactly the island and a band around it
+        // the lens's picture is exactly the island and a band around it; the clear box keeps that size whatever is drawn
+        FrostClip.ClipToBounds = lens != null;
+        FrostClip.Background = lens != null ? Brushes.Transparent : null;
         PlaceFrost(Island.ActualWidth, Island.ActualHeight);
+        UpdateGlassFill();   // the tint is the lens's own (or the fill's, without it)
+    }
+
+    // ---------------------------------------------------------------- the glass's tint
+
+    private const string LiquidIsland = "#0B0B14";   // the theme's own colour; another one is the person's choice
+    private double _backdropHi = 255, _backdropLo, _liquidNeed;
+
+    /// <summary>How bright the picture behind is (its 85th and 15th percentiles, 0…255). The tint follows it, in steps.</summary>
+    private void MeasureBackdrop(byte[] px)
+    {
+        if (!LiquidGlass) return;
+        Span<int> bins = stackalloc int[32];
+        int n = 0;
+        for (int i = 0; i + 2 < px.Length; i += 64, n++) bins[(px[i + 2] * 54 + px[i + 1] * 183 + px[i] * 19) >> 11]++;
+        int seen = 0, lo = 0, hi = 31;
+        for (int b = 0; b < 32; b++) { seen += bins[b]; if (seen < n * 0.15) lo = b + 1; if (seen < n * 0.85) hi = b + 1; }
+        _backdropLo = Math.Min(31, lo) * 8;
+        _backdropHi = Math.Min(31, hi) * 8 + 7;
+        if (Math.Abs(LiquidNeed() - _liquidNeed) > 0.03) UpdateGlassFill(fade: true);
+    }
+
+    /// <summary>
+    /// The tint the text needs over this backdrop: dark glass over a bright page (or light glass over a dark one) gets
+    /// just as dense as it takes to read; over anything that suits it, the clear tint of the slider is enough.
+    /// </summary>
+    private double LiquidNeed()
+    {
+        bool live = LiveGlassOn;   // the compositor's glass: there is no picture to measure, so the worst is assumed
+        double easier = Math.Max(0, 50 - _settings.LiquidTint) / 50.0;   // the clear half of the slider asks for a little less
+        double v = _settings.DarkTheme ? (live ? 255 : _backdropHi) : live ? 0 : _backdropLo;
+        double limit = _settings.DarkTheme ? 84 + 24 * easier : 178 - 24 * easier;
+        double need = _settings.DarkTheme ? (v - limit) / Math.Max(1, v - 22) : (limit - v) / Math.Max(1, 255 - v);
+        return Math.Clamp(need, 0, 0.92);
+    }
+
+    /// <summary>Clear to nearly opaque; the middle is white 0.14 (light) or near-black 0.32 (dark).</summary>
+    private double LiquidAlpha()
+    {
+        double s = Math.Clamp(_settings.LiquidTint, 0, 100) / 100.0;
+        double mid = _settings.DarkTheme ? 0.32 : 0.14, clear = _settings.DarkTheme ? 0.10 : 0.04;
+        double own = s <= 0.5 ? clear + (mid - clear) * s * 2 : mid + (0.92 - mid) * (s - 0.5) * 2;
+        _liquidNeed = LiquidNeed();
+        return Math.Max(own, _liquidNeed);
+    }
+
+    private Color LiquidTintColor(Color island) =>
+        !string.Equals(_settings.IslandColor, LiquidIsland, StringComparison.OrdinalIgnoreCase) ? island : _settings.DarkTheme ? Color.FromRgb(20, 20, 24) : Colors.White;
+
+    /// <summary>
+    /// The same glass inside: tiles, chips, cards and buttons are clear panes over the one picture, with a 1 px ring
+    /// that is brighter on top; the quieter text is brought nearer to the main one, so it reads over any backdrop.
+    /// </summary>
+    private void ApplyLiquidBrushes()
+    {
+        var r = System.Windows.Application.Current.Resources;
+        r.Remove("CardBg");
+        Season.Light = !_settings.DarkTheme;
+        if (_settings.Scene != "liquid") return;
+        bool dark = _settings.DarkTheme;
+        static SolidColorBrush Pane(double a, byte v = 255) { var b = new SolidColorBrush(Color.FromArgb((byte)(a * 255), v, v, v)); b.Freeze(); return b; }
+        r["TileBg"] = dark ? Glass(0x18, 0x0C) : Glass(0x66, 0x40);
+        r["TileBgHover"] = dark ? Glass(0x28, 0x16) : Glass(0x96, 0x70);
+        var ring = new LinearGradientBrush { StartPoint = new System.Windows.Point(0.5, 0), EndPoint = new System.Windows.Point(0.5, 1) };
+        byte edge = (byte)(dark ? 0x2E : 0x59), top = (byte)(dark ? 0x4D : 0x8C);
+        ring.GradientStops.Add(new GradientStop(Color.FromArgb(top, 255, 255, 255), 0));
+        ring.GradientStops.Add(new GradientStop(Color.FromArgb(edge, 255, 255, 255), 0.3));
+        // light glass over a white page: white on white has no edge, the lower one is a breath of shade
+        ring.GradientStops.Add(new GradientStop(dark ? Color.FromArgb(edge, 255, 255, 255) : Color.FromArgb(0x24, 0, 0, 0), 1));
+        ring.Freeze();
+        r["TileStroke"] = ring;
+        r["ChipBg"] = Pane(dark ? 0.09 : 0.45);
+        r["TrackBg"] = dark ? Pane(0.22) : Pane(0.14, 0);
+        r["CardBg"] = dark ? Pane(0.26, 20) : Pane(0.40);
+        r["Fg2"] = Pane(1, (byte)(dark ? 0xEE : 0x36));
+        r["Fg3"] = Pane(1, (byte)(dark ? 0xDC : 0x44));
     }
 
     /// <summary>
@@ -46,8 +125,8 @@ public partial class MainWindow
         double band = FrostMargin + DripRoom;
         Canvas.SetLeft(FrostLens, -band);
         Canvas.SetTop(FrostLens, -band);
-        FrostLens.Width = Math.Max(1, w + 2 * band);
-        FrostLens.Height = Math.Max(1, h + 2 * band);
+        FrostClip.Width = FrostLens.Width = Math.Max(1, w + 2 * band);
+        FrostClip.Height = FrostLens.Height = Math.Max(1, h + 2 * band);
         Point now = default;
         bool placed = PresentationSource.FromVisual(Island) != null;
         if (placed) now = Island.PointToScreen(new Point(w / 2, 0));
@@ -66,12 +145,18 @@ public partial class MainWindow
         }
         if (FrostLens.Effect is not GlassEffect lens || w < 2 || h < 2) return;
         double rr = Math.Min(Radius(h), Math.Min(w, h) / 2);
-        double bend = Math.Max(6, Math.Min(h * 0.42, rr * 1.2 + 6)), push = bend * 0.9;
+        double bend = Math.Max(6, Math.Min(h * 0.4, 20));
         lens.Geometry = new Point4D(w + 2 * band, h + 2 * band, band, rr);
-        // pulled inwards (it reads from inside the glass), red a little further than blue, colours 25 % richer,
-        // and the light gathered in the rim: fitted to Refract's look (the shader's lens eases in more softly)
-        lens.Lens = new Point4D(bend * 1.3, -push * 0.8, -push * 0.2, 1.25);
-        lens.Light = new Point4D(0, 0, 0.5, 1);
+        // frosted in the middle; a band along the rim is clear and bends what's behind (pulled inwards, so it never
+        // runs off the picture), red a touch further than blue; colours 60 % richer
+        lens.Lens = new Point4D(bend, -bend * 1.1, -0.8, 1.6);
+        lens.Light = new Point4D(-0.3, -0.95, 0.1, 0);
+        // what the rim bends: the newest picture itself, the part of it that lies under the lens
+        if (_frostBmp is not { } bmp || layers[_frostFront] is not { Width: > 1, Height: > 1 } pic) return;
+        var clear = lens.Clear as ImageBrush;
+        if (clear?.ImageSource != bmp) lens.Clear = clear = new ImageBrush(bmp) { ViewboxUnits = BrushMappingMode.Absolute, Stretch = Stretch.Fill };
+        double sx = bmp.PixelWidth / pic.Width, sy = bmp.PixelHeight / pic.Height;
+        clear.Viewbox = new Rect(-Canvas.GetLeft(pic) * sx, -Canvas.GetTop(pic) * sy, (w + 2 * band) * sx, (h + 2 * band) * sy);
     }
 
     /// <summary>

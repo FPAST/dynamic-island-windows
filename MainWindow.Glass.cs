@@ -95,16 +95,26 @@ public partial class MainWindow
         // see-through only over a picture: the frost (when it covers the island) or your photo
         bool overPicture = photo || (IslandGlass && !Lite && _frostCovers);
         double tint = overPicture && !photo ? Math.Clamp(_settings.GlassTint, 20, 100) / 100.0 : 1;
-        if (overPicture && !photo && LiquidGlass) tint = Math.Min(tint, 0.58);
         // the folded pill stays readable: never thinner than 80 %
         double body = expanded ? tint : Math.Max(tint, 0.8);
         // your photo shows through a lighter tint (still dark enough for white text)
         if (photo) body = expanded ? 0.5 : 0.62;
         double bottom = _settings.BottomFade && overPicture ? body * (expanded ? 0.55 : 0.45) : body;
 
+        // liquid glass: one even pane (only a docked one meets the screen edge solid), folded or open
+        bool liquid = overPicture && !photo && LiquidGlass;
+        if (liquid) { c = LiquidTintColor(c); body = bottom = LiquidAlpha(); }
+        if (liquid && !LiveGlassOn && FrostLens.Effect is Views.GlassEffect lens)
+        {
+            // the lens tints its own picture, thinner along the rim so the bending shows; the fill only takes the mouse
+            var to = Color.FromArgb((byte)Math.Round(body * 255), c.R, c.G, c.B);
+            lens.BeginAnimation(Views.GlassEffect.TintProperty, new ColorAnimation(to, TimeSpan.FromMilliseconds(fade && !Services.Motion.Reduced ? 200 : 0)));
+            body = bottom = 1 / 255.0;
+        }
+
         Color A(double a) => Color.FromArgb((byte)Math.Round(Math.Clamp(a, 0, 1) * 255), c.R, c.G, c.B);
         var fill = new LinearGradientBrush { StartPoint = new Point(0.5, 0), EndPoint = new Point(0.5, 1) };
-        fill.GradientStops.Add(new GradientStop(A(1), 0));          // the top meets the screen edge: solid
+        fill.GradientStops.Add(new GradientStop(A(liquid && !_settings.Docked ? body : 1), 0));          // the top meets the screen edge: solid
         fill.GradientStops.Add(new GradientStop(A(body), 0.14));
         fill.GradientStops.Add(new GradientStop(A(body), 0.5));
         fill.GradientStops.Add(new GradientStop(A(bottom), 1));
@@ -447,6 +457,7 @@ public partial class MainWindow
         }
         _frostSig = sig;
         _frostShownCount++;
+        MeasureBackdrop(px);
 
         // the new picture goes into the other layer, on top, and fades in over the one shown now
         FinishFrostFade();
@@ -812,6 +823,13 @@ public partial class MainWindow
         LiveGlassSwitch.IsChecked = _settings.LiveGlass;
         LiveGlassSwitch.Visibility = _settings.Glass ? Visibility.Visible : Visibility.Collapsed;
         TintRow.Visibility = _settings.Glass ? Visibility.Visible : Visibility.Collapsed;
+        bool liquid = _settings.Scene == "liquid";
+        if (liquid) TintRow.Visibility = Visibility.Collapsed;   // liquid glass has its own slider, and one even pane
+        LiquidTintSlider.Visibility = liquid && _settings.Glass ? Visibility.Visible : Visibility.Collapsed;
+        LiquidTintSlider.Label = L.T("Плотность стекла");
+        LiquidTintSlider.Format = v => $"{v:0}%";
+        LiquidTintSlider.Value = _settings.LiquidTint;
+        FadeSwitch.Visibility = liquid ? Visibility.Collapsed : Visibility.Visible;
         TintLabel.Text = $"{_settings.GlassTint}%";
         FadeSwitch.IsChecked = _settings.BottomFade;
         BounceSwitch.IsChecked = _settings.Bouncy;
@@ -848,6 +866,15 @@ public partial class MainWindow
 
     private void TintMinus_Click(object sender, RoutedEventArgs e) => ChangeTint(-5);
     private void TintPlus_Click(object sender, RoutedEventArgs e) => ChangeTint(5);
+
+    private void LiquidTint_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        int v = (int)Math.Round(e.NewValue);
+        if (_settingsLoading || !IsLoaded || v == _settings.LiquidTint) return;
+        _settings.LiquidTint = v;
+        _settings.SaveSoon();
+        UpdateGlassFill();
+    }
 
     private void ChangeTint(int delta)
     {

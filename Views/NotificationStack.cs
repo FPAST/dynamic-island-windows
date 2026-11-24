@@ -240,8 +240,9 @@ public sealed class NotificationStack : StackPanel
     private void Paint(Card card)
     {
         var c = (TryFindResource("IslandBg") as SolidColorBrush)?.Color ?? Colors.Black;
-        card.Face.Background = new SolidColorBrush(Color.FromRgb(c.R, c.G, c.B));
-        card.Close.Background = card.Face.Background;
+        // liquid glass: a clear pane like the tiles (the cards behind show no text, see Muted)
+        card.Face.Background = TryFindResource("CardBg") as Brush ?? new SolidColorBrush(Color.FromRgb(c.R, c.G, c.B));
+        card.Close.Background = new SolidColorBrush(Color.FromRgb(c.R, c.G, c.B));
     }
 
     private static void Fade(UIElement e, double to) =>
@@ -310,6 +311,18 @@ public sealed class NotificationStack : StackPanel
             double fadeOut = c.FadeLeft >= 0 ? Math.Clamp(c.FadeLeft / ExitSeconds, 0, 1) : 1;
             c.Root.Opacity = c.O.Now * swipe * fadeOut;
             c.Content.Opacity = 1 - c.Muted.Now;
+            c.Root.Clip = null;
+        }
+        if (TryFindResource("CardBg") == null) return;
+        // cards of glass: what a folded card covers of the one behind would show through it
+        var laid = _cards.Where(c => !c.Leaving).ToList();
+        for (int i = 1; i < laid.Count; i++)
+        {
+            var (c, over) = (laid[i], laid[i - 1]);
+            if (c.Muted.Now < 0.02 || c.S.Now <= 0) continue;
+            double w = c.Root.ActualWidth, ow = over.Root.ActualWidth * over.S.Now / c.S.Now;
+            var front = new RectangleGeometry(new Rect((w - ow) / 2, (over.Y.Now - c.Y.Now) / c.S.Now, ow, HeightOf(over) * over.S.Now / c.S.Now), 20, 20);
+            c.Root.Clip = new CombinedGeometry(GeometryCombineMode.Exclude, new RectangleGeometry(new Rect(-20, -400, w + 40, 1000)), front);
         }
     }
 
