@@ -105,7 +105,7 @@ public sealed class DownloadWatcher
                 return s;
             }
         }
-        catch { }
+        catch { /* the default folder below */ }
         return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
     }
 }

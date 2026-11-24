@@ -151,13 +151,13 @@ public partial class MainWindow
     // island actions reachable by typing (Russian and English words)
     private (string[] Words, string Title, string Glyph, Action Run)[] IslandCommands =>
     [
-        (["скриншот", "область", "screenshot"], L.T("Скриншот области"), "", () => RunAction("region")),
-        (["весь экран", "экран", "fullscreen"], L.T("Скриншот всего экрана"), "", () => RunAction("full")),
-        (["текст с экрана", "распознать", "ocr"], L.T("Текст с экрана"), "", () => RunAction("ocr")),
-        (["qr", "куар", "код"], L.T("QR-код с экрана"), "", () => RunAction("qr")),
-        (["пипетка", "цвет", "color", "picker"], L.T("Пипетка"), "", () => RunAction("picker")),
-        (["запись", "record", "видео"], _recording.IsRecording ? L.T("Остановить запись экрана") : L.T("Запись экрана"), "", () => RunAction("record")),
-        (["чистый текст", "очистить текст", "plain"], L.T("Чистый текст в буфере"), "", () => RunAction("cleantext")),
+        (["скриншот", "область", "screenshot"], L.T("Скриншот области"), "", () => _ = RunAction("region")),
+        (["весь экран", "экран", "fullscreen"], L.T("Скриншот всего экрана"), "", () => _ = RunAction("full")),
+        (["текст с экрана", "распознать", "ocr"], L.T("Текст с экрана"), "", () => _ = RunAction("ocr")),
+        (["qr", "куар", "код"], L.T("QR-код с экрана"), "", () => _ = RunAction("qr")),
+        (["пипетка", "цвет", "color", "picker"], L.T("Пипетка"), "", () => _ = RunAction("picker")),
+        (["запись", "record", "видео"], _recording.IsRecording ? L.T("Остановить запись экрана") : L.T("Запись экрана"), "", () => _ = RunAction("record")),
+        (["чистый текст", "очистить текст", "plain"], L.T("Чистый текст в буфере"), "", () => _ = RunAction("cleantext")),
         (["тема", "theme", "светлая", "тёмная", "темная"], L.T("Сменить тему"), "", ToggleTheme),
         (["выровнять", "центр", "align", "center"], L.T("Выровнять по центру"), "", AlignIsland),
         (["обновить", "обновления", "update", "updates"], L.T("Проверить обновления"), "", () => _ = CheckForUpdatesAsync(manual: true)),

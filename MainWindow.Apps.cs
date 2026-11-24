@@ -287,8 +287,14 @@ public partial class MainWindow
     {
         if (_appDots.Count == 0) return;
         HashSet<string> running;
-        try { running = Process.GetProcesses().Select(p => p.ProcessName).ToHashSet(StringComparer.OrdinalIgnoreCase); }
-        catch { return; }
+        Process[] all = [];
+        try
+        {
+            all = Process.GetProcesses();
+            running = all.Select(p => p.ProcessName).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        }
+        catch { return; }   // Windows couldn't list the processes this time: the dots stay as they are
+        finally { foreach (var p in all) p.Dispose(); }
         foreach (var (dot, exe) in _appDots.Values)
         {
             double to = exe != null && running.Contains(exe) ? 0.8 : 0;

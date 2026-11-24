@@ -44,15 +44,18 @@ public sealed class ClaudeBridge
     });
 
     /// <summary>Only the hook script may talk to us: no browsers, the right secret, small JSON bodies.</summary>
-    private static bool IsTrusted(HttpListenerRequest r)
+    private static bool IsTrusted(HttpListenerRequest r) =>
+        IsTrusted(r.HttpMethod, r.Headers["Origin"], r.Headers["Referer"], r.ContentType, r.ContentLength64, r.IsLocal, r.Headers["X-Island-Token"], Token.Value);
+
+    internal static bool IsTrusted(string method, string? origin, string? referer, string? contentType, long length, bool isLocal, string? token, byte[] expected)
     {
-        if (r.HttpMethod != "POST") return false;
-        if (r.Headers["Origin"] != null || r.Headers["Referer"] != null) return false;          // a web page
-        if (!(r.ContentType ?? "").StartsWith("application/json", StringComparison.OrdinalIgnoreCase)) return false;
-        if (r.ContentLength64 is < 0 or > MaxBody) return false;
-        if (!r.IsLocal) return false;
-        var sent = Encoding.ASCII.GetBytes(r.Headers["X-Island-Token"] ?? "");
-        return CryptographicOperations.FixedTimeEquals(sent, Token.Value);
+        if (method != "POST") return false;
+        if (origin != null || referer != null) return false;          // a web page
+        if (!(contentType ?? "").StartsWith("application/json", StringComparison.OrdinalIgnoreCase)) return false;
+        if (length is < 0 or > MaxBody) return false;
+        if (!isLocal) return false;
+        var sent = Encoding.ASCII.GetBytes(token ?? "");
+        return CryptographicOperations.FixedTimeEquals(sent, expected);
     }
 
     public sealed class PermissionRequest
@@ -74,6 +77,10 @@ public sealed class ClaudeBridge
     public event Action<Notice>? Notified;
     /// <summary>Claude Code's task list changed (raised on a background thread).</summary>
     public event Action<ClaudePlan.Snapshot>? PlanChanged;
+    /// <summary>A real call from an agent's hook arrived: "Claude Code" or "Codex" (background thread).</summary>
+    public event Action<string>? EventArrived;
+    /// <summary>The check from Settings came through the installed hook: its nonce (background thread).</summary>
+    public event Action<string>? CheckArrived;
     private readonly ClaudePlan _plan = new();
 
     public bool IsRunning => _listener?.IsListening == true;
@@ -110,7 +117,7 @@ public sealed class ClaudeBridge
         string response = "";
         if (!IsTrusted(ctx.Request))
         {
-            try { ctx.Response.StatusCode = 403; ctx.Response.Close(); } catch { }
+            try { ctx.Response.StatusCode = 403; ctx.Response.Close(); } catch { /* the caller went away */ }
             return;
         }
         try
@@ -120,6 +127,10 @@ public sealed class ClaudeBridge
             var json = JsonNode.Parse(body) as JsonObject ?? new JsonObject();
             var project = Path.GetFileName((json["cwd"]?.GetValue<string>() ?? "").TrimEnd('\\', '/'));
             var agent = ctx.Request.QueryString["src"] == "codex" ? "Codex" : "Claude Code";
+
+            // "Check" in Settings ran the installed hook: it got here, nothing to show
+            if (json["atoll_check"] is JsonValue check && check.TryGetValue<string>(out var nonce)) { CheckArrived?.Invoke(nonce); goto answer; }
+            EventArrived?.Invoke(agent);
 
             switch (ctx.Request.Url?.AbsolutePath)
             {
@@ -186,8 +197,9 @@ public sealed class ClaudeBridge
                 }
             }
         }
-        catch { }
+        catch (Exception ex) { Log.Write("claude bridge: " + ex.GetType().Name + ": " + ex.Message); }
 
+        answer:
         try
         {
             var bytes = Encoding.UTF8.GetBytes(response);
@@ -196,7 +208,7 @@ public sealed class ClaudeBridge
             await ctx.Response.OutputStream.WriteAsync(bytes);
             ctx.Response.Close();
         }
-        catch { }
+        catch { /* the hook gave up before the answer */ }
     }
 
     private static string Describe(string? tool, JsonNode? input)

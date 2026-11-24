@@ -96,7 +96,7 @@ public sealed class ScreenRecording
         Task.Run(async () =>
         {
             await Task.Delay(500);
-            try { r?.Dispose(); } catch { }
+            try { r?.Dispose(); } catch { /* already disposed */ }
         });
     }
 }

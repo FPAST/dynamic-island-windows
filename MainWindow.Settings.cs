@@ -140,6 +140,7 @@ public partial class MainWindow
     private void Reactive_Click(object sender, RoutedEventArgs e)
     {
         _settings.Reactive = ReactiveSwitch.IsChecked == true;
+        _settings.MusicWaves = MusicWavesSwitch.IsChecked == true;
         _settings.Save();
         UpdateShape(false);
     }
@@ -170,6 +171,8 @@ public partial class MainWindow
         LiquidSlider.Visibility = _settings.LiquidWaves ? Visibility.Visible : Visibility.Collapsed;
         RefreshLookControls();
         ReactiveSwitch.IsChecked = _settings.Reactive;
+        MusicWavesSwitch.IsChecked = _settings.MusicWaves;
+
         ClaudeGlowSwitch.IsChecked = _settings.ClaudeGlow;
         CleanDesktopSwitch.IsChecked = _settings.CleanDesktop;
         HandDrawnSwitch.IsChecked = _settings.HandDrawn;
@@ -194,6 +197,8 @@ public partial class MainWindow
         VoiceVolumeSlider.Value = Math.Clamp(_settings.GeminiVoiceVolume, 0, 100);
         DiscordSideSwitch.IsEnabled = _settings.ShowDiscordCall;
         CaptureSwitch.IsChecked = HideFromCapture;
+        ShotModeBox.SelectedIndex = _settings.ScreenshotQuick ? 1 : 0;
+        ShotRevealSwitch.IsChecked = _settings.ScreenshotReveal;
         ScaleSlider.Value = Math.Clamp(_settings.IslandScale, 80, 130);
         LiteSwitch.IsChecked = Lite;
         if (OpenHotkeyBox.Items.Count == 0)
@@ -203,6 +208,13 @@ public partial class MainWindow
         }
         OpenHotkeyBox.SelectedIndex = Math.Max(0, Array.FindIndex(OpenHotkeys, h => h.Name == _settings.OpenHotkey) is int i && i >= 0 ? i : OpenHotkeys.Length);
         OpenHotkeyStatus.Text = L.T("Ещё раз — свернуть. Esc или клик мимо — тоже.");
+        if (CommandHotkeyBox.Items.Count == 0)
+        {
+            foreach (var h in CommandHotkeys) CommandHotkeyBox.Items.Add(h.Name);
+            CommandHotkeyBox.Items.Add(L.T("Выключено"));
+        }
+        CommandHotkeyBox.SelectedIndex = Array.FindIndex(CommandHotkeys, h => h.Name == _settings.CommandHotkey) is int ci && ci >= 0 ? ci : CommandHotkeys.Length;
+        CommandHotkeyStatus.Text = CommandHotkeyHint();
         DonateButton.Visibility = DonateUrl.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         RefreshFpsAccess();
         KaraokeSwitch.IsChecked = _settings.Karaoke;
@@ -215,6 +227,8 @@ public partial class MainWindow
         HomeWeatherChip.IsChecked = _settings.HomeWeather;
         HomeAppsChip.IsChecked = _settings.HomeApps;
         HoverSwitch.IsChecked = _settings.ExpandOnHover;
+        YieldSwitch.IsChecked = _settings.YieldToCursor;
+        PlacePerAppSwitch.IsChecked = _settings.PlacePerApp;
         FullscreenSwitch.IsChecked = _settings.HideInFullscreen;
         AutostartSwitch.IsChecked = Autostart.IsEnabled;
         if (AppPackage.IsPackaged) UninstallButton.Visibility = Visibility.Collapsed;   // Store apps are removed in Windows Settings
@@ -297,6 +311,12 @@ public partial class MainWindow
         if (sender == FullscreenSwitch && FullscreenSwitch.IsChecked == true) GameStatsSwitch.IsChecked = false;
         if (sender == GameStatsSwitch && GameStatsSwitch.IsChecked == true) FullscreenSwitch.IsChecked = false;
         _settings.ExpandOnHover = HoverSwitch.IsChecked == true;
+        _settings.YieldToCursor = YieldSwitch.IsChecked == true;
+        if (_settings.PlacePerApp != (PlacePerAppSwitch.IsChecked == true))
+        {
+            _settings.PlacePerApp = PlacePerAppSwitch.IsChecked == true;
+            if (!_settings.PlacePerApp && _placeOwner != null) { _placeOwner = null; FloatToPlace(); }   // off: back to the usual place
+        }
         _settings.HideInFullscreen = FullscreenSwitch.IsChecked == true;
         _settings.GameStats = GameStatsSwitch.IsChecked == true;
         _settings.GameStatsOnlyListed = GameOnlyListedSwitch.IsChecked == true;
@@ -319,6 +339,7 @@ public partial class MainWindow
             CaptureFrost();
             UpdateGlassFill();
         }
+        _settings.ScreenshotReveal = ShotRevealSwitch.IsChecked == true;
         _settings.Karaoke = KaraokeSwitch.IsChecked == true;
         _settings.MirrorNotifications = NotifySwitch.IsChecked == true;
         RefreshNotifyHint();
@@ -361,18 +382,62 @@ public partial class MainWindow
     {
         if (_settingsLoading || OpenHotkeyBox.SelectedIndex < 0) return;
         int i = OpenHotkeyBox.SelectedIndex;
-        _settings.OpenHotkey = i < OpenHotkeys.Length ? OpenHotkeys[i].Name : "";
+        var chosen = i < OpenHotkeys.Length ? OpenHotkeys[i].Name : "";
+        // Ctrl+Shift+Space is offered for both: one shortcut can do only one of them
+        if (chosen.Length > 0 && chosen == _settings.CommandHotkey)
+        {
+            _settingsLoading = true;
+            OpenHotkeyBox.SelectedIndex = Array.FindIndex(OpenHotkeys, h => h.Name == _settings.OpenHotkey) is int was && was >= 0 ? was : OpenHotkeys.Length;
+            _settingsLoading = false;
+            OpenHotkeyStatus.Text = L.T("Это сочетание уже открывает командную строку — выберите другое.");
+            return;
+        }
+        _settings.OpenHotkey = chosen;
         _settings.Save();
         OpenHotkeyStatus.Text = RegisterOpenHotkey()
             ? L.T("Ещё раз — свернуть. Esc или клик мимо — тоже.")
             : L.T("Это сочетание уже занято другой программой — выберите другое.");
     }
 
+    private string CommandHotkeyHint() => _settings.CommandHotkey != "Alt+Space" ? ""
+        : _commandKeyBackupOnly ? L.T("Alt+Space занят другой программой — работает Ctrl+Alt+Space.")
+        : L.T("Если Alt+Space занят другой программой, работает Ctrl+Alt+Space.");
+
+
+    private void ShotMode_Changed(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (_settingsLoading || ShotModeBox.SelectedIndex < 0) return;
+        _settings.ScreenshotQuick = ShotModeBox.SelectedIndex == 1;
+        _settings.Save();
+    }
+
+    private void CommandHotkey_Changed(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+
+    {
+        if (_settingsLoading || CommandHotkeyBox.SelectedIndex < 0) return;
+        int i = CommandHotkeyBox.SelectedIndex;
+        var chosen = i < CommandHotkeys.Length ? CommandHotkeys[i].Name : "";
+        if (chosen.Length > 0 && chosen == _settings.OpenHotkey)
+        {
+            _settingsLoading = true;
+            CommandHotkeyBox.SelectedIndex = Array.FindIndex(CommandHotkeys, h => h.Name == _settings.CommandHotkey) is int was && was >= 0 ? was : CommandHotkeys.Length;
+            _settingsLoading = false;
+            CommandHotkeyStatus.Text = L.T("Это сочетание уже открывает остров — выберите другое.");
+            return;
+        }
+        _settings.CommandHotkey = chosen;
+        _settings.Save();
+        CommandHotkeyStatus.Text = RegisterCommandHotkey()
+            ? CommandHotkeyHint()
+            : L.T("Это сочетание уже занято другой программой — выберите другое.");
+    }
+
     private void LiquidSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+
     {
         if (_settingsLoading || !IsLoaded) return;
         _settings.LiquidStrength = (int)Math.Round(LiquidSlider.Value);
-        _settings.Save();
+        _settings.SaveSoon();
         Kick(4);   // a wave to show the new strength
     }
 
@@ -380,7 +445,7 @@ public partial class MainWindow
     {
         if (_settingsLoading || !IsLoaded) return;
         _settings.IslandScale = (int)Math.Round(ScaleSlider.Value);
-        _settings.Save();
+        _settings.SaveSoon();
         ApplyIslandScale();
     }
 

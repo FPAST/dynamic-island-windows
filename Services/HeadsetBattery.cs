@@ -33,7 +33,7 @@ public static class HeadsetBattery
                     if (r != null) return r with { Device = deviceName };
                 }
             }
-            catch { }
+            catch { /* the device is busy or gone */ }
         }
         return null;
     }
@@ -89,7 +89,7 @@ public static class HeadsetBattery
                 }
             }
         }
-        catch { }
+        catch { /* G HUB not running or answered something else */ }
         return result;
     }
 

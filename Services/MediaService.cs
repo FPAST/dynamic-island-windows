@@ -95,7 +95,7 @@ public sealed class MediaService
                 {
                     var l = _legacy;
                     return l == null ? null
-                        : new MediaSnapshot(l.Title, l.Artist, l.App, l.App, null, l.Playing,
+                        : new MediaSnapshot(l.Title, l.Artist, L.T(l.App), l.App, null, l.Playing,
                             TimeSpan.Zero, default, TimeSpan.Zero);
                 }
                 return new MediaSnapshot(_title, _artist, _source, _appId, _art, _playing, _position, _positionAt, _duration) { Album = _album };
@@ -120,7 +120,7 @@ public sealed class MediaService
                     s.GetPlaybackInfo().PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing);
                 if (playing != null && playing != _session) Attach(playing);
             }
-            catch { }
+            catch (Exception ex) { Log.Error("media: sessions", ex); }
         }
 
         if (_session != null) { _legacy = null; return; }
@@ -220,7 +220,7 @@ public sealed class MediaService
     public bool CanRepeat { get { lock (_lock) return _session != null && _canRepeat; } }
 
     /// <summary>Off → whole list → this track → off. Players that don't support it simply ignore the request.</summary>
-    public async void CycleRepeat()
+    public async Task CycleRepeat()
     {
         try
         {
@@ -234,7 +234,7 @@ public sealed class MediaService
             };
             if (await s.TryChangeAutoRepeatModeAsync(next)) { lock (_lock) _repeat = next; Changed?.Invoke(); }
         }
-        catch { }
+        catch (Exception ex) { Log.Write("media: repeat: " + ex.GetType().Name + ": " + ex.Message); }
     }
 
     private void ReadPlayback(GlobalSystemMediaTransportControlsSession s)
@@ -320,44 +320,76 @@ public sealed class MediaService
         }
     }
 
-    public async void TogglePlayPause()
+    public async Task TogglePlayPause()
     {
         try
         {
             if (_session != null) await _session.TryTogglePlayPauseAsync();
             else if (_legacy != null) LegacyPlayers.PlayPause(_legacy);
         }
-        catch { }
+        catch (Exception ex) { Log.Write("media: play/pause: " + ex.GetType().Name + ": " + ex.Message); }
     }
 
-    public async void Next()
+    public async Task Next()
     {
         try
         {
             if (_session != null) await _session.TrySkipNextAsync();
             else if (_legacy != null) LegacyPlayers.Next(_legacy);
         }
-        catch { }
+        catch (Exception ex) { Log.Write("media: next: " + ex.GetType().Name + ": " + ex.Message); }
     }
 
-    public async void Previous()
+    public async Task Previous()
     {
         try
         {
             if (_session != null) await _session.TrySkipPreviousAsync();
             else if (_legacy != null) LegacyPlayers.Previous(_legacy);
         }
-        catch { }
+        catch (Exception ex) { Log.Write("media: previous: " + ex.GetType().Name + ": " + ex.Message); }
     }
 
-    public async void Seek(TimeSpan position)
+    /// <summary>Atoll's own player: Windows media controls can't move it, so a seek goes to it directly.</summary>
+    public Func<TimeSpan, bool>? OwnSeek { get; set; }
+
+    public async Task Seek(TimeSpan position)
     {
-        try { if (_session != null) await _session.TryChangePlaybackPositionAsync(position.Ticks); } catch { }
+        if (_session != null && IsOwn(_appId)) 
+        {
+            if (OwnSeek?.Invoke(position) != true) return;
+            lock (_lock) { _position = position; _positionAt = DateTimeOffset.Now; }   // Windows hears of it seconds later
+            Changed?.Invoke();
+            return;
+        }
+        try { if (_session != null) await _session.TryChangePlaybackPositionAsync(position.Ticks); } catch (Exception ex) { Log.Write("media: seek: " + ex.GetType().Name + ": " + ex.Message); }
     }
 
-    private static string PrettyAppName(string aumid)
+    /// <summary>The service open in Atoll's own player window: Windows only sees "msedgewebview2.exe".</summary>
+    public static string WebPlayerName { get; set; } = "";
+
+    /// <summary>Pause this app's session, whichever one the island shows.</summary>
+    public async Task Pause(string appId)
+    {
+        try
+        {
+            foreach (var s in _manager?.GetSessions() ?? [])
+                if (s.SourceAppUserModelId == appId) await s.TryPauseAsync();
+        }
+        catch (Exception ex) { Log.Write("media: pause: " + ex.GetType().Name + ": " + ex.Message); }
+    }
+
+    /// <summary>The session of Atoll's own player (radio, files).</summary>
+    public static bool IsOwn(string aumid) => aumid.Contains("DynamicIsland", StringComparison.OrdinalIgnoreCase);
+
+    public static string PrettyAppName(string aumid)
     {
         if (string.IsNullOrEmpty(aumid)) return "";
+        if (aumid.StartsWith("msedgewebview2", StringComparison.OrdinalIgnoreCase) && WebPlayerName.Length > 0) return WebPlayerName;
+        if (IsOwn(aumid)) return "Atoll";
+        // the Yandex Music app ("ru.yandex.desktop.music") and its old Store version ("A025C540.Yandex.Music_…!App")
+        if (aumid.Contains("yandex", StringComparison.OrdinalIgnoreCase) && aumid.Contains("music", StringComparison.OrdinalIgnoreCase))
+            return L.T("Яндекс Музыка");
         // installed web apps: "Chrome._crx_<id>", "MSEdge._crx_<id>"
         var crx = aumid.IndexOf("._crx_", StringComparison.OrdinalIgnoreCase);
         if (crx > 0) return (aumid[..crx].Equals("MSEdge", StringComparison.OrdinalIgnoreCase) ? "Edge" : aumid[..crx]) + L.T(" · веб-приложение");

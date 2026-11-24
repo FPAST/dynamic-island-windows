@@ -30,7 +30,7 @@ public partial class MainWindow
             if (d.ID == _volumeDeviceId) { d.Dispose(); return; }
             if (_volumeDevice != null)
             {
-                try { _volumeDevice.AudioEndpointVolume.OnVolumeNotification -= OnVolume; } catch { }
+                try { _volumeDevice.AudioEndpointVolume.OnVolumeNotification -= OnVolume; } catch { /* the old device is already gone */ }
                 _volumeDevice.Dispose();
             }
             _volumeDevice = d;

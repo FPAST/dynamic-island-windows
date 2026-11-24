@@ -1,3 +1,4 @@
+#if DEBUG   // demo videos and pictures: not in the release build
 using System.IO;
 using System.Text.Json;
 using System.Windows;
@@ -187,7 +188,7 @@ public partial class MainWindow
             double vw = PromoStage.Width / _camZ * scale, vh = PromoStage.Height / _camZ * scale;
             _camLog.Add([Math.Round(t, 4), Math.Round(c.X - _monitor.X - vw / 2, 1), Math.Round(c.Y - _monitor.Y - vh * 0.42, 1), Math.Round(vw, 1), Math.Round(vh, 1)]);
         }
-        catch (InvalidOperationException) { }
+        catch (InvalidOperationException) { /* not on screen */ }
 
         if (_stopFilm) return;
         if (Native.KeyDown(0x1B)) { _stopFilm = true; Log.Write($"tiktok: Esc at {t:0.00} s"); return; }
@@ -214,7 +215,7 @@ public partial class MainWindow
             Native.SetCursorPos(p.X, p.Y);
             _realSet = p;
         }
-        catch (InvalidOperationException) { }
+        catch (InvalidOperationException) { /* not on screen */ }
     }
 
     private async Task FilmTikTok1(bool screen)
@@ -350,3 +351,4 @@ public partial class MainWindow
         await At(57.6);
     }
 }
+#endif

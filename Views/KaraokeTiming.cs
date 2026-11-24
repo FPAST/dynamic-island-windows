@@ -22,10 +22,10 @@ public static class KaraokeTiming
             {
                 '—' or '–' => 6,                                       // a dash: a real pause
                 '-' when spaceBefore || spaceAfter || i == 0 => 6,     // " - " typed as a hyphen
-                '…' => 5,
+                '…' or '⋯' => 5,
                 '.' when i + 1 < text.Length && text[i + 1] == '.' => 2.5,   // "..." → about 5 in all
-                ',' or ';' or ':' => 3,
-                '!' or '?' => 2,
+                ',' or ';' or ':' or '，' or '、' or '。' or '：' or '；' => 3,   // full-width marks of Chinese and Japanese
+                '!' or '?' or '！' or '？' => 2,
                 _ when char.IsWhiteSpace(c) => 0.6,
                 _ => 1,
             };

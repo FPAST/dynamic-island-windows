@@ -73,7 +73,7 @@ public partial class MainWindow
         // under the island, on its monitor
         win.Left = Left + Width / 2 - win.Width / 2;
         win.Top = Top + IslandTopMargin + 54;
-        panel.MouseLeftButtonDown += (_, e) => { if (e.ButtonState == MouseButtonState.Pressed) try { win.DragMove(); } catch { } };
+        panel.MouseLeftButtonDown += (_, e) => { if (e.ButtonState == MouseButtonState.Pressed) try { win.DragMove(); } catch { /* the button was already up */ } };
         close.Click += (_, _) => win.Close();
         win.PreviewKeyDown += (_, e) => { if (e.Key == Key.Escape) win.Close(); };
         win.Closed += (_, _) => { if (ReferenceEquals(_card, win)) _card = null; };
@@ -217,7 +217,7 @@ public partial class MainWindow
                 result.Add(text);
             }
         }
-        catch { }
+        catch (Exception ex) { Log.Write("what's new: changelog: " + ex.GetType().Name + ": " + ex.Message); }
         return result;
     }
 

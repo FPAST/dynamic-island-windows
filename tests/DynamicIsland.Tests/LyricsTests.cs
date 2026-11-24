@@ -283,3 +283,77 @@ public class KaraokeTimingTests
         Assert.True(DynamicIsland.Views.KaraokeTiming.Natural("Я иду — и вдруг") > DynamicIsland.Views.KaraokeTiming.Natural("Я иду и вдруг") + 0.5);
     }
 }
+
+public class KaraokeLightTests
+{
+    [Fact]
+    public void FullWidthMarksArePauses()
+    {
+        var w = DynamicIsland.Views.KaraokeTiming.Weights("你好，世界。走、来！吗？说：是；嗯…⋯");
+        foreach (char c in "，。、：；") Assert.Equal(3, w["你好，世界。走、来！吗？说：是；嗯…⋯".IndexOf(c)]);
+        Assert.Equal(2, w[9]);
+        Assert.Equal(2, w[11]);
+        Assert.Equal(5, w[^1]);
+        Assert.Equal(5, w[^2]);
+        Assert.Equal(1, w[0]);
+    }
+
+    public static TheoryData<string> Lines => new()
+    {
+        "Я иду по улице одна",
+        "Tryin' to hold on, didn't even know",
+        "我们一起走过的那些日子",
+        "君の名前を呼んでいたカタカナ",
+        "너를 사랑해 영원히",
+        "Love 你 forever 永遠に 사랑 и всё",
+    };
+
+    /// <summary>
+    /// Every script lights up the same way: the ink left of the light is bright and the ink right of it dim.
+    /// The line is drawn by the view's own brush and the columns of the picture are measured.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Lines))]
+    public void TheLightIsOneEdgeAcrossTheWholeLine(string text)
+    {
+        Exception? error = null;
+        var t = new Thread(() =>
+        {
+            try { Check(text); } catch (Exception e) { error = e; }
+        });
+        t.SetApartmentState(ApartmentState.STA);
+        t.Start();
+        t.Join();
+        if (error != null) throw error;
+    }
+
+    private static void Check(string text)
+    {
+        var face = new System.Windows.Media.Typeface(new System.Windows.Media.FontFamily("Segoe UI"), System.Windows.FontStyles.Normal, System.Windows.FontWeights.SemiBold, System.Windows.FontStretches.Normal);
+        var line = new System.Windows.Media.FormattedText(text, System.Globalization.CultureInfo.InvariantCulture, System.Windows.FlowDirection.LeftToRight, face, 26, System.Windows.Media.Brushes.White, 1);
+        const double x0 = 20, p = 0.5;
+        var black = System.Windows.Media.Colors.Black;
+        var dim = System.Windows.Media.Color.FromArgb(255, 70, 70, 70);
+        line.SetForegroundBrush(DynamicIsland.Views.KaraokeView.SungBrush(System.Windows.Media.Colors.White, System.Windows.Media.Colors.White, dim, p, x0, line.Width));
+        int w = (int)Math.Ceiling(line.Width + 2 * x0), h = (int)Math.Ceiling(line.Height + 10);
+        var visual = new System.Windows.Media.DrawingVisual();
+        using (var dc = visual.RenderOpen())
+        {
+            dc.DrawRectangle(new System.Windows.Media.SolidColorBrush(black), null, new System.Windows.Rect(0, 0, w, h));
+            dc.DrawText(line, new System.Windows.Point(x0, 5));
+        }
+        var bmp = new System.Windows.Media.Imaging.RenderTargetBitmap(w, h, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+        bmp.Render(visual);
+        var px = new byte[w * h * 4];
+        bmp.CopyPixels(px, w * 4, 0);
+        // the brightest ink in each column
+        int Column(int x) { int m = 0; for (int y = 0; y < h; y++) m = Math.Max(m, (int)px[(y * w + x) * 4 + 2]); return m; }
+        double edge = x0 + line.Width * p, band = line.Width * 0.1;
+        int litMax = 0, darkMax = 0;
+        for (int x = (int)x0; x < (int)(edge - band); x++) litMax = Math.Max(litMax, Column(x));
+        for (int x = (int)(edge + band); x < (int)(x0 + line.Width); x++) darkMax = Math.Max(darkMax, Column(x));
+        // full brightness reached on the left; on the right nothing brighter than the dim colour
+        Assert.True(litMax > 200, $"lit part reaches {litMax}");
+        Assert.True(darkMax <= 80, $"unsung part reaches {darkMax} (a gradient restarted inside the line)");
+    }
+}

@@ -18,6 +18,8 @@ public partial class MainWindow
         _bridge.PermissionRequested += req => Dispatcher.BeginInvoke(() => EnqueuePermission(req));
         _bridge.Notified += n => Dispatcher.BeginInvoke(() => OnClaudeNotice(n));
         _bridge.PlanChanged += p => Dispatcher.BeginInvoke(() => ShowClaudePlan(p));
+        _bridge.EventArrived += agent => Dispatcher.BeginInvoke(() => OnHookEvent(agent));
+        _bridge.CheckArrived += nonce => { lock (_hookChecks) if (_hookChecks.Remove(nonce, out var done)) done.TrySetResult(); };
         _planFade.Tick += (_, _) => { _planFade.Stop(); ClaudePlanTile.Visibility = Visibility.Collapsed; RefitIsland(); };
         _bridge.Start();
         // test and picture runs leave the user's ~/.claude and ~/.codex alone
@@ -130,14 +132,29 @@ public partial class MainWindow
 
     // -------------------------------------------------------------- hooks in settings.json
 
+    /// <summary>A real event from an agent's hook: "connected" means events arrive, not that a line is in a file.</summary>
+    private void OnHookEvent(string agent)
+    {
+        if (agent == "Codex") _settings.CodexLastEvent = DateTime.Now; else _settings.ClaudeLastEvent = DateTime.Now;
+        _settings.SaveSoon();
+        if (TabSettings.IsChecked == true && !_hookCheckRunning) { RefreshClaudeHooksUi(); RefreshCodexHooksUi(); }
+    }
+
+    private static string When(DateTime at) => at.Date == DateTime.Today ? at.ToString("HH:mm") : at.ToString("dd.MM HH:mm");
+
+    /// <summary>Installed hooks: is the port ours, has an event come, when.</summary>
+    private string HookState(DateTime? last, string waiting) =>
+        !_bridge.IsRunning ? L.F("Порт занят: хуки установлены, но порт {0} занят другой программой — остров не может их принять.", ClaudeBridge.Port)
+        : last is { } at ? L.F("Работает, последнее событие: {0}", When(at))
+        : waiting;
+
     private void RefreshClaudeHooksUi()
     {
         bool installed = ClaudeHooks.IsInstalled;
         ClaudeHooksButton.Content = installed ? L.T("Отключить") : L.T("Подключить");
+        ClaudeCheckButton.Visibility = installed ? Visibility.Visible : Visibility.Collapsed;
         ClaudeHooksStatus.Text = installed
-            ? (_bridge.IsRunning
-                ? L.T("Подключено. Запросы разрешений Claude Code появятся на острове — отвечайте прямо здесь. Если остров закрыт, Claude Code спросит в терминале, как обычно.")
-                : L.T("Хуки установлены, но порт 47811 занят — остров не может их принять."))
+            ? HookState(_settings.ClaudeLastEvent, L.T("Хуки установлены, ждём первое событие — перезапустите открытые сессии Claude Code."))
             : L.T("Остров сможет показывать запросы разрешений и «готово» от Claude Code и отвечать на них без терминала. Добавит хуки в ~/.claude/settings.json (резервная копия сохранится рядом).");
     }
 
@@ -145,9 +162,63 @@ public partial class MainWindow
     {
         bool installed = CodexHooks.IsInstalled;
         CodexHooksButton.Content = installed ? L.T("Отключить") : L.T("Подключить");
+        CodexCheckButton.Visibility = installed ? Visibility.Visible : Visibility.Collapsed;
         CodexHooksStatus.Text = installed
-            ? L.T("Подключено. Один раз подтвердите хуки в Codex командой /hooks — после этого запросы разрешений и «готово» появятся на острове.")
+            ? HookState(_settings.CodexLastEvent, L.T("Хуки установлены, ждём первое событие — один раз подтвердите хуки в Codex командой /hooks и перезапустите открытые сессии."))
             : L.T("Запросы разрешений и «готово» от Codex CLI на острове. Добавит хуки в ~/.codex/hooks.json (резервная копия сохранится рядом).");
+    }
+
+    private readonly Dictionary<string, TaskCompletionSource> _hookChecks = [];
+    private bool _hookCheckRunning;
+
+    private async void ClaudeCheck_Click(object sender, RoutedEventArgs e) =>
+        ClaudeHooksStatus.Text = await CheckHookAsync("Claude Code", ClaudeHooks.InstalledCommand("Notification"), gitBash: true,
+            """{"hook_event_name":"Notification","notification_type":"atoll_check","message":"Atoll check","atoll_check":"{0}"}""");
+
+    private async void CodexCheck_Click(object sender, RoutedEventArgs e) =>
+        CodexHooksStatus.Text = await CheckHookAsync("Codex", CodexHooks.InstalledCommand(), gitBash: false,
+            """{"hook_event_name":"Stop","atoll_check":"{0}"}""");
+
+    /// <summary>
+    /// "Check": the installed hook command is run the way the agent runs it, with a test event, and the bridge
+    /// waits 5 s for it. What happened goes to the status line and the log.
+    /// </summary>
+    private async Task<string> CheckHookAsync(string agent, string? command, bool gitBash, string body)
+    {
+        if (command == null) return L.T("Хук не найден в настройках — нажмите «Отключить» и «Подключить» снова.");
+        if (!_bridge.IsRunning) return HookState(null, "");
+        if (_hookCheckRunning) return L.T("Проверяю…");
+        _hookCheckRunning = true;
+        ClaudeCheckButton.IsEnabled = CodexCheckButton.IsEnabled = false;
+        (agent == "Codex" ? CodexHooksStatus : ClaudeHooksStatus).Text = L.T("Проверяю…");
+        var nonce = Guid.NewGuid().ToString("N");
+        var arrived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        lock (_hookChecks) _hookChecks[nonce] = arrived;
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        try
+        {
+            var run = ClaudeHooks.RunAsync(command, body.Replace("{0}", nonce), gitBash);
+            bool reached = await Task.WhenAny(arrived.Task, Task.Delay(5000)) == arrived.Task;
+            long ms = watch.ElapsedMilliseconds;
+            var (exit, stderr, shell) = await run;
+            Log.Write($"hook check ({agent}, {shell}): {(reached ? $"reached the island in {ms} ms" : "did not reach the island in 5 s")}, exit {exit}" +
+                      (stderr.Length > 0 ? ", stderr: " + stderr : "") + "; command: " + command);
+            if (reached) return L.F("Проверка прошла: событие дошло до острова за {0} мс ({1}).", ms, shell);
+            if (stderr.Length > 300) stderr = stderr[..300] + "…";
+            return L.F("Событие не дошло до острова за 5 с ({0}, код выхода {1}).", shell, exit) +
+                   (stderr.Length > 0 ? " " + stderr : "") + " " + L.F("Подробности — в журнале и в {0}.", System.IO.Path.Combine(System.IO.Path.GetDirectoryName(ClaudeBridge.TokenPath)!, "hook.log"));
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"hook check ({agent}): {ex.GetType().Name}: {ex.Message}");
+            return L.T("Не получилось: ") + ex.Message;
+        }
+        finally
+        {
+            lock (_hookChecks) _hookChecks.Remove(nonce);
+            _hookCheckRunning = false;
+            ClaudeCheckButton.IsEnabled = CodexCheckButton.IsEnabled = true;
+        }
     }
 
     private void CodexHooks_Click(object sender, RoutedEventArgs e)
@@ -155,7 +226,7 @@ public partial class MainWindow
         try
         {
             if (CodexHooks.IsInstalled) CodexHooks.Uninstall();
-            else CodexHooks.Install();
+            else { CodexHooks.Install(); _settings.CodexLastEvent = null; _settings.Save(); }
         }
         catch (Exception ex)
         {
@@ -171,7 +242,7 @@ public partial class MainWindow
         try
         {
             if (ClaudeHooks.IsInstalled) ClaudeHooks.Uninstall();
-            else ClaudeHooks.Install();
+            else { ClaudeHooks.Install(); _settings.ClaudeLastEvent = null; _settings.Save(); }
         }
         catch (Exception ex)
         {

@@ -185,7 +185,7 @@ public partial class MainWindow
             if (await Task.Run(ControlCenter.VpnApp) is { } app)
             {
                 try { ControlCenter.OpenVpnApp(app.Path); ShowToast("\uE72E", L.F("Открываю {0}", app.Name), null); return; }
-                catch { }
+                catch (Exception ex) { Log.Write("vpn: open app: " + ex.GetType().Name + ": " + ex.Message); }
             }
             ControlCenter.OpenVpnSettings();
             return;

@@ -23,7 +23,7 @@ public static class NotesStore
         {
             if (File.Exists(FilePath)) return JsonSerializer.Deserialize<List<Note>>(File.ReadAllText(FilePath)) ?? [];
         }
-        catch { }
+        catch (Exception ex) { Log.Write("notes: read: " + ex.GetType().Name + ": " + ex.Message); }
         return [];
     }
 
@@ -35,6 +35,6 @@ public static class NotesStore
             Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
             File.WriteAllText(FilePath, JsonSerializer.Serialize(Notes, new JsonSerializerOptions { WriteIndented = true }));
         }
-        catch { }
+        catch (Exception ex) { Log.Write("notes: save: " + ex.GetType().Name + ": " + ex.Message); }
     }
 }

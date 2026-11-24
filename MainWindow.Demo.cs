@@ -28,6 +28,7 @@ public partial class MainWindow
     /// <summary>Demo data in Russian, or in English for every other interface language.</summary>
     private static string D(string ru, string en) => Loc.Lang == "ru" ? ru : en;
 
+#if DEBUG   // demo runs: not in the release build
     private void BeginDemo()
     {
         Settings.ReadOnly = true;
@@ -288,4 +289,5 @@ public partial class MainWindow
         using var fs = File.Create(Path.Combine(folder, name + ".png"));
         enc.Save(fs);
     }
+#endif
 }

@@ -25,7 +25,7 @@ public partial class MainWindow
     private async Task InitMediaAsync()
     {
         _media.Changed += () => Dispatcher.BeginInvoke(UpdateMediaUi);
-        ArtRecord.Toggled += () => _media.TogglePlayPause();
+        ArtRecord.Toggled += () => _ = _media.TogglePlayPause();
         SeekSlider.Format = v => _lastMedia is { } sm && sm.Duration > TimeSpan.Zero ? FormatTime(TimeSpan.FromSeconds(v * sm.Duration.TotalSeconds)) : "0:00";
         SeekSlider.Released += v =>
         {
@@ -33,7 +33,7 @@ public partial class MainWindow
             var to = TimeSpan.FromSeconds(sm.Duration.TotalSeconds * v);
             // pictures and tests: the demo song moves, the user's real player is left alone
             if (_demoMedia != null) { _demoMedia = _demoMedia with { Position = to, PositionUpdatedAt = DateTimeOffset.Now }; UpdateMediaUi(); return; }
-            _media.Seek(to);
+            _ = _media.Seek(to);
         };
         // while the thumb is held, the time on the left is where the song will jump to
         SeekSlider.ValueChanged += (_, e) =>
@@ -43,6 +43,7 @@ public partial class MainWindow
             Elapsed.Text = FormatTime(at);
             Remaining.Text = "-" + FormatTime(sm.Duration - at);
         };
+        Safely("music player", InitMusicPlayer);
         try { await _media.InitAsync(); } catch { /* media API unavailable */ }
         UpdateMediaUi();
     }
@@ -68,20 +69,21 @@ public partial class MainWindow
         bool playing = m?.IsPlaying == true;
         bool hasTrack = m != null && (m.Title.Length > 0 || m.Artist.Length > 0);
 
-        TrackTitle.Text = HomeTrack.Text = hasTrack ? (m!.Title.Length > 0 ? m.Title : L.T("Без названия")) : L.T("Ничего не играет");
-        TrackArtist.Text = HomeArtist.Text = hasTrack ? m!.Artist : L.T("Включите музыку в любом плеере");
+        TrackTitle.Text = HomeTrack.Text = BarTitle.Text = hasTrack ? (m!.Title.Length > 0 ? m.Title : L.T("Без названия")) : L.T("Ничего не играет");
+        TrackArtist.Text = HomeArtist.Text = BarArtist.Text = hasTrack ? m!.Artist : L.T("Включите музыку в любом плеере");
         TrackSource.Text = hasTrack ? m!.SourceApp : "";
 
         if (m?.Art != null)
         {
             var brush = new ImageBrush(m.Art) { Stretch = Stretch.UniformToFill };
-            MiniArt.Background = HomeArt.Background = brush;
+            MiniArt.Background = HomeArt.Background = BarArt.Background = brush;
             HomeArtPlaceholder.Visibility = Visibility.Collapsed;
         }
         else
         {
             MiniArt.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "ChipBg");
             HomeArt.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "ChipBg");
+            BarArt.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "ChipBg");
             HomeArtPlaceholder.Visibility = Visibility.Visible;
         }
         ArtRecord.SetCover(m?.Art);
@@ -101,7 +103,7 @@ public partial class MainWindow
         ArtRecord.SetPlaying(playing);
         TrackTitle.Playing = playing;
         MusicBars.SetPlaying(playing);
-        PlayPauseButton.Content = HomePlay.Content = playing ? "" : "";
+        PlayPauseButton.Content = HomePlay.Content = BarPlay.Content = playing ? "" : "";
         UpdateEyesVisibility();
         SetEqualizer(playing);
         if (playing) StartRendering(); // liquid wave
@@ -126,6 +128,7 @@ public partial class MainWindow
             _lyricIndex = int.MinValue;
             ShowLyrics(false, hasTrack ? L.T("Ищу слова…") : L.T("Здесь появятся слова песни"));
             if (_demoMedia != null) { _currentLyrics = DemoLyrics; _lyricsLoaded = key; ShowLyrics(true, ""); }
+            else if (hasTrack && _player.Radio && MediaService.IsOwn(m!.AppId)) ShowLyrics(false, L.T("Радио: слов нет"));
             else if (hasTrack) _ = LoadLyricsAsync(m!, key);
             if (_mode == Mode.Expanded && TabMusic.IsChecked == true) RefreshVolume();
         }
@@ -183,9 +186,9 @@ public partial class MainWindow
         }
     }
 
-    private void PlayPause_Click(object sender, RoutedEventArgs e) => _media.TogglePlayPause();
-    private void Next_Click(object sender, RoutedEventArgs e) => _media.Next();
-    private void Prev_Click(object sender, RoutedEventArgs e) => _media.Previous();
+    private void PlayPause_Click(object sender, RoutedEventArgs e) => _ = _media.TogglePlayPause();
+    private void Next_Click(object sender, RoutedEventArgs e) => _ = _media.Next();
+    private void Prev_Click(object sender, RoutedEventArgs e) => _ = _media.Previous();
 
     private void HomeMusic_Click(object sender, MouseButtonEventArgs e)
     {
@@ -249,7 +252,16 @@ public partial class MainWindow
         var m = _lastMedia;
         if (m == null) return TimeSpan.Zero;
         long now = System.Diagnostics.Stopwatch.GetTimestamp();
+        int resyncs = _lyricsClock.Resyncs;
         _lyricsClock.Report(_lyricsKey, m.CurrentPosition, m.IsPlaying, now);
+        if (_lyricsClock.Resyncs != resyncs && _currentLyrics?.Synced == true)
+        {
+            // why the words run late after a few songs (2.0.1): what the player said and how far the clock was off
+            var off = _lyricsClock.LastCorrection;
+            Log.Write("lyrics clock: " + (off is { } o
+                ? $"{m.AppId}: corrected by {o.TotalMilliseconds:+0;-0} ms at {m.CurrentPosition.TotalSeconds:0.0} s"
+                : $"{m.AppId}: took {m.CurrentPosition.TotalSeconds:0.0} s ({(m.IsPlaying ? "playing" : "paused")}), the report is {(DateTimeOffset.Now - m.PositionUpdatedAt).TotalSeconds:0.0} s old"));
+        }
         return _lyricsClock.At(now) + TimeSpan.FromMilliseconds(LyricsShiftMs);
     }
 
@@ -262,7 +274,7 @@ public partial class MainWindow
         var to = lineTime - TimeSpan.FromMilliseconds(LyricsShiftMs);
         if (to < TimeSpan.Zero) to = TimeSpan.Zero;
         if (Settings.ReadOnly || _demoMedia != null) { if (_lastMedia != null) _lastMedia = _lastMedia with { Position = to, PositionUpdatedAt = DateTimeOffset.Now }; }
-        else _media.Seek(to);
+        else _ = _media.Seek(to);
         _lyricsClock.Seeked(to, System.Diagnostics.Stopwatch.GetTimestamp());
         UpdateLyricLine();
         TickMusicLyrics();

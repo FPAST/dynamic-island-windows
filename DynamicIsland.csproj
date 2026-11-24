@@ -11,8 +11,12 @@
     <RootNamespace>DynamicIsland</RootNamespace>
     <AssemblyName>DynamicIsland</AssemblyName>
     <ApplicationIcon>Assets\icon.ico</ApplicationIcon>
+    <!-- Program.Main answers the agents hooks before WPF starts -->
+    <StartupObject>DynamicIsland.Program</StartupObject>
+    <!-- the demo and test fields are set only by the runs compiled in Debug; in a release build they stay empty -->
+    <NoWarn Condition="'$(Configuration)' == 'Release'">$(NoWarn);CS0649</NoWarn>
 
-    <Version>2.0.0</Version>
+    <Version>2.1.0</Version>
     <Product>Atoll</Product>
     <AssemblyTitle>Atoll</AssemblyTitle>
     <Description>Atoll, a Dynamic Island-style island for Windows: music, lyrics, weather, timers, screenshots, chat and more at the top of the screen.</Description>
@@ -27,7 +31,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="DynamicIsland.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- the unit tests are a project of their own -->
+
     <Compile Remove="tests\**" />
     <None Remove="tests\**" />
     <Page Remove="tests\**" />

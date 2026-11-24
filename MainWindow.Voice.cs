@@ -254,7 +254,7 @@ public partial class MainWindow
         if (_settingsLoading || !IsLoaded) return;
 
         _settings.GeminiVoiceVolume = (int)Math.Round(VoiceVolumeSlider.Value);
-        _settings.Save();
+        _settings.SaveSoon();
         _voiceAssistant?.SetOutputVolume(_settings.GeminiVoiceVolume);
     }
 }

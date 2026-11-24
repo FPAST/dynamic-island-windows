@@ -104,13 +104,14 @@ public partial class App : Application
     /// <summary>Give up the "only one island" lock early, so a relaunched copy can start while this one closes.</summary>
     public void ReleaseSingleInstance()
     {
-        try { _mutex?.ReleaseMutex(); } catch { }
+        try { _mutex?.ReleaseMutex(); } catch { /* not held any more */ }
         _mutex?.Dispose();
         _mutex = null;
     }
 
     protected override void OnExit(ExitEventArgs e)
     {
+        if (MainWindow is DynamicIsland.MainWindow) Settings.Current.Flush();   // a slider's last move is not lost
         _mutex?.Dispose();
         base.OnExit(e);
     }

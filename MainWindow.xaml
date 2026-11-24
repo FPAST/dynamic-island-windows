@@ -75,11 +75,21 @@
         <!-- frosted glass: what's behind the island, blurred, clipped to its shape -->
         <Canvas x:Name="FrostHost" Visibility="Collapsed">
           <Canvas.CacheMode><BitmapCache/></Canvas.CacheMode>
-          <Image x:Name="Frost" Stretch="Fill">
-            <Image.Effect>
-              <BlurEffect Radius="36" KernelType="Gaussian" RenderingBias="Performance"/>
-            </Image.Effect>
-          </Image>
+          <!-- liquid glass: the lens (GlassEffect) over the blurred picture; along the rim it bends the sharp one (FrostPics) -->
+          <Canvas x:Name="FrostLens">
+            <Canvas x:Name="FrostClip">
+              <Canvas x:Name="FrostBlur">
+                <Canvas.Effect>
+                  <BlurEffect Radius="36" KernelType="Gaussian" RenderingBias="Performance"/>
+                </Canvas.Effect>
+                <Canvas x:Name="FrostPics">
+                  <!-- two pictures: a new one fades in over the one before -->
+                  <Image x:Name="Frost" Stretch="Fill"/>
+                  <Image x:Name="FrostNext" Stretch="Fill" Opacity="0"/>
+                </Canvas>
+              </Canvas>
+            </Canvas>
+          </Canvas>
         </Canvas>
         <!-- your own photo (Settings > Appearance > Themes), under the tint -->
         <Canvas x:Name="PhotoHost" Visibility="Collapsed">
@@ -368,7 +378,8 @@
             </StackPanel>
 
             <!-- ======== MUSIC ======== -->
-            <Grid x:Name="MusicPage" Width="640" Visibility="Collapsed">
+            <StackPanel x:Name="MusicPage" Width="720" Visibility="Collapsed">
+              <Grid x:Name="MusicFull">
               <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="214"/>
@@ -469,7 +480,55 @@
                   </StackPanel>
                 </Grid>
               </Border>
-            </Grid>
+              </Grid>
+
+              <!-- the player in one line, while a service's site takes the place -->
+              <Border x:Name="MusicBar" Style="{StaticResource Tile}" Padding="10,8" Visibility="Collapsed">
+                <DockPanel>
+                  <Border x:Name="BarArt" Width="42" Height="42" CornerRadius="11" Background="{DynamicResource ChipBg}"/>
+                  <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Style="{StaticResource IconButton}" Content="&#xE892;" Click="Prev_Click"/>
+                    <Button x:Name="BarPlay" Style="{StaticResource PlayButton}" Content="&#xE768;" Width="38" Height="38" FontSize="15" Margin="8,0" Click="PlayPause_Click"/>
+                    <Button Style="{StaticResource IconButton}" Content="&#xE893;" Click="Next_Click"/>
+                  </StackPanel>
+                  <StackPanel Margin="12,0" VerticalAlignment="Center">
+                    <TextBlock x:Name="BarTitle" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                    <TextBlock x:Name="BarArtist" FontSize="12" Foreground="{DynamicResource Fg2}" TextTrimming="CharacterEllipsis" Margin="0,2,0,0"/>
+                  </StackPanel>
+                </DockPanel>
+              </Border>
+
+              <!-- music played by Atoll itself: where from, the search, what was found -->
+              <Border Background="{DynamicResource TileBg}" CornerRadius="15" Padding="3" Margin="0,10,0,0">
+                <WrapPanel x:Name="MusicChips" HorizontalAlignment="Center"/>
+              </Border>
+              <DockPanel Margin="0,8,0,0">
+                <Button x:Name="MusicBackButton" Style="{StaticResource IconButton}" Content="&#xE72B;" FontSize="13" Width="32" Height="32"
+                        Margin="0,0,6,0" ToolTip="Назад" Click="MusicBack_Click" Visibility="Collapsed"/>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Margin="8,0,0,0">
+                  <Button x:Name="MusicPlaylistsButton" Style="{StaticResource ToolChip}" Content="Плейлисты" Click="MusicPlaylists_Click"/>
+                  <Button x:Name="MusicFolderButton" Style="{StaticResource IconButton}" Content="&#xE8B7;" FontSize="13" Width="32" Height="32"
+                          Margin="6,0,0,0" ToolTip="Выберите папку с музыкой" Click="MusicFolder_Click" Visibility="Collapsed"/>
+                  <Button x:Name="MusicViewButton" Style="{StaticResource IconButton}" Content="&#xE70E;" FontSize="13" Width="32" Height="32"
+                          Margin="6,0,0,0" ToolTip="Плеер со словами или сайт" Click="MusicView_Click" Visibility="Collapsed"/>
+                  <Button x:Name="MusicStopButton" Style="{StaticResource IconButton}" Content="&#xE711;" FontSize="13" Width="32" Height="32"
+                          Margin="6,0,0,0" ToolTip="Остановить и закрыть плеер" Click="MusicStop_Click" Visibility="Collapsed"/>
+                </StackPanel>
+                <Grid>
+                  <TextBox x:Name="MusicQuery" Style="{StaticResource SoftBox}" Height="34" KeyDown="MusicQuery_KeyDown" TextChanged="MusicQuery_TextChanged"/>
+                  <TextBlock x:Name="MusicQueryHint" Text="Песня, исполнитель или станция" Style="{StaticResource Muted}" Margin="14,0" VerticalAlignment="Center" IsHitTestVisible="False"/>
+                </Grid>
+              </DockPanel>
+              <ScrollViewer x:Name="MusicResultsScroll" VerticalScrollBarVisibility="Auto" MaxHeight="190" Margin="0,8,0,0" Visibility="Collapsed">
+                <StackPanel x:Name="MusicResults"/>
+              </ScrollViewer>
+              <Border x:Name="MusicWebFrame" CornerRadius="18" Height="430" Margin="0,8,0,0" Background="{DynamicResource TileBg}"
+                      BorderBrush="{DynamicResource TileStroke}" BorderThickness="1" Visibility="Collapsed">
+                <Grid x:Name="MusicWebHost">
+                  <TextBlock x:Name="MusicWebNote" Text="Открываю…" Style="{StaticResource Muted}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Grid>
+              </Border>
+            </StackPanel>
 
             <!-- ======== WEATHER ======== -->
             <Grid x:Name="WeatherPage" Width="680" Visibility="Collapsed">
@@ -1032,6 +1091,7 @@
                         <Button Style="{StaticResource IconButton}" Width="28" Height="28" FontSize="11" Content="&#xE710;" Click="TintPlus_Click"/>
                       </StackPanel>
                     </DockPanel>
+                    <v:Scrubber x:Name="LiquidTintSlider" Minimum="0" Maximum="100" Step="5" Margin="0,4,0,8" ValueChanged="LiquidTint_ValueChanged"/>
                     <CheckBox x:Name="FadeSwitch" Style="{StaticResource Switch}" Click="Fade_Click" Content="Прозрачный низ"/>
                   </StackPanel>
                 </Border>
@@ -1066,6 +1126,9 @@
                     </DockPanel>
                     <CheckBox x:Name="ReactiveSwitch" Style="{StaticResource Switch}" Click="Reactive_Click" Content="Живой отклик"/>
                     <CheckBox x:Name="LiquidSwitch" Style="{StaticResource Switch}" Click="Liquid_Click" Content="Живые волны"/>
+                    <CheckBox x:Name="MusicWavesSwitch" Style="{StaticResource Switch}" Click="Reactive_Click" Content="Волны от музыки"
+                              ToolTip="Край острова качается в такт музыке. Без этого волны остаются только от касаний"/>
+
                     <v:Scrubber x:Name="LiquidSlider" Minimum="10" Maximum="100" Step="1" Margin="0,0,0,6" Visibility="Collapsed"
                                 ValueChanged="LiquidSlider_ValueChanged"/>
                   </StackPanel>
@@ -1148,6 +1211,12 @@
                 <Border Style="{StaticResource Tile}" Margin="0,0,0,10">
                   <StackPanel>
                     <CheckBox x:Name="HoverSwitch" Style="{StaticResource Switch}" Click="Behavior_Click" Content="Раскрывать при наведении"/>
+                    <CheckBox x:Name="YieldSwitch" Style="{StaticResource Switch}" Click="Behavior_Click" Content="Уступать курсору"/>
+                    <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,-4,0,6"
+                               Text="Курсор пролетает по острову (в игре, по пути к вкладкам) — остров становится прозрачным и пропускает клики к окну под ним. Задержите на нём курсор или упритесь в верхний край — и он вернётся. В играх на весь экран не мешает совсем."/>
+                    <CheckBox x:Name="PlacePerAppSwitch" Style="{StaticResource Switch}" Click="Behavior_Click" Content="Своё место для каждой программы"/>
+                    <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,-4,0,6"
+                               Text="Передвиньте остров, пока программа впереди, — он запомнит это место и будет сам уезжать туда, когда она впереди. «Выровнять по центру» в меню острова возвращает этой программе обычное место."/>
                     <CheckBox x:Name="SmartSwitch" Style="{StaticResource Switch}" Click="Behavior_Click" Content="Умный остров"/>
                     <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,-4,0,6"
                                Text="Открывается на том, что важно сейчас (таймер, звонок, скопированное, музыка) или на вкладке, которую вы обычно открываете в это время. Пока вы печатаете, не раскрывается от курсора, а сообщения ждут паузы. При низком заряде ноутбука включает облегчённую графику. Привычки хранятся только на этом ПК."/>
@@ -1178,6 +1247,18 @@
                     <CheckBox x:Name="CaptureSwitch" Style="{StaticResource Switch}" Click="Behavior_Click" Content="Скрывать остров на скриншотах и демонстрации экрана"/>
                     <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,-4,0,8"
                                Text="Если выключить, остров будет виден на скриншотах, записи и в Zoom/Discord — стекло при этом продолжает работать. Пока работает запись NVIDIA, остров сам остаётся видимым — иначе она не пишет рабочий стол"/>
+                    <DockPanel Margin="0,0,0,10">
+                      <ComboBox x:Name="ShotModeBox" DockPanel.Dock="Right" Style="{StaticResource SoftCombo}" Width="200" SelectionChanged="ShotMode_Changed">
+                        <ComboBoxItem Content="Открыть редактор"/>
+                        <ComboBoxItem Content="Сохранить и скопировать без окна"/>
+                      </ComboBox>
+                      <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="После снимка" FontSize="13"/>
+                        <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,2,0,0" Text="В полноэкранной игре снимок всегда сохраняется без окна"/>
+                      </StackPanel>
+                    </DockPanel>
+                    <CheckBox x:Name="ShotRevealSwitch" Style="{StaticResource Switch}" Click="Behavior_Click" Content="Показывать файл в Проводнике после сохранения"/>
+
                     <CheckBox x:Name="FullscreenSwitch" Style="{StaticResource Switch}" Click="Behavior_Click" Content="Прятать в играх и полноэкранном режиме"/>
                     <DockPanel Margin="0,0,0,10">
                       <ComboBox x:Name="OpenHotkeyBox" DockPanel.Dock="Right" Style="{StaticResource SoftCombo}" Width="200"
@@ -1187,6 +1268,15 @@
                         <TextBlock x:Name="OpenHotkeyStatus" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,2,0,0"/>
                       </StackPanel>
                     </DockPanel>
+                    <DockPanel Margin="0,0,0,10">
+                      <ComboBox x:Name="CommandHotkeyBox" DockPanel.Dock="Right" Style="{StaticResource SoftCombo}" Width="200"
+                                SelectionChanged="CommandHotkey_Changed"/>
+                      <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="Командная строка клавишами" FontSize="13"/>
+                        <TextBlock x:Name="CommandHotkeyStatus" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                      </StackPanel>
+                    </DockPanel>
+
                     <CheckBox x:Name="LiteSwitch" Style="{StaticResource Switch}" Click="Lite_Click" ToolTip="Без стекла, свечения и эффектов: заметно меньше нагрузка" Content="Облегчённая графика для слабых ПК"/>
                     <v:CopyButton x:Name="PerfReportButton" Style="{StaticResource GhostPill}" HorizontalAlignment="Left" Padding="12,6" Margin="0,0,0,10"
                             Click="CopyPerfReport_Click" ToolTip="Если остров дёргается — отправьте этот отчёт разработчику"/>
@@ -1281,8 +1371,11 @@
                     <DockPanel>
                       <TextBlock Text="✳" FontSize="16" Foreground="{DynamicResource ClaudeOrange}" VerticalAlignment="Center"/>
                       <TextBlock Style="{StaticResource Caption}" Text="CLAUDE CODE" VerticalAlignment="Center" Margin="8,0,0,0"/>
-                      <Button x:Name="ClaudeHooksButton" Style="{StaticResource Pill}" HorizontalAlignment="Right"
+                      <Button x:Name="ClaudeHooksButton" Style="{StaticResource Pill}" DockPanel.Dock="Right"
                               Content="Подключить" Click="ClaudeHooks_Click"/>
+                      <Button x:Name="ClaudeCheckButton" Style="{StaticResource GhostPill}" DockPanel.Dock="Right" Margin="0,0,6,0" Padding="12,6"
+                              Content="Проверить" Click="ClaudeCheck_Click" ToolTip="Запустить установленный хук с тестовым событием и дождаться его на острове"/>
+                      <Border/>
                     </DockPanel>
                     <TextBlock x:Name="ClaudeHooksStatus" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,8,0,0"/>
                   </StackPanel>
@@ -1292,8 +1385,11 @@
                     <DockPanel>
                       <TextBlock Text="◎" FontSize="16" Foreground="#10A37F" VerticalAlignment="Center"/>
                       <TextBlock Style="{StaticResource Caption}" Text="CODEX (OPENAI)" VerticalAlignment="Center" Margin="8,0,0,0"/>
-                      <Button x:Name="CodexHooksButton" Style="{StaticResource Pill}" HorizontalAlignment="Right"
+                      <Button x:Name="CodexHooksButton" Style="{StaticResource Pill}" DockPanel.Dock="Right"
                               Content="Подключить" Click="CodexHooks_Click"/>
+                      <Button x:Name="CodexCheckButton" Style="{StaticResource GhostPill}" DockPanel.Dock="Right" Margin="0,0,6,0" Padding="12,6"
+                              Content="Проверить" Click="CodexCheck_Click" ToolTip="Запустить установленный хук с тестовым событием и дождаться его на острове"/>
+                      <Border/>
                     </DockPanel>
                     <TextBlock x:Name="CodexHooksStatus" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,8,0,0"/>
                   </StackPanel>

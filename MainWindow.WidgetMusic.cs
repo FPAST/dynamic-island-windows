@@ -41,7 +41,7 @@ public partial class MainWindow
         var title = W("", size == WidgetSize.Large ? 17 : size == WidgetSize.Medium ? 15 : 13, FontWeights.SemiBold);
         var artist = W("", size == WidgetSize.Small ? 11 : 12.5, null, Dim);
         var playIcon = Glyph("", size == WidgetSize.Small ? 13 : size == WidgetSize.Large ? 20 : 15);
-        var play = WKey(playIcon, Solid(0xFF, 0xFF, 0xFF, 0x30), null, () => _media.TogglePlayPause(), size == WidgetSize.Small ? 34 : size == WidgetSize.Large ? 58 : 44,
+        var play = WKey(playIcon, Solid(0xFF, 0xFF, 0xFF, 0x30), null, () => _ = _media.TogglePlayPause(), size == WidgetSize.Small ? 34 : size == WidgetSize.Large ? 58 : 44,
                         size == WidgetSize.Small ? 34 : size == WidgetSize.Large ? 50 : 38, name: L.T("Пауза или воспроизведение"));
         (Grid Track, Border Fill)? timeline = null;
         TextBlock? posText = null, lenText = null;
@@ -53,8 +53,8 @@ public partial class MainWindow
         Border Controls(double h)
         {
             var row = new StackPanel { Orientation = Orientation.Horizontal };
-            var prev = WKey(Glyph("", h > 44 ? 17 : 13), Brushes.Transparent, null, () => _media.Previous(), h, h, name: L.T("Предыдущий трек"));
-            var next = WKey(Glyph("", h > 44 ? 17 : 13), Brushes.Transparent, null, () => _media.Next(), h, h, name: L.T("Следующий трек"));
+            var prev = WKey(Glyph("", h > 44 ? 17 : 13), Brushes.Transparent, null, () => _ = _media.Previous(), h, h, name: L.T("Предыдущий трек"));
+            var next = WKey(Glyph("", h > 44 ? 17 : 13), Brushes.Transparent, null, () => _ = _media.Next(), h, h, name: L.T("Следующий трек"));
             play.Margin = new Thickness(h > 44 ? 8 : 4, 0, h > 44 ? 8 : 4, 0);
             row.Children.Add(prev); row.Children.Add(play); row.Children.Add(next);
             var g = GlassGroup(row, h / 2 + 4);
@@ -85,7 +85,7 @@ public partial class MainWindow
             {
                 if (!track.IsMouseCaptured) return;
                 e.Handled = true; track.ReleaseMouseCapture(); knob(false);
-                if (_lastMedia?.Duration is { } d && d > TimeSpan.Zero && track.ActualWidth > 0) _media.Seek(d * Math.Clamp(e.GetPosition(track).X / track.ActualWidth, 0, 1));
+                if (_lastMedia?.Duration is { } d && d > TimeSpan.Zero && track.ActualWidth > 0) _ = _media.Seek(d * Math.Clamp(e.GetPosition(track).X / track.ActualWidth, 0, 1));
             };
             track.LostMouseCapture += (_, _) => knob(false);
             timeline = (track, fill);
@@ -282,7 +282,7 @@ public partial class MainWindow
             TrackBrush = new SolidColorBrush(Color.FromArgb(0x26, 0xFF, 0xFF, 0xFF)),
             ProgressBrush = new SolidColorBrush(Color.FromArgb(0xE6, 0xFF, 0xFF, 0xFF)),
         };
-        r.Toggled += () => { if (!_widgetsEditing) _media.TogglePlayPause(); };
+        r.Toggled += () => { if (!_widgetsEditing) _ = _media.TogglePlayPause(); };
         return r;
     }
 

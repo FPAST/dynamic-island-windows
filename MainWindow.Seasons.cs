@@ -20,13 +20,8 @@ public partial class MainWindow
         Season.Visibility = kind.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         // liquid glass: the tiles become clear glass with a bright upper rim, so the colours show through them
         Theme.Apply(_settings.DarkTheme, _settings.IslandColor, _settings.GlassOpacity, _settings.AccentColor);
-        if (kind == "liquid")
-        {
-            var r = Application.Current.Resources;
-            r["TileBg"] = Glass(0x14, 0x06);
-            r["TileBgHover"] = Glass(0x26, 0x10);
-            r["TileStroke"] = Glass(0x55, 0x0C);
-        }
+        ApplyLiquidBrushes();
+        if (IsLoaded) RefreshLookControls();
         if (_seasonTimer.Interval == TimeSpan.Zero)
         {
             _seasonTimer.Interval = TimeSpan.FromMilliseconds(33);

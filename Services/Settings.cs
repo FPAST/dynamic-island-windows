@@ -1,6 +1,9 @@
 using System.IO;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 
 namespace DynamicIsland.Services;
 
@@ -33,7 +36,9 @@ public sealed class Settings
     /// <summary>No settings file yet: the very first start on this computer.</summary>
     public static bool FirstRun { get; private set; }
 
-    public static Settings Current { get; } = Load();
+    private static readonly Lazy<Settings> _current = new(Load);
+    /// <summary>The settings of this run, read on first use (tests never read the user's file).</summary>
+    public static Settings Current => _current.Value;
 
     // weather
     public string City { get; set; } = "";
@@ -63,6 +68,9 @@ public sealed class Settings
     public string Character { get; set; } = "eyes";
     /// <summary>Edge reaches for the cursor, breathes with music, glows on events.</summary>
     public bool Reactive { get; set; } = true;
+    /// <summary>The edge moves with the music (drips with the waves, a swell with live response); off = only touches move it.</summary>
+    public bool MusicWaves { get; set; } = true;
+
     /// <summary>Orange light under the island while a Claude character is on.</summary>
     public bool ClaudeGlow { get; set; } = true;
     /// <summary>Characters look hand-drawn: ink outlines that "boil", animated on twos (12 fps).</summary>
@@ -133,12 +141,27 @@ public sealed class Settings
     public List<string> HideInApps { get; set; } = [];
     /// <summary>Shortcut that opens / folds the island: "Ctrl+Alt+O", "Ctrl+Alt+A", "Alt+Q", "Ctrl+Shift+Space" or "" (off).</summary>
     public string OpenHotkey { get; set; } = "Ctrl+Alt+O";
+    /// <summary>Shortcut of the command bar: "Alt+Space" (with Ctrl+Alt+Space), "Ctrl+Alt+Space", "Ctrl+Shift+Space" or "" (off).</summary>
+    public string CommandHotkey { get; set; } = "Alt+Space";
+    /// <summary>After a screenshot: false = open the editor, true = save it and copy it, only a short notice.</summary>
+    public bool ScreenshotQuick { get; set; }
+    /// <summary>Show the saved picture in File Explorer.</summary>
+    public bool ScreenshotReveal { get; set; }
+
+
     /// <summary>Tracks liked with the heart on the music page ("Artist — Title"), newest first.</summary>
     public List<string> LikedTracks { get; set; } = [];
+    /// <summary>Where each liked track was playing (a service's name, see MusicSources): a click opens it there.</summary>
+    public Dictionary<string, string> LikedFrom { get; set; } = [];
     /// <summary>Light graphics for weak PCs: no frosted glass, glow, colour split or bulge. Null = decide by the hardware.</summary>
     public bool? LiteGraphics { get; set; }
     /// <summary>Tint strength over the frosted glass, 20…100 %.</summary>
     public int GlassTint { get; set; } = 72;
+    /// <summary>Liquid glass: from clear (0) to nearly opaque (100). Its own value: GlassTint belongs to the other themes.</summary>
+    public int LiquidTint { get; set; } = 50;
+    /// <summary>The same for the "Полупрозрачная" and "Матовая" themes.</summary>
+    public int ClearTint { get; set; } = 70;
+    public int MatteTint { get; set; } = 50;
     /// <summary>Lower half of the island fades to see-through.</summary>
     public bool BottomFade { get; set; } = true;
     /// <summary>Shimmering colour along the lower edge when idle: none, aurora, sunset, ocean, neon, mono.</summary>
@@ -201,6 +224,12 @@ public sealed class Settings
     /// <summary>Attached to the top edge of the screen like a notch (true) or floating pill (false).</summary>
     public bool Docked { get; set; }
     public bool ExpandOnHover { get; set; } = true;
+    /// <summary>A cursor flying onto the island over another window (a game, a hand on its way to the tabs) goes through it.</summary>
+    public bool YieldToCursor { get; set; } = true;
+    /// <summary>The island remembers where it was moved for each program in front, and floats there.</summary>
+    public bool PlacePerApp { get; set; }
+    /// <summary>Process name (lower case) → [centre x, top] in DIPs.</summary>
+    public Dictionary<string, double[]> AppPlaces { get; set; } = [];
 
     // Home tab, "build it yourself"
     public bool HomeActions { get; set; } = true;
@@ -229,9 +258,59 @@ public sealed class Settings
     public bool RecordSystemAudio { get; set; } = true;
     public bool RecordMicrophone { get; set; } = true;
 
+    /// <summary>The source used last in the Music tab (see MusicPlayers).</summary>
+    public string MusicSource { get; set; } = "";
+    public string MusicFolder { get; set; } = "";
+    public List<RadioDirectory.Station> RadioLiked { get; set; } = [];
+
     // chat
     public string ChatProvider { get; set; } = "gemini";
-    public string GeminiVoiceApiKey { get; set; } = "";
+    /// <summary>When a real event last came from Claude Code's / Codex's hook (null = never since the hooks were set up).</summary>
+    public DateTime? ClaudeLastEvent { get; set; }
+    public DateTime? CodexLastEvent { get; set; }
+    private string _geminiKey = "", _geminiKeySealed = "";
+
+    /// <summary>The Gemini key itself: kept in memory only, never written as text (see <see cref="GeminiVoiceApiKeySealed"/>).</summary>
+    [JsonIgnore]
+    public string GeminiVoiceApiKey
+    {
+        get => _geminiKey;
+        set
+        {
+            value ??= "";
+            if (value == _geminiKey) return;
+            _geminiKey = value;
+            _geminiKeySealed = Seal(value);
+            Log.Hide(value);
+        }
+    }
+
+    /// <summary>The Gemini key as written to the file: encrypted for this Windows user (DPAPI), base64.</summary>
+    public string GeminiVoiceApiKeySealed
+    {
+        get => _geminiKeySealed;
+        set
+        {
+            _geminiKeySealed = value ?? "";
+            _geminiKey = Unseal(_geminiKeySealed);
+            Log.Hide(_geminiKey);
+        }
+    }
+
+    private static string Seal(string text) => text.Length == 0 ? ""
+        : Convert.ToBase64String(ProtectedData.Protect(Encoding.UTF8.GetBytes(text), null, DataProtectionScope.CurrentUser));
+
+    private static string Unseal(string sealedText)
+    {
+        if (sealedText.Length == 0) return "";
+        try { return Encoding.UTF8.GetString(ProtectedData.Unprotect(Convert.FromBase64String(sealedText), null, DataProtectionScope.CurrentUser)); }
+        catch (Exception ex)
+        {
+            // another Windows user's or another PC's file: the key has to be entered again
+            Log.Write("settings: the Gemini key can't be decrypted (" + ex.GetType().Name + ")");
+            return "";
+        }
+    }
     /// <summary>Desktop widgets that are on, and where each one sits (left, top in DIPs).</summary>
     public List<string> DesktopWidgets { get; set; } = [];
     public Dictionary<string, double[]> WidgetPlaces { get; set; } = [];
@@ -273,24 +352,40 @@ public sealed class Settings
     public string GeminiVoice { get; set; } = "Kore";
     public int GeminiVoiceVolume { get; set; } = 100;
 
-    private static string FilePath => Path.Combine(
+    /// <summary>The settings file; tests point it elsewhere.</summary>
+    internal static string FilePath { get; set; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "DynamicIsland", "settings.json");
 
     private const int CurrentVersion = 3;
 
-    private static Settings Load()
+    internal static Settings Load()
     {
         Settings s;
         bool existed = File.Exists(FilePath);
         FirstRun = !existed;
+        string? plainKey = null;
         try
         {
-            s = File.Exists(FilePath)
-                ? JsonSerializer.Deserialize<Settings>(File.ReadAllText(FilePath)) ?? new Settings()
-                : new Settings();
+            if (existed)
+            {
+                var text = File.ReadAllText(FilePath);
+                s = JsonSerializer.Deserialize<Settings>(text) ?? new Settings();
+                // up to 2.0.0 the Gemini key was written as plain text
+                plainKey = (JsonNode.Parse(text) as JsonObject)?["GeminiVoiceApiKey"]?.GetValue<string>();
+            }
+            else s = new Settings();
         }
-        catch { s = new Settings(); } // corrupted file: start fresh
+        catch (Exception ex)
+        {
+            Log.Write("settings: unreadable, starting fresh (" + ex.GetType().Name + ")");
+            s = new Settings();
+        }
+        if (!string.IsNullOrEmpty(plainKey))
+        {
+            if (s.GeminiVoiceApiKey.Length == 0) s.GeminiVoiceApiKey = plainKey;
+            s.Save();   // written again without the plain key
+        }
 
         if (existed) s.Onboarded = true;   // people who already use it never get the welcome steps
         if (s.Version < CurrentVersion)
@@ -337,21 +432,69 @@ public sealed class Settings
     /// <summary>Demo / screenshot mode: never touch the user's files.</summary>
     public static bool ReadOnly { get; set; }
 
+    private static readonly object WriteLock = new();
+    private Timer? _saveSoon;
+    private int _saveSoonPending;
+
     public void Save()
     {
+        Interlocked.Exchange(ref _saveSoonPending, 0);
+        _saveSoon?.Change(Timeout.Infinite, Timeout.Infinite);
         if (ReadOnly) return;
-        try
+        Write(Snapshot());
+    }
+
+    /// <summary>
+    /// Saves after 500 ms without changes, off the UI thread, the latest state: for sliders and scrubbers, which
+    /// change many times a second (each change used to write the file).
+    /// </summary>
+    public void SaveSoon()
+    {
+        if (ReadOnly) return;
+        Interlocked.Exchange(ref _saveSoonPending, 1);
+        _saveSoon ??= new Timer(_ => SaveSoonNow());
+        _saveSoon.Change(500, Timeout.Infinite);
+    }
+
+    /// <summary>A pending <see cref="SaveSoon"/> is written now (on exit).</summary>
+    public void Flush()
+    {
+        if (Interlocked.Exchange(ref _saveSoonPending, 0) == 1) Save();
+    }
+
+    private void SaveSoonNow()
+    {
+        if (Interlocked.Exchange(ref _saveSoonPending, 0) == 0) return;
+        // the values are read where they are changed (the UI thread), the file is written here
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        string? json = null;
+        try { json = dispatcher == null || dispatcher.CheckAccess() ? Snapshot() : dispatcher.Invoke(Snapshot); }
+        catch (Exception ex) { Log.Write("settings: save soon: " + ex.GetType().Name); }
+        if (json != null) Write(json);
+    }
+
+    private string Snapshot()
+    {
+        var json = JsonSerializer.SerializeToNode(this) as JsonObject ?? [];
+        // a value --safe changed goes back to the user's own, unless the user changed it in this run
+        foreach (var (name, (own, safe)) in _safeSwaps ?? [])
+            if (JsonNode.DeepEquals(json[name], safe)) json[name] = own?.DeepClone();
+        return json.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+    }
+
+    private static void Write(string json)
+    {
+        lock (WriteLock)
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
-            // write to a temp file and swap: a kill in the middle can't leave a half-written settings file
-            var tmp = FilePath + ".tmp";
-            var json = JsonSerializer.SerializeToNode(this) as JsonObject ?? [];
-            // a value --safe changed goes back to the user's own, unless the user changed it in this run
-            foreach (var (name, (own, safe)) in _safeSwaps ?? [])
-                if (JsonNode.DeepEquals(json[name], safe)) json[name] = own?.DeepClone();
-            File.WriteAllText(tmp, json.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
-            File.Move(tmp, FilePath, overwrite: true);
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
+                // write to a temp file and swap: a kill in the middle can't leave a half-written settings file
+                var tmp = FilePath + ".tmp";
+                File.WriteAllText(tmp, json);
+                File.Move(tmp, FilePath, overwrite: true);
+            }
+            catch (Exception ex) { Log.Write("settings: not saved (" + ex.GetType().Name + ")"); }
         }
-        catch { /* not critical */ }
     }
 }

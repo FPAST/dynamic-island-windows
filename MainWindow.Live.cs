@@ -231,10 +231,11 @@ public partial class MainWindow
 
     // ================================================================ every second
 
-    private async void SlowTick()
+    private async Task SlowTick()
     {
         CheckAlarms();
         UpdateWidgetPause();
+        Measure("frost", CaptureFrost);   // the glass's grab loop picks up whatever changed (hidden, light graphics, a setting)
         _slowCount++;
         FocusMode.Tick();
         UiStep("slow tick");
@@ -242,7 +243,7 @@ public partial class MainWindow
         if (!_downloadsBusy)
         {
             _downloadsBusy = true;
-            _ = Task.Run(() => { try { _downloads.Poll(); } catch { } }).ContinueWith(_ => _downloadsBusy = false);
+            _ = Task.Run(() => { try { _downloads.Poll(); } catch (Exception ex) { Log.Error("downloads: poll", ex); } }).ContinueWith(_ => _downloadsBusy = false);
         }
         if (_settings.ShowProgress && !_gameMode && _demoMedia == null && !_progressBusy)
         {
@@ -275,10 +276,10 @@ public partial class MainWindow
                 try
                 {
                     inCall = _audioProbe.AppsRecording().Any(a => a.Contains("discord", StringComparison.OrdinalIgnoreCase)) &&
-                             Process.GetProcessesByName("Discord").Length > 0;
+                             Running("Discord");
                     speaking = inCall && _audioProbe.AppState("discord").Peak > 0.03;
                 }
-                catch { }
+                catch (Exception ex) { Log.Error("discord: call probe", ex); }
                 return (inCall, speaking);
             }).ContinueWith(t =>
             {
@@ -338,9 +339,21 @@ public partial class MainWindow
     private static void FocusApp(string app)
     {
         var token = app.Split(' ')[0];
-        var p = Process.GetProcesses().FirstOrDefault(x =>
-            x.MainWindowHandle != IntPtr.Zero && x.ProcessName.Contains(token, StringComparison.OrdinalIgnoreCase));
-        if (p != null) Native.SetForegroundWindow(p.MainWindowHandle);
+        var all = Process.GetProcesses();
+        try
+        {
+            var p = all.FirstOrDefault(x => x.MainWindowHandle != IntPtr.Zero && x.ProcessName.Contains(token, StringComparison.OrdinalIgnoreCase));
+            if (p != null) Native.SetForegroundWindow(p.MainWindowHandle);
+        }
+        finally { foreach (var p in all) p.Dispose(); }
+    }
+
+    /// <summary>A program by its name is running (the process objects are freed at once).</summary>
+    private static bool Running(string name)
+    {
+        var all = Process.GetProcessesByName(name);
+        foreach (var p in all) p.Dispose();
+        return all.Length > 0;
     }
 
     private void CheckCalendar()
@@ -382,7 +395,7 @@ public partial class MainWindow
             if (File.Exists(wav)) new System.Media.SoundPlayer(wav).Play();
             else System.Media.SystemSounds.Asterisk.Play();
         }
-        catch { }
+        catch (Exception ex) { Log.Write("calendar: sound: " + ex.GetType().Name + ": " + ex.Message); }
     }
 
     // ================================================================ System tab

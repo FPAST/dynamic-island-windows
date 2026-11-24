@@ -24,6 +24,7 @@ public partial class MainWindow
 
     private bool _demoHide;
 
+#if DEBUG   // demo runs: not in the release build
     private void StartLiveDemo(string file)
     {
         _liveDemo = true;
@@ -322,4 +323,5 @@ public partial class MainWindow
                 break;
         }
     }
+#endif
 }

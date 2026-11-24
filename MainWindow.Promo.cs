@@ -1,3 +1,4 @@
+#if DEBUG   // demo videos and pictures: not in the release build
 using System.IO;
 using System.Text.Json;
 using System.Windows;
@@ -244,7 +245,7 @@ public partial class MainWindow
             var s = Root.PointToScreen(_cur);
             _fakeCursor = _cursorOn ? new Native.POINT { X = (int)s.X, Y = (int)s.Y } : new Native.POINT { X = -20000, Y = -20000 };
         }
-        catch { }
+        catch { /* not on screen yet */ }
         var cf = ToStage(_cur);
         _cursorPath!.Opacity += ((_cursorOn ? 1 : 0) - _cursorPath.Opacity) * Math.Min(1, dt * 8);
         Canvas.SetLeft(_cursorPath, cf.X);
@@ -431,3 +432,4 @@ public partial class MainWindow
         Application.Current.Shutdown();
     }
 }
+#endif

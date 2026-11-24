@@ -30,7 +30,10 @@ public sealed class AppIndex
         {
             try
             {
-                foreach (var f in Directory.EnumerateFiles(root, "*.lnk", SearchOption.AllDirectories))
+                // the localised folder names ("Программы") are junctions nobody may list: walking into one ended the
+                // whole scan, quietly, so some programs were never found
+                var walk = new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true, AttributesToSkip = FileAttributes.ReparsePoint };
+                foreach (var f in Directory.EnumerateFiles(root, "*.lnk", walk))
                 {
                     var name = System.IO.Path.GetFileNameWithoutExtension(f);
                     if (name.Contains("uninstall", StringComparison.OrdinalIgnoreCase) ||
@@ -38,7 +41,7 @@ public sealed class AppIndex
                     found.TryAdd(name, new App(name, f));
                 }
             }
-            catch { }
+            catch (Exception ex) { Log.Write("apps: start menu scan: " + ex.GetType().Name + ": " + ex.Message); }
         }
         AddStoreApps(found);
         _apps = found.Values.OrderBy(a => a.Name).ToList();
@@ -66,7 +69,7 @@ public sealed class AppIndex
                     lock (found) found.TryAdd(name, new App(name, @"shell:AppsFolder\" + id));
                 }
             }
-            catch { }
+            catch (Exception ex) { Log.Write("apps: store apps scan: " + ex.GetType().Name + ": " + ex.Message); }
         });
         t.SetApartmentState(ApartmentState.STA);
         t.IsBackground = true;
@@ -111,7 +114,7 @@ public sealed class AppIndex
                 img.Freeze();
             }
         }
-        catch { }
+        catch { /* no icon: the generic one */ }
         return _icons[path] = img;
     }
 
@@ -125,6 +128,6 @@ public sealed class AppIndex
                 ? new ProcessStartInfo("explorer.exe", "\"" + path + "\"") { UseShellExecute = true }
                 : new ProcessStartInfo(path) { UseShellExecute = true });
         }
-        catch { }
+        catch (Exception ex) { Log.Write("apps: launch: " + ex.GetType().Name + ": " + ex.Message); }
     }
 }

@@ -17,13 +17,15 @@ public sealed class GlassEffect : ShaderEffect
 {
     // c0: size of the input in pixels (w, h), band around the card (px), corner radius (px)
     // c1: lens width (px), lens strength (px), colour fringe (px), saturation
-    // c2: light direction (x, y), rim brightness, unused
+    // c3: tint over the glass (colour, strength), thinner along the rim where the glass bends
+    // c2: light direction (x, y), rim brightness, 1 = bend the input itself (no second picture, no hairline)
     private const string Hlsl = @"
 sampler2D input : register(s0);
 sampler2D clear : register(s1);
 float4 geo : register(c0);
 float4 lens : register(c1);
 float4 light : register(c2);
+float4 tint : register(c3);
 
 float sdRound(float2 p, float2 h, float r)
 {
@@ -52,16 +54,18 @@ float4 main(float2 uv : TEXCOORD) : COLOR
 
     // frosted in the middle; towards the rim the glass turns clear and bends the desktop behind it
     float3 frost = tex2D(input, uv).rgb;
-    float r = tex2D(clear, uv + bend + fringe).r;
-    float g = tex2D(clear, uv + bend).g;
-    float b = tex2D(clear, uv + bend - fringe).b;
-    float3 c = lerp(frost, float3(r, g, b), k * 0.9);
+    float3 sharp = float3(tex2D(clear, uv + bend + fringe).r, tex2D(clear, uv + bend).g, tex2D(clear, uv + bend - fringe).b);
+    float3 own = float3(tex2D(input, uv + bend + fringe).r, tex2D(input, uv + bend).g, tex2D(input, uv + bend - fringe).b);
+    // bending its own picture, the bent picture replaces the plain one (a cross-fade would show both)
+    float3 c = lerp(frost, lerp(sharp, own, light.w), lerp(k * 0.9, 1.0, light.w));
 
     float l = dot(c, float3(0.299, 0.587, 0.114));
     c = lerp(float3(l, l, l), c, lens.w);
 
+    c = lerp(c, tint.rgb, tint.a * (1.0 - 0.3 * k));
+
     // a hairline of light along the rim, brighter where the edge faces the light
-    float rim = saturate(1.0 - abs(d + 1.2) / 1.4);
+    float rim = saturate(1.0 - abs(d + 1.2) / 1.4) * (1.0 - light.w);
     float facing = saturate(dot(n, light.xy) * 0.6 + 0.4);   // light.xy points towards the light
     c += rim * facing * light.z;
     // and the lens itself catches a little of it
@@ -82,6 +86,11 @@ float4 main(float2 uv : TEXCOORD) : COLOR
     public static readonly DependencyProperty LightProperty = DependencyProperty.Register(nameof(Light), typeof(Point4D), typeof(GlassEffect),
         new UIPropertyMetadata(new Point4D(-0.45, -0.9, 0.35, 0), PixelShaderConstantCallback(2)));
 
+    public static readonly DependencyProperty TintProperty = DependencyProperty.Register(nameof(Tint), typeof(Color), typeof(GlassEffect),
+        new UIPropertyMetadata(Colors.Transparent, PixelShaderConstantCallback(3)));
+
+    /// <summary>Colour and strength of the tint over the glass (none by default).</summary>
+    public Color Tint { get => (Color)GetValue(TintProperty); set => SetValue(TintProperty, value); }
     public Brush Input { get => (Brush)GetValue(InputProperty); set => SetValue(InputProperty, value); }
     /// <summary>The same piece of desktop, barely blurred (what the rim bends).</summary>
     public Brush Clear { get => (Brush)GetValue(ClearProperty); set => SetValue(ClearProperty, value); }
@@ -89,7 +98,7 @@ float4 main(float2 uv : TEXCOORD) : COLOR
     public Point4D Geometry { get => (Point4D)GetValue(GeometryProperty); set => SetValue(GeometryProperty, value); }
     /// <summary>(lens width, bend, colour fringe, saturation).</summary>
     public Point4D Lens { get => (Point4D)GetValue(LensProperty); set => SetValue(LensProperty, value); }
-    /// <summary>(direction x, direction y, rim brightness, 0): where the light comes from.</summary>
+    /// <summary>(direction x, direction y, rim brightness, mode): where the light comes from; mode 1 bends the input itself.</summary>
     public Point4D Light { get => (Point4D)GetValue(LightProperty); set => SetValue(LightProperty, value); }
 
     private GlassEffect(PixelShader shader)
@@ -100,6 +109,7 @@ float4 main(float2 uv : TEXCOORD) : COLOR
         UpdateShaderValue(GeometryProperty);
         UpdateShaderValue(LensProperty);
         UpdateShaderValue(LightProperty);
+        UpdateShaderValue(TintProperty);
     }
 
     /// <summary>null when the shader can't be compiled here (the glass is then the plain blurred picture).</summary>

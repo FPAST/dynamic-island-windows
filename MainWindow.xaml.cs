@@ -115,6 +115,7 @@ public partial class MainWindow : Window
 
     private async Task OnLoadedAsync(string[] args)
     {
+#if DEBUG   // tests, pictures and demo videos: not in the release build
         int snap = Array.IndexOf(args, "--snapshot");
         int promo = Array.IndexOf(args, "--promo");
         int review = Array.IndexOf(args, "--review");
@@ -122,6 +123,7 @@ public partial class MainWindow : Window
         int tiktok = Array.IndexOf(args, "--tiktok"), tiktokScreen = Array.IndexOf(args, "--tiktok-screen");
         if (snap >= 0 || promo >= 0 || review >= 0 || live >= 0 || tiktok >= 0 || tiktokScreen >= 0 || args.Contains("--cover")) BeginDemo();
         if (live >= 0) StartLiveDemo(args.ElementAtOrDefault(live + 1) ?? "demo-commands.txt");
+#endif
 
         // the last start never got as far as showing the island: light graphics before any glass or effect runs
         bool rescued = StartupGuard.PreviousFailed && _settings.LiteGraphics != true;
@@ -167,6 +169,7 @@ public partial class MainWindow : Window
                 System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         if (_settings.Hidden) HideIsland(animate: false);
 
+#if DEBUG   // tests, pictures and demo videos: not in the release build
         int i = Array.IndexOf(args, "--expand");
         if (i >= 0)
         {
@@ -184,7 +187,9 @@ public partial class MainWindow : Window
                 tab.IsChecked = true;
             }
         }
+#endif
 
+#if DEBUG   // tests, pictures and demo videos: not in the release build
         // --run <action> [seconds]: trigger a quick action (testing without touching the keyboard)
         int r = Array.IndexOf(args, "--run");
         if (r >= 0 && r + 1 < args.Length)
@@ -195,6 +200,30 @@ public partial class MainWindow : Window
             {
                 await Task.Delay(1500);
                 if (action.StartsWith("lang:")) { SwitchLanguage(action[5..]); return; }   // test the language switch
+                if (action == "themeswitch")   // test (2.1): glass themes switched over a page that stands still: the picture shown where the theme has one, gone where it has none
+                {
+                    Settings.ReadOnly = true;
+                    Island.IsHitTestVisible = false; _settings.ExpandOnHover = false; _settings.LiteGraphics = false; NoClickOutside = true;
+                    await Task.Delay(2500);
+                    var cover = LookBackdrop("colour");
+                    foreach (var id in new[] { "liquid", "clear", "liquid", "matte", "clear", "matte", "graphite", "clear", "graphite" })
+                    {
+                        ApplyThemePreset(BuiltInThemes.First(t => t.Id == id));
+                        foreach (bool open in new[] { true, false })
+                        {
+                            _pinnedOpen = open;
+                            if (open) Expand(); else SetMode(Mode.Compact);
+                            await Task.Delay(2200);
+                            bool picture = FrostHost.Opacity > 0.5 && _frostCovers;
+                            double fill = IslandShape.Fill is LinearGradientBrush g ? g.GradientStops[2].Color.A / 255.0 : 1;
+                            bool ok = id == "clear" ? !picture && fill is > 0.1 and < 0.97 : picture;
+                            Log.Write($"themeswitch: {id} {(open ? "open" : "folded")}: picture={picture}, fill {fill:0.00}, lens={FrostLens.Effect != null} -> {(ok ? "ok" : "FAIL")}");
+                        }
+                    }
+                    cover.Close();
+                    Application.Current.Shutdown();
+                    return;
+                }
                 if (action == "glass")   // test: is the island opaque while the frosted picture doesn't fit it?
                 {
                     Settings.ReadOnly = true;
@@ -632,6 +661,119 @@ public partial class MainWindow : Window
                     Application.Current.Shutdown();
                     return;
                 }
+                if (action == "yieldtest")   // test: the island steps aside for a flying cursor, comes back on a rest, stays away in a game; a place for each program (a stand-in cursor, never the real one; with --cover)
+                {
+                    Settings.ReadOnly = true;
+                    _settings.ExpandOnHover = false; _settings.YieldToCursor = true; _settings.HideInFullscreen = false; _settings.GameStats = false; _settings.HideInApps.Clear();
+                    await Task.Delay(3500);
+                    _testWindowUnder = true;
+                    var c = Island.PointToScreen(new Point(Island.ActualWidth / 2, Island.ActualHeight / 2));
+                    async Task Fly(Point from, Point to, int frames)
+                    {
+                        for (int i = 1; i <= frames; i++)
+                        {
+                            var q = from + (to - from) * ((double)i / frames);
+                            _fakeCursor = new Native.POINT { X = (int)q.X, Y = (int)q.Y };
+                            await Task.Delay(33);
+                        }
+                    }
+                    bool Through() => (Native.GetWindowLong(_hwnd, Native.GWL_EXSTYLE) & 0x20) != 0;
+                    string St() => $"yielding={_yield.Yielding}, clicks go through={Through()}, opacity {Root.Opacity:0.00}";
+                    var far = new Point(c.X, c.Y + 500);
+                    _fakeCursor = new Native.POINT { X = (int)far.X, Y = (int)far.Y }; await Task.Delay(300);
+                    await Fly(far, c, 4); await Task.Delay(250);
+                    Log.Write("yieldtest: flew in (480 px in 0.13 s): " + St());
+                    await Task.Delay(500);
+                    Log.Write("yieldtest: rested on it 0.5 s: " + St());
+                    await Fly(c, far, 3); await Task.Delay(300);
+                    await Fly(far, c, 40); await Task.Delay(250);
+                    Log.Write("yieldtest: came slowly (1.3 s): " + St());
+                    await Fly(c, far, 3); await Task.Delay(300);
+                    _testFullscreen = true; await Task.Delay(400);
+                    await Fly(far, c, 40); await Task.Delay(1200);
+                    Log.Write($"yieldtest: in a full-screen game, came slowly and rested 1.2 s: front full screen={_fullscreenFront}, " + St());
+                    await Fly(c, far, 3); await Task.Delay(400);
+                    Log.Write("yieldtest: game, cursor gone: " + St());
+                    _testFullscreen = false; _testWindowUnder = false;
+                    await Fly(far, c, 4); await Task.Delay(250);
+                    Log.Write("yieldtest: over the desktop, flew in: " + St());
+                    _fakeCursor = new Native.POINT { X = -20000, Y = -20000 }; await Task.Delay(400);
+
+                    // put away, opened or a notice shown while it makes way: never left see-through or letting clicks through
+                    _testWindowUnder = true;
+                    string Clear(string what) => $"yieldtest: {what}: {St()}, mode {_mode} -> {(!Through() && Root.Opacity > 0.95 && !_yield.Yielding ? "ok" : "FAIL")}";
+                    async Task MakeWay()
+                    {
+                        _fakeCursor = new Native.POINT { X = (int)far.X, Y = (int)far.Y }; await Task.Delay(400);
+                        await Fly(far, c, 4); await Task.Delay(220);
+                        if (!_yield.Yielding) Log.Write("yieldtest: FAIL: it did not make way before this step");
+                    }
+                    await MakeWay(); HideIsland(animate: true); await Task.Delay(1500);
+                    Log.Write(Clear("hidden while making way"));
+                    _fakeCursor = new Native.POINT { X = (int)far.X, Y = (int)far.Y };
+                    ShowIsland(); await Task.Delay(1500);
+                    Log.Write(Clear("shown again"));
+                    await MakeWay(); Expand(); await Task.Delay(900);
+                    Log.Write(Clear("opened while making way"));
+                    SetMode(Mode.Compact); await Task.Delay(1200);
+                    await MakeWay(); ShowToast("\uE916", "Test", "test", null, ms: 1500); await Task.Delay(700);
+                    Log.Write(Clear("a notice while making way"));
+                    await Task.Delay(1800); if (_mode != Mode.Compact) SetMode(Mode.Compact); await Task.Delay(1200);
+                    await MakeWay(); _settings.YieldToCursor = false; await Task.Delay(500);
+                    Log.Write(Clear("switched off while making way"));
+                    _settings.YieldToCursor = true;
+                    _fakeCursor = new Native.POINT { X = (int)far.X, Y = (int)far.Y }; await Task.Delay(500);
+                    // a screenshot hides it by Root's opacity: an animation that ended must not hold it visible
+                    await HideForShot(); Log.Write($"yieldtest: hidden for a full screenshot after making way once: opacity {Root.Opacity:0.00} -> {(Root.Opacity < 0.05 ? "ok" : "FAIL")}"); Root.BeginAnimation(OpacityProperty, null); Root.Opacity = 1;
+
+                    // every size of the island: its own edge counts
+                    int size = _settings.IslandScale;
+                    foreach (int pc in new[] { 80, 100, 130 })
+                    {
+                        _settings.IslandScale = pc; ApplyIslandScale(); await Task.Delay(1500);
+                        var br = Island.PointToScreen(new Point(Island.ActualWidth, Island.ActualHeight / 2));
+                        foreach (int off in new[] { -5, 15 })
+                        {
+                            var q = new Point(br.X + off, br.Y);
+                            var away = new Point(q.X, q.Y + 500);
+                            _fakeCursor = new Native.POINT { X = (int)away.X, Y = (int)away.Y }; await Task.Delay(400);
+                            await Fly(away, q, 4); await Task.Delay(200);
+                            Log.Write($"yieldtest: size {pc}%, {Math.Abs(off)} px {(off < 0 ? "inside" : "outside")} the right edge: yielding={_yield.Yielding} -> {(_yield.Yielding == off < 0 ? "ok" : "FAIL")}");
+                        }
+                    }
+                    _fakeCursor = new Native.POINT { X = -20000, Y = -20000 };
+                    _settings.IslandScale = size; ApplyIslandScale(); await Task.Delay(1500);
+                    _testWindowUnder = false;
+
+                    // put away at a program's place: the usual place stays the usual one; back at the place of whoever is in front
+                    _settings.PlacePerApp = true; _testFrontApps = true;
+                    double home0 = Left + Width / 2;
+                    _settings.CenterX = home0; _settings.Top = Top;
+                    _settings.AppPlaces["telegram"] = [home0 - 300, Top];
+                    OnFrontApp("telegram"); await Task.Delay(1500);
+                    HideIsland(animate: true); await Task.Delay(1200);
+                    Log.Write($"yieldtest: hidden at a program's place: the usual place moved by {_settings.CenterX - home0:+0;-0;0} px -> {(Math.Abs(_settings.CenterX!.Value - home0) < 2 ? "ok" : "FAIL")}");
+                    OnFrontApp("chrome"); ShowIsland(); await Task.Delay(1800);
+                    Log.Write($"yieldtest: shown with another program in front: centre {Left + Width / 2 - home0:+0;-0;0} px from usual -> {(Math.Abs(Left + Width / 2 - home0) < 3 ? "ok" : "FAIL")}");
+                    _settings.AppPlaces.Remove("telegram");
+                    OnFrontApp(null); await Task.Delay(1500);
+
+                    // a place for each program
+                    _settings.PlacePerApp = true; _testFrontApps = true;
+                    double usual = Left + Width / 2;
+                    _settings.AppPlaces["telegram"] = [usual - 300, Top];
+                    OnFrontApp("telegram"); await Task.Delay(1500);
+                    Log.Write($"yieldtest: Telegram in front: centre {Left + Width / 2 - usual:+0;-0} px from usual, owner={_placeOwner}");
+                    OnFrontApp("chrome"); await Task.Delay(1500);
+                    Log.Write($"yieldtest: Chrome in front (no place of its own): centre {Left + Width / 2 - usual:+0;-0} px, owner={_placeOwner ?? "usual"}");
+                    OnFrontApp("telegram"); await Task.Delay(1500);
+                    _px.Snap(Left); _px.Target = Left + 120; _posActive = true; StartRendering(); await Task.Delay(1500);   // as if dragged further while Telegram is in front
+                    Log.Write($"yieldtest: moved 120 px more with Telegram in front: its place now {_settings.AppPlaces["telegram"][0] - usual:+0;-0} px, the usual place {(_settings.CenterX ?? SystemParameters.PrimaryScreenWidth / 2) - usual:+0;-0} px");
+                    AlignIsland(); await Task.Delay(1500);
+                    Log.Write($"yieldtest: 'align' with Telegram in front: its place forgotten={!_settings.AppPlaces.ContainsKey("telegram")}, centre {Left + Width / 2 - usual:+0;-0} px");
+                    Application.Current.Shutdown();
+                    return;
+                }
                 if (action == "scrubtest")   // test: the scrubber — press jumps and wakes the capsule, steps of 5, release puts it to sleep, a set value eases over 150 ms; pictures of the bar only (with --cover)
                 {
                     var dir = args.ElementAtOrDefault(r + 2) ?? System.IO.Path.GetTempPath();
@@ -734,6 +876,155 @@ public partial class MainWindow : Window
                     await Task.Delay(600); Log.Write("plantest: #4 deleted, #2 done, #3 running: " + St()); Shot("later");
                     Feed("{\"session_id\":\"s2\",\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"TodoWrite\",\"tool_input\":{\"todos\":[{\"content\":\"Обновить перевод\",\"status\":\"completed\",\"activeForm\":\"Обновляю перевод\"},{\"content\":\"Проверить сборку\",\"status\":\"in_progress\",\"activeForm\":\"Проверяю сборку\"}]}}");
                     await Task.Delay(500); Log.Write("plantest: new session with TodoWrite: " + St()); Shot("todowrite");
+                    Application.Current.Shutdown();
+                    return;
+                }
+                if (action == "sidetoast")   // test (2.0.1): a notice while the island is open goes beside it; the island stays open; a real click on it does what the notice does
+                {
+                    Settings.ReadOnly = true;
+                    _settings.ExpandOnHover = false;
+                    await Task.Delay(3000);
+                    _pinnedOpen = true; Expand(); await Task.Delay(1200);
+                    double h0 = Island.Height;
+                    bool clicked = false;
+                    ShowToast("\uE8BD", "Telegram", L.T("Новое сообщение"), () => clicked = true, new SolidColorBrush(Color.FromRgb(0x2A, 0xAB, 0xEE)), ms: 6000);
+                    await Task.Delay(600);
+                    var tl = Island.PointToScreen(new Point(0, 0)); var br = Island.PointToScreen(new Point(Island.ActualWidth, 0));
+                    var st = _sideToast?.TestState;
+                    double dpi = VisualTreeHelper.GetDpi(this).DpiScaleX;
+                    Log.Write($"sidetoast: island {_mode}, height {h0:0}→{Island.Height:0}; side notice shown={st?.Shown}, '{st?.Title}', at x={st?.Left * dpi:0} (island {tl.X:0}…{br.X:0}) -> " +
+                              (_mode == Mode.Expanded && st?.Shown == true && (st.Value.Left * dpi >= br.X - 1 || st.Value.Left * dpi + 50 <= tl.X) ? "ok" : "FAIL"));
+                    // a real click on it
+                    var p = _sideToast!.PointToScreen(new Point(_sideToast.ActualWidth / 2, _sideToast.ActualHeight / 2));
+                    Native.SetCursorPos((int)p.X, (int)p.Y); await Task.Delay(300);
+                    var under = Native.WindowFromPoint(new Native.POINT { X = (int)p.X, Y = (int)p.Y });
+                    Log.Write($"sidetoast: at {p.X:0},{p.Y:0} the window under the cursor is {(under == new System.Windows.Interop.WindowInteropHelper(_sideToast).Handle ? "the side notice" : under == _hwnd ? "the island" : "another (" + under + ")")}");
+                    Native.MouseClick(); await Task.Delay(600);
+                    Log.Write($"sidetoast: clicked: action ran={clicked}, side notice shown={_sideToast.TestState.Shown}, island {_mode} -> {(clicked && !_sideToast.TestState.Shown ? "ok" : "FAIL")}");
+                    // folded island: the notice is the island's own, as before
+                    _sideToast.Hide(animate: false);
+                    _pinnedOpen = false; SetMode(Mode.Compact); await Task.Delay(900);
+                    ShowToast("\uE916", L.T("Таймер"), "test", null); await Task.Delay(400);
+                    Log.Write($"sidetoast: folded island: mode {_mode}, side notice shown={_sideToast.TestState.Shown} -> {(_mode == Mode.Toast && !_sideToast.TestState.Shown ? "ok" : "FAIL")}");
+                    Application.Current.Shutdown();
+                    return;
+                }
+                if (action == "stackmouse")   // test (2.0.1): the notification stack with the real mouse: hover, close five cards with their ×, Clear all; the island's height every frame
+                {
+                    Settings.ReadOnly = true;
+                    _settings.ExpandOnHover = false;
+                    await Task.Delay(3000);
+                    for (int i = 0; i < 5; i++) HomeMissed.Add(new("\uE916", null, "Card " + i, "a message with some text in it", DateTime.Now, null));
+                    _pinnedOpen = true; Expand(); TabHome.IsChecked = true; await Task.Delay(1200);
+                    var frames = new List<(double T, double H, Mode M)>();
+                    var sw = System.Diagnostics.Stopwatch.StartNew();
+                    void OnFrame(object? s, EventArgs e) => frames.Add((sw.Elapsed.TotalMilliseconds, Island.Height, _mode));
+                    CompositionTarget.Rendering += OnFrame;
+                    Native.POINT Screen(FrameworkElement el, double fx, double fy)
+                    {
+                        var p = el.PointToScreen(new Point(el.ActualWidth * fx, el.ActualHeight * fy));
+                        return new Native.POINT { X = (int)p.X, Y = (int)p.Y };
+                    }
+                    async Task MoveTo(Native.POINT to, int steps = 12)
+                    {
+                        Native.GetCursorPos(out var from);
+                        for (int i = 1; i <= steps; i++) { Native.SetCursorPos(from.X + (to.X - from.X) * i / steps, from.Y + (to.Y - from.Y) * i / steps); await Task.Delay(12); }
+                    }
+                    async Task Click() { Native.MouseClick(); await Task.Delay(30); }
+                    string Since(double from)
+                    {
+                        var f = frames.Where(x => x.T >= from).ToList();
+                        if (f.Count == 0) return "no frames";
+                        int changes = 0; for (int i = 1; i < f.Count; i++) if (Math.Abs(f[i].H - f[i - 1].H) > 0.5) changes++;
+                        return $"height {f.Min(x => x.H):0}…{f.Max(x => x.H):0} px, changed in {changes} of {f.Count} frames, mode {string.Join("/", f.Select(x => x.M).Distinct())}";
+                    }
+                    // onto the stack: it fans out
+                    var first = HomeMissed.TestCard(0)!.Value;
+                    await MoveTo(Screen(first.Face, 0.5, 0.5)); await Task.Delay(1200);
+                    _pinnedOpen = false;   // like a real hover-open: from now on leaving the island folds it
+                    Log.Write($"stackmouse: hover the stack: {Since(0)}");
+                    for (int k = 0; k < 4; k++)
+                    {
+                        double t0 = sw.Elapsed.TotalMilliseconds;
+                        var card = HomeMissed.TestCard(0)!.Value;
+                        await MoveTo(Screen(card.Face, 0.3, 0.5), 6); await Task.Delay(250);   // hover the card: its × shows
+                        await MoveTo(Screen(card.Close, 0.5, 0.5), 6); await Task.Delay(150);
+                        await Click(); await Task.Delay(900);
+                        Log.Write($"stackmouse: close #{k + 1} with ×: {Since(t0)}, {HomeMissed.Count} left");
+                    }
+                    double tl = sw.Elapsed.TotalMilliseconds;
+                    var last = HomeMissed.TestCard(0)!.Value;
+                    await MoveTo(Screen(last.Face, 0.3, 0.5), 6); await Task.Delay(250);
+                    await MoveTo(Screen(last.Close, 0.5, 0.5), 6); await Task.Delay(150);
+                    await Click(); await Task.Delay(900);
+                    Log.Write($"stackmouse: close the last one: {Since(tl)}, {HomeMissed.Count} left");
+                    double ta = sw.Elapsed.TotalMilliseconds;
+                    await MoveTo(Screen(TabHome, 0.5, 0.5), 10); await Task.Delay(1200);
+                    Log.Write($"stackmouse: cursor up to the tabs: {Since(ta)}");
+                    CompositionTarget.Rendering -= OnFrame;
+                    Application.Current.Shutdown();
+                    return;
+                }
+                if (action == "livecheck")   // test (2.0.1): page dots vs tab icons, closing cards under the cursor, the command bar's shortcut (nothing is saved)
+                {
+                    Settings.ReadOnly = true;
+                    Island.IsHitTestVisible = false; _settings.ExpandOnHover = false;
+                    await Task.Delay(3000);
+                    _pinnedOpen = true; Expand(); await Task.Delay(900);
+                    string Dots() => string.Join(",", DotsRow.Children.OfType<UIElement>().Select(d => d.Opacity.ToString("0.0")));
+                    string Icons() => string.Join(",", PageTabs.Select(t => t.Opacity.ToString("0.0")));
+                    bool Overlap() => DotsRow.Children.OfType<UIElement>().Any(d => d.Opacity > 0.05) && PageTabs.Any(t => t.Opacity > 0.05);
+                    void Report(string what)
+                    {
+                        Log.Write($"livecheck: dots {what}: dots [{Dots()}], icons [{Icons()}] -> {(Overlap() ? "FAIL: dots over icons" : "ok")}");
+                        // the pill under the tabs sits on the chosen tab (its layout place, not a frame of its scale animation)
+                        var chosen = PageTabs.FirstOrDefault(t => t.IsChecked == true);
+                        if (chosen == null || chosen.Opacity < 0.5) return;
+                        var at = VisualTreeHelper.GetOffset(chosen);
+                        var pill = TabStrip.TestState;
+                        double off = Math.Max(Math.Abs(pill.From - at.X), Math.Abs(pill.To - (at.X + chosen.ActualWidth)));
+                        Log.Write($"livecheck: pill {what}: {pill.From:0}…{pill.To:0}{(pill.Moving ? " (moving)" : "")}, tab {at.X:0}…{at.X + chosen.ActualWidth:0} -> {(off <= 2 ? "ok" : pill.Moving ? "still on its way" : $"FAIL: off by {off:0} px")}");
+                    }
+                    // A5: icons always, then the layout changed (a tab hidden, the order changed), then shown again
+                    var mode = _settings.TabIcons; var hidden = _settings.HiddenTabs.ToList(); var order = _settings.TabOrder.ToList();
+                    _settings.TabIcons = "always"; ApplyTabIconsMode(); await Task.Delay(400); Report("always, start");
+                    _settings.HiddenTabs = [.. hidden, "TabWeather"]; ApplyTabLayout(); await Task.Delay(400); Report("always, a tab hidden");
+                    _settings.TabOrder = [.. OrderedTabs().Select(t => t.Name).Reverse()]; ApplyTabLayout(); await Task.Delay(400); Report("always, order reversed");
+                    await Task.Delay(1500); Report("always, order reversed, 2 s later");
+                    _settings.HiddenTabs = hidden; _settings.TabOrder = order; ApplyTabLayout(); await Task.Delay(400); Report("always, back");
+                    await Task.Delay(1500); Report("always, back, 2 s later");
+                    _settings.TabIcons = "hover"; ApplyTabIconsMode(); await Task.Delay(400); Report("hover, mouse away");
+                    _settings.HiddenTabs = [.. hidden, "TabWeather"]; ApplyTabLayout(); await Task.Delay(400);
+                    ShowTabIcons(true, animate: true); await Task.Delay(700); Report("hover, layout changed while folded, then the mouse came");
+                    _settings.HiddenTabs = hidden; ApplyTabLayout(); ShowTabIcons(false, animate: false); await Task.Delay(400);
+                    ShowTabIcons(true, animate: true); await Task.Delay(600); Report("hover, mouse on the tabs");
+                    _settings.HiddenTabs = [.. hidden, "TabWeather"]; ApplyTabLayout(); await Task.Delay(400); Report("hover, mouse on the tabs, a tab hidden");
+                    ShowTabIcons(false, animate: true); await Task.Delay(600); Report("hover, mouse left");
+                    _settings.HiddenTabs = hidden; ApplyTabLayout(); _settings.TabIcons = mode; ApplyTabIconsMode();
+                    // A7: five cards, closed one by one under the cursor, then Clear all; the island must neither fold nor shrink
+                    TabHome.IsChecked = true; await Task.Delay(400);
+                    for (int i = 0; i < 5; i++) HomeMissed.Add(new("", null, "Card " + i, "body", DateTime.Now, null));
+                    HomeMissed.TestHover(true); await Task.Delay(900);
+                    double before = Island.Height;
+                    var heights = new List<double>();
+                    for (int i = 0; i < 4; i++) { HomeMissed.TestClose(0); await Task.Delay(500); heights.Add(Island.Height); }
+                    Log.Write($"livecheck: cards: island {before:0} px with 5 cards, after each close [{string.Join(", ", heights.Select(h => h.ToString("0")))}], mode {_mode} -> {(heights.All(h => h >= before - 1) && _mode == Mode.Expanded ? "ok" : "FAIL")}");
+                    HomeMissed.ClearAll(); await Task.Delay(600);
+                    Log.Write($"livecheck: clear all under the cursor: island {Island.Height:0} px, {HomeMissed.Count} cards, mode {_mode} -> {(Island.Height >= before - 1 && _mode == Mode.Expanded ? "ok" : "FAIL")}");
+                    HomeMissed.TestHover(false); await Task.Delay(900);
+                    Log.Write($"livecheck: cursor left the stack: island {Island.Height:0} px (shrank once: {(Island.Height < before - 1 ? "ok" : "FAIL")}), stack {HomeMissed.Visibility}");
+                    // A2: each choice registered at once, the others let go (Ctrl+Shift+Space is the probe: free unless chosen)
+                    var keys = _settings.CommandHotkey;
+                    foreach (var k in CommandHotkeys.Select(h => h.Name).Append(""))
+                    {
+                        _settings.CommandHotkey = k;
+                        bool ok = RegisterCommandHotkey();
+                        bool probeFree = Native.RegisterHotKey(IntPtr.Zero, 99, Native.MOD_CONTROL | 0x4 | Native.MOD_NOREPEAT, 0x20);
+                        if (probeFree) Native.UnregisterHotKey(IntPtr.Zero, 99);
+                        bool want = k != "Ctrl+Shift+Space";
+                        Log.Write($"livecheck: command bar shortcut '{(k == "" ? "off" : k)}': registered={ok}, Ctrl+Shift+Space free for others={probeFree} -> {(probeFree == want ? "ok" : "FAIL")}");
+                    }
+                    _settings.CommandHotkey = keys; RegisterCommandHotkey();
                     Application.Current.Shutdown();
                     return;
                 }
@@ -908,7 +1199,7 @@ public partial class MainWindow : Window
                     ShowDropTarget(); await Task.Delay(900); Shot("near"); Log.Write("droptest: a file near: " + St());
                     ShowDropped(files.ToArray()); await Task.Delay(700); Shot("dropped"); Log.Write("droptest: dropped: " + St());
                     var sw = System.Diagnostics.Stopwatch.StartNew();
-                    WorkOnDrop(files.ToArray(), L.T("Сжимаю в ZIP"), L.T("Архив готов"), p => FileDropActions.Zip(files, p));
+                    _ = WorkOnDrop(files.ToArray(), L.T("Сжимаю в ZIP"), L.T("Архив готов"), p => FileDropActions.Zip(files, p));
                     await Task.Delay(250); Shot("working"); Log.Write("droptest: 0.25 s into ZIP: " + St());
                     var marks = new List<string>();
                     while (_dropWorking && sw.Elapsed.TotalSeconds < 30)
@@ -2416,7 +2707,7 @@ public partial class MainWindow : Window
                     }
                     var fg = Native.GetForegroundWindow();
                     Native.GetWindowThreadProcessId(fg, out uint fpid);
-                    string fname = ""; try { fname = System.Diagnostics.Process.GetProcessById((int)fpid).ProcessName; } catch { }
+                    string fname = ""; try { fname = System.Diagnostics.Process.GetProcessById((int)fpid).ProcessName; } catch { /* exited meanwhile */ }
                     _settings.HideInApps = [];
                     bool before = IsHiddenApp(fg);
                     _settings.HideInApps = [fname];
@@ -2469,7 +2760,7 @@ public partial class MainWindow : Window
                 {
                     Settings.ReadOnly = true;
                     var dir = args.ElementAtOrDefault(r + 2) ?? System.IO.Path.GetTempPath();
-                    Island.IsHitTestVisible = false; _settings.ExpandOnHover = false;
+                    Island.IsHitTestVisible = false; _settings.ExpandOnHover = false; NoClickOutside = true;
                     _frostTestBackdrop = (w, h) =>
                     {
                         var px = new byte[w * h * 4];
@@ -2488,18 +2779,27 @@ public partial class MainWindow : Window
                     ApplyThemePreset(preset);
                     _settings.CaptureHidden = true; ApplyCaptureExclusion();
                     await Task.Delay(3000);
+                    // the lens is a ps_3_0 shader, which RenderTargetBitmap (software) leaves out: the pictures are taken
+                    // from the screen, the island visible to capture, over a window of test stripes ("cpu": Refract's look)
+                    if (args.ElementAtOrDefault(r + 3) == "cpu") { _lensTried = true; _lens = null; ApplyLiquidBlur(); }
+                    _settings.CaptureHidden = false; ApplyCaptureExclusion(); ApplyGlass();
+                    var stripes = TestBackdrop(moving: false);
                     void Shot(string name)
                     {
-                        var rtb = new RenderTargetBitmap((int)Root.ActualWidth, (int)Root.ActualHeight, 96, 96, PixelFormats.Pbgra32);
-                        rtb.Render(Root);
-                        CaptureService.SavePng(rtb, System.IO.Path.Combine(dir, name + ".png"));
+                        double m = args.Contains("wide") ? 260 : 20;
+                        var tl = Island.PointToScreen(new Point(-m, 0));
+                        var br = Island.PointToScreen(new Point(Island.ActualWidth + m, Island.ActualHeight + m));
+                        var rect = new System.Drawing.Rectangle((int)tl.X, (int)tl.Y, (int)(br.X - tl.X), (int)(br.Y - tl.Y));
+                        var px = CaptureService.CaptureSmall(rect, rect.Width, rect.Height, null)!;
+                        CaptureService.SavePng(BitmapSource.Create(rect.Width, rect.Height, 96, 96, PixelFormats.Bgr32, null, px, rect.Width * 4), System.IO.Path.Combine(dir, name + ".png"));
                     }
-                    SetMode(Mode.Compact); await Task.Delay(2500); _frostSkips = 7; CaptureFrost(); await Task.Delay(300); Shot("liquid-compact");
+                    SetMode(Mode.Compact); await Task.Delay(2500); CaptureFrost(); await Task.Delay(300); Shot("liquid-compact");
                     TabMusic.IsChecked = true; _pinnedOpen = true; Expand(); await Task.Delay(2500); CaptureFrost(); await Task.Delay(300); Shot("liquid-open");
                     if (_liquidPixels != null && _frostBmp != null)
                         CaptureService.SavePng(BitmapSource.Create(_frostBmp.PixelWidth, _frostBmp.PixelHeight, 96, 96, PixelFormats.Bgr32, null, _liquidPixels, _frostBmp.PixelWidth * 4),
                                                System.IO.Path.Combine(dir, "liquid-bent-backdrop.png"));
-                    Log.Write($"liquidtest: liquid={LiquidGlass} frost covers={_frostCovers} blur={(Frost.Effect as System.Windows.Media.Effects.BlurEffect)?.Radius}");
+                    Log.Write($"liquidtest: liquid={LiquidGlass} frost covers={_frostCovers} blur={(FrostBlur.Effect as System.Windows.Media.Effects.BlurEffect)?.Radius}, lens on the GPU={FrostLens.Effect != null}");
+                    stripes.Close();
                     Application.Current.Shutdown();
                     return;
                 }
@@ -2589,6 +2889,212 @@ public partial class MainWindow : Window
                         MoveWindow(home.X, home.Y);
                         await Task.Delay(600);
                     }
+                    Application.Current.Shutdown();
+                    return;
+                }
+                if (action == "musicplayer")   // test: musicplayer <source> <query> [folder]: plays the first result / opens the site, logs what Windows sees
+                {
+                    Settings.ReadOnly = true;
+                    var id = args.ElementAtOrDefault(r + 2) ?? "radio";
+                    _settings.MusicFolder = args.ElementAtOrDefault(r + 4) ?? "";
+                    TabMusic.IsChecked = true; _pinnedOpen = true; Expand();
+                    MusicQuery.Text = args.ElementAtOrDefault(r + 3) ?? "";
+                    PickMusicSource(id); await Task.Delay(1500);
+                    if (MusicQuery.Text.StartsWith("https://")) await OpenMusicSiteAsync(_musicSource, MusicQuery.Text); else await SearchMusicAsync();
+                    Log.Write($"musicplayer: {id}: {MusicResults.Children.Count} results");
+                    if (!args.Contains("picture") && MusicResults.Children.OfType<System.Windows.Controls.DockPanel>().FirstOrDefault()?.Children.OfType<System.Windows.Controls.Button>().LastOrDefault() is { } hit)
+                        hit.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+                    if (args.Contains("picture"))   // only the Music page and its settings section, never a whole window
+                    {
+                        void Shot(FrameworkElement el, string name)
+                        {
+                            var bmp = new RenderTargetBitmap((int)el.ActualWidth + 1, (int)el.ActualHeight + 1, 96, 96, PixelFormats.Pbgra32);
+                            var dv = new DrawingVisual();
+                            using (var dc = dv.RenderOpen()) { var rc = new Rect(0, 0, el.ActualWidth, el.ActualHeight); dc.DrawRectangle(Brushes.Black, null, rc); dc.DrawRectangle(new VisualBrush(el), null, rc); }
+                            bmp.Render(dv);
+                            var png = new PngBitmapEncoder(); png.Frames.Add(BitmapFrame.Create(bmp));
+                            using var fs = System.IO.File.Create(System.IO.Path.Combine(System.IO.Path.GetTempPath(), name)); png.Save(fs);
+                        }
+                        await Task.Delay(9000); Shot(MusicPage, $"atoll-music-{id}.png");
+                        Log.Write($"musicplayer: page {MusicPage.ActualWidth:0}x{MusicPage.ActualHeight:0}, island {Island.ActualWidth:0}x{Island.ActualHeight:0}, window {Height:0}");
+                        Application.Current.Shutdown();
+                        return;
+                    }
+                    long WebMb() => (_musicWeb?.CoreWebView2?.Environment.GetProcessInfos().Sum(i => { try { using var p = System.Diagnostics.Process.GetProcessById(i.ProcessId); return p.PrivateMemorySize64; } catch { return 0L; } }) ?? 0) / 1048576;
+                    void Say(string what) => Log.Write($"musicplayer: {what}: shown [{_lastMedia?.SourceApp}|{_lastMedia?.AppId}|{_lastMedia?.Title}|{_lastMedia?.Artist}|art {_lastMedia?.Art != null}] playing {_lastMedia?.IsPlaying} pos {_lastMedia?.CurrentPosition.TotalSeconds:0.0} of {_lastMedia?.Duration.TotalSeconds:0.0}, own player {_player.Playing} at {_player.Position.TotalSeconds:0.0}, web audio {_musicWeb?.CoreWebView2?.IsDocumentPlayingAudio}, lyrics {_currentLyrics?.Lines.Count ?? 0}, {Environment.WorkingSet / 1048576} MB + web {WebMb()} MB");
+                    await Task.Delay(_musicWeb != null ? 12000 : 9000); Say("started");
+                    if (_musicWeb?.CoreWebView2 is { } site)
+                    {
+                        if (!site.IsDocumentPlayingAudio)   // a key press in the page, as the user would: space plays
+                            foreach (var type in new[] { "keyDown", "keyUp" })
+                                await site.CallDevToolsProtocolMethodAsync("Input.dispatchKeyEvent", $$"""{"type":"{{type}}","key":" ","code":"Space","windowsVirtualKeyCode":32,"text":" "}""");
+                        await Task.Delay(7000); Say("space pressed");
+                        _media.Choose("msedgewebview2.exe"); await Task.Delay(1500); Say("followed");
+                        if (_media.Current?.AppId == "msedgewebview2.exe")
+                        {
+                            await _media.Seek(TimeSpan.FromSeconds(60)); await Task.Delay(2500); Say("seek to 60 s");
+                            RefreshVolume(); Log.Write("musicplayer: volume " + VolumeLabel.Text);
+                            await _media.TogglePlayPause(); await Task.Delay(1500); Say("paused");
+                            await _media.TogglePlayPause(); await Task.Delay(1500); Say("resumed");
+                            await _media.Next(); await Task.Delay(5000); Say("next");
+                        }
+                    }
+                    _media.Choose("DynamicIsland.exe"); await Task.Delay(500);   // only Atoll's own player: the user's is left alone
+                    if (_player.Open && Services.MediaService.IsOwn(_media.Current?.AppId ?? ""))
+                    {
+                        RefreshVolume(); Log.Write("musicplayer: volume " + VolumeLabel.Text);
+                        await _media.TogglePlayPause(); await Task.Delay(1500); Say("paused");
+                        await _media.TogglePlayPause(); await Task.Delay(1500); Say("resumed");
+                        await _media.Next(); await Task.Delay(2500); Say("next");
+                        await _media.Seek(TimeSpan.FromSeconds(20)); await Task.Delay(1500); Say("seek to 20 s");
+                    }
+                    if (_musicWeb != null) { _pinnedOpen = false; SetMode(Mode.Compact); await Task.Delay(6000); Say("folded"); }
+                    _player.Pause(); await Task.Delay(1500);
+                    _musicPlayedAt = DateTime.Now - TimeSpan.FromHours(1);
+                    ReleaseIdleMusic(); await Task.Delay(3000); Say($"released (site {_musicWeb != null}, player {_player.Open})");
+                    Application.Current.Shutdown();
+                    return;
+                }
+                if (action == "glassbench")   // test (2.1): what the glass costs and how often its picture changes: glassbench liquid|plain [mag]
+                {
+                    Settings.ReadOnly = true;
+                    Island.IsHitTestVisible = false; _settings.ExpandOnHover = false; NoClickOutside = true;
+                    bool liquid = args.ElementAtOrDefault(r + 2) != "plain";
+                    bool mag = args.ElementAtOrDefault(r + 3) == "mag";
+                    bool dragOnly = args.Contains("drag");   // only the drag phase (glassbench liquid drag)
+                    ApplyThemePreset(BuiltInThemes.First(t => t.Id == (liquid ? "liquid" : "midnight")));
+                    _settings.Glass = true; _settings.LiteGraphics = false;
+                    _settings.CaptureHidden = !mag; ApplyCaptureExclusion(); ApplyGlass();
+                    var me = System.Diagnostics.Process.GetCurrentProcess();
+                    async Task Phase(string name, int secs)
+                    {
+                        await Task.Delay(1000);
+                        ResetCosts(); _frostShownCount = 0; _frostGrabCount = 0; _frostGrabTicks = 0; _frostFades = 0; _frostFadeMs = 0;
+                        me.Refresh(); var c0 = me.TotalProcessorTime; var t0 = DateTime.Now;
+                        await Task.Delay(secs * 1000);
+                        me.Refresh();
+                        double wall = (DateTime.Now - t0).TotalMilliseconds, cpu = (me.TotalProcessorTime - c0).TotalMilliseconds;
+                        Log.Write($"glassbench: {(liquid ? "liquid" : "plain")}{(mag ? " mag" : "")} {name}: CPU {cpu / wall * 100 / Environment.ProcessorCount:0.00}% of the PC ({cpu / wall * 100:0.0}% of one core), " +
+                                  $"grabs {_frostGrabCount / (wall / 1000):0.0}/s at {(_frostGrabCount > 0 ? _frostGrabTicks * 1000.0 / System.Diagnostics.Stopwatch.Frequency / _frostGrabCount : 0):0.00} ms off the UI thread, " +
+                                  $"new pictures {_frostShownCount / (wall / 1000):0.0}/s ({_frostFades} faded in, {(_frostFades > 0 ? _frostFadeMs / _frostFades : 0):0} ms on average), mode {_mode}, covers={_frostCovers}, glass opacity {FrostHost.Opacity:0.00}");
+                        Log.Write($"glassbench: {name}: " + TopCosts(_costs, (long)(wall / 1000 * System.Diagnostics.Stopwatch.Frequency), cpu / wall * 100 / Environment.ProcessorCount).Replace(Environment.NewLine, " | "));
+                        string Frost(string n) => _costs.TryGetValue(n, out var c) ? $"{n} {c.Ticks * 1000.0 / System.Diagnostics.Stopwatch.Frequency / (wall / 1000):0.00} ms/s, avg {c.Ticks * 1000.0 / System.Diagnostics.Stopwatch.Frequency / c.Calls:0.00} ms, max {c.Max * 1000.0 / System.Diagnostics.Stopwatch.Frequency:0.0} ms" : n + " -";
+                        Log.Write($"glassbench: {name}: UI thread: {Frost("frost")}; {Frost("frost grab")}; {Frost("frost show")}");
+                    }
+                    await Task.Delay(dragOnly ? 5000 : 8000);
+                    if (!dragOnly)
+                    {
+                    SetMode(Mode.Compact);
+                    await Phase("folded", 10);
+                    TabHome.IsChecked = true; _pinnedOpen = true; Expand();
+                    await Phase("open", 10);
+                    var gaps = new List<double>(); TimeSpan last = default;
+                    EventHandler onFrame = (_, e2) => { var t = ((RenderingEventArgs)e2).RenderingTime; if (_rendering && last != default && t != last) gaps.Add((t - last).TotalMilliseconds); last = t; };
+                    _pinnedOpen = false; SetMode(Mode.Compact); await Task.Delay(1500);
+                    ResetCosts(); _frostShownCount = 0;
+                    CompositionTarget.Rendering += onFrame;
+                    for (int i = 0; i < 2; i++)
+                    {
+                        TabHome.IsChecked = true; _pinnedOpen = true; Expand(); await Task.Delay(900);
+                        _pinnedOpen = false; SetMode(Mode.Compact); await Task.Delay(900);
+                    }
+                    CompositionTarget.Rendering -= onFrame;
+                    var gg = gaps.Where(x => x < 500).ToList();
+                    Log.Write($"glassbench: open/fold x2: {gg.Count} frames, {1000 / Math.Max(1, gg.DefaultIfEmpty(0).Average()):0} fps avg, worst {gg.DefaultIfEmpty(0).Max():0} ms, slow (>20 ms) {gg.Count(x => x > 20) * 100.0 / Math.Max(1, gg.Count):0}%, new pictures {_frostShownCount}");
+                    Log.Write($"glassbench: open/fold: " + TopCosts(_costs, System.Diagnostics.Stopwatch.Frequency * 7, 0).Replace(Environment.NewLine, " | "));
+                    Log.Write("glassbench: Smoothness: " + PerfSummary());
+                    }
+                    var backdrop = TestBackdrop(moving: true);
+                    if (!dragOnly)
+                    {
+                    await Phase("folded over motion", 10);
+                    TabHome.IsChecked = true; _pinnedOpen = true; Expand();
+                    await Phase("open over motion", 10);
+                    }
+                    // dragging the folded pill over the stripes, back and forth (a made-up cursor): does the glass stay on?
+                    _pinnedOpen = false; SetMode(Mode.Compact); await Task.Delay(1500);
+                    foreach (var speed in new[] { 500.0, 1500.0 })
+                    {
+                        var home = new Point(Left, Top);
+                        int frames = 0, covered = 0;
+                        EventHandler count = (_, _) =>
+                        {
+                            frames++;
+                            if (_frostCovers && FrostHost.Opacity > 0.5) covered++;
+                        };
+                        ResetCosts(); _frostShownCount = 0; _frostGrabCount = 0; _frostGrabTicks = 0;
+                        me.Refresh(); var c0 = me.TotalProcessorTime; var t0 = DateTime.Now;
+                        CompositionTarget.Rendering += count;
+                        var from = new Point(Left + Width / 2, Top + 20);
+                        _pressCursor = from; _pressWindow = home; _pressed = true; _dragging = true; _posActive = true;
+                        _px.Snap(Left); _py.Snap(Top);
+                        _px.Stiffness = _py.Stiffness = 1500; _px.Damping = _py.Damping = 72;
+                        StartRendering();
+                        foreach (var dir in new[] { 1, -1, 1, -1 })
+                        {
+                            _testCursor = (from, new Vector(dir * speed, dir * speed * 0.15), DateTime.UtcNow);
+                            await Task.Delay((int)(300000 / speed));   // 300 DIP each way
+                            from = CursorDip();
+                        }
+                        CompositionTarget.Rendering -= count;
+                        me.Refresh();
+                        double wall = (DateTime.Now - t0).TotalMilliseconds, cpu = (me.TotalProcessorTime - c0).TotalMilliseconds;
+                        Log.Write($"glassbench: {(liquid ? "liquid" : "plain")} drag at {speed} DIP/s: CPU {cpu / wall * 100 / Environment.ProcessorCount:0.00}% of the PC, grabs {_frostGrabCount / (wall / 1000):0.0}/s, " +
+                                  $"new pictures {_frostShownCount / (wall / 1000):0.0}/s, glass on in {covered * 100.0 / Math.Max(1, frames):0}% of {frames} frames");
+                        _testCursor = null; _pressed = false; _dragging = false;
+                        _px.Stiffness = _py.Stiffness = 560; _px.Damping = _py.Damping = 38;
+                        MoveWindow(home.X, home.Y);
+                        await Task.Delay(1500);
+                    }
+                    backdrop.Close();
+                    Application.Current.Shutdown();
+                    return;
+                }
+                if (action == "liquidlook")   // test (2.1): liquid glass over dark / white / colourful / text backdrops, pictures and the contrast of its text: liquidlook <dir> [light] [theme:id]
+                {
+                    Settings.ReadOnly = true;
+                    var dir = args.ElementAtOrDefault(r + 2) ?? System.IO.Path.GetTempPath();
+                    System.IO.Directory.CreateDirectory(dir);
+                    Island.IsHitTestVisible = false; _settings.ExpandOnHover = false; NoClickOutside = true;
+                    ApplyThemePreset(BuiltInThemes.First(t => t.Id == (args.FirstOrDefault(a => a.StartsWith("theme:"))?[6..] ?? "liquid")));
+                    if (args.Contains("light")) { _settings.DarkTheme = false; ApplyTheme(); ApplyScene(); ApplyThemeLocal(); }
+                    _settings.LiteGraphics = false; _settings.CaptureHidden = false;
+                    if (args.Contains("solid")) _settings.Glass = false;   // what Transparency effects off leaves
+                    if (args.FirstOrDefault(a => a.StartsWith("tint:")) is { } lt) SceneTint = int.Parse(lt[5..]);
+                    ApplyCaptureExclusion(); ApplyGlass();
+                    async Task Look(string what)
+                    {
+                        var cover = LookBackdrop(what);
+                        foreach (var page in new[] { "folded", "timer", "home", "settings" })
+                        {
+                            if (page == "folded") { _pinnedOpen = false; SetMode(Mode.Compact); }
+                            else
+                            {
+                                if (page == "home") { HomeMissed.Clear(); for (int i = 0; i < 3; i++) HomeMissed.Add(new("", null, "Card " + i, "a message with some text in it", DateTime.Now, null)); }
+                                (page == "timer" ? TabTimer : page == "home" ? TabHome : TabSettings).IsChecked = true;
+                                _pinnedOpen = true; Expand();
+                            }
+                            await Task.Delay(1800);
+                            Native.SetWindowPos(new System.Windows.Interop.WindowInteropHelper(cover).Handle, new IntPtr(-1), 0, 0, 0, 0, 0x13);
+                            Native.SetWindowPos(_hwnd, new IntPtr(-1), 0, 0, 0, 0, 0x13);
+                            await Task.Delay(900);
+                            var tl = Island.PointToScreen(new Point(-16, 0));
+                            var br = Island.PointToScreen(new Point(Island.ActualWidth + 16, Island.ActualHeight + 16));
+                            var rect = new System.Drawing.Rectangle((int)tl.X, Math.Max(0, (int)tl.Y - 8), (int)(br.X - tl.X), (int)(br.Y - tl.Y) + 8);
+                            // never the real screen: another program's window over the page, and the picture isn't taken
+                            bool ours = true;
+                            for (int gx = 0; gx <= 8; gx++)
+                                for (int gy = 0; gy <= 8; gy++)
+                                    ours &= Native.GetWindowThreadProcessId(WindowFromPoint(new Native.POINT { X = rect.Left + (rect.Width - 1) * gx / 8, Y = rect.Top + (rect.Height - 1) * gy / 8 }), out var pid) != 0 && pid == Environment.ProcessId;
+                            if (!ours) { Log.Write($"liquidlook: {what} {page}: another window is over the test page, skipped"); continue; }
+                            var px = CaptureService.CaptureSmall(rect, rect.Width, rect.Height, null)!;
+                            CaptureService.SavePng(BitmapSource.Create(rect.Width, rect.Height, 96, 96, PixelFormats.Bgr32, null, px, rect.Width * 4), System.IO.Path.Combine(dir, $"{what}-{page}.png"));
+                            Log.Write($"liquidlook: {what} {page}: {LookContrast(px, rect)}");
+                        }
+                        cover.Close();
+                    }
+                    await Task.Delay(3000);
+                    foreach (var what in new[] { "dark", "white", "colour", "text" }) await Look(what);
                     Application.Current.Shutdown();
                     return;
                 }
@@ -2736,15 +3242,17 @@ public partial class MainWindow : Window
                 }
                 if (action == "kick") { Kick(6); Squish(0.92); await Task.Delay(120); Unsquish(3); return; }
                 if (action == "timer") { _timer.SetKind(TimerKind.Timer); _timer.SetDuration(TimeSpan.FromMinutes(secs > 0 ? secs : 5)); _timer.Start(); return; }
-                RunAction(action);
+                _ = RunAction(action);
                 if (action == "record" && secs > 0)
                 {
                     await Task.Delay(secs * 1000);
-                    RunAction(action);
+                    _ = RunAction(action);
                 }
             });
         }
+#endif
 
+#if DEBUG   // tests, pictures and demo videos: not in the release build
         if (snap >= 0)
             _ = RunSnapshotsAsync(snap + 1 < args.Length ? args[snap + 1] : System.IO.Path.Combine(AppContext.BaseDirectory, "snapshots"));
         if (review >= 0) _ = RunReviewAsync(args.ElementAtOrDefault(review + 1) ?? "review");
@@ -2754,6 +3262,7 @@ public partial class MainWindow : Window
         if (tiktokScreen >= 0) _ = RunTikTokAsync(args.ElementAtOrDefault(tiktokScreen + 1) ?? "tiktok", screen: true);
         if (promo >= 0)
             _ = RunPromoAsync(args.ElementAtOrDefault(promo + 1) ?? "promo", args.ElementAtOrDefault(promo + 2) ?? "ru");
+#endif
 
         await SafelyAsync("media", InitMediaAsync);
         await SafelyAsync("weather", InitWeatherAsync);
@@ -2776,12 +3285,39 @@ public partial class MainWindow : Window
         foreach (var (id, vk, name) in new[] { (1, 0x49u, "I"), (2, 0x54u, "T"), (3, 0x53u, "S"), (4, 0x52u, "R") })
             if (!Native.RegisterHotKey(_hwnd, id, mods, vk))
                 Log.Write($"Ctrl+Alt+{name} is taken by another program");
-        // command bar: Alt+Space, and Ctrl+Alt+Space in case another launcher already owns Alt+Space
-        if (!Native.RegisterHotKey(_hwnd, 5, Native.MOD_ALT | Native.MOD_NOREPEAT, 0x20))
-            Log.Write("Alt+Space is taken by another program (use Ctrl+Alt+Space)");
-        Native.RegisterHotKey(_hwnd, 6, mods, 0x20);
+        RegisterCommandHotkey();
         RegisterOpenHotkey();
     }
+
+    // ---------------------------------------------------------------- the command bar's shortcut
+
+    public static readonly (string Name, uint Mods, uint Vk)[] CommandHotkeys =
+    [
+        ("Alt+Space", Native.MOD_ALT, 0x20),
+        ("Ctrl+Alt+Space", Native.MOD_CONTROL | Native.MOD_ALT, 0x20),
+        ("Ctrl+Shift+Space", Native.MOD_CONTROL | 0x4, 0x20),
+    ];
+
+    /// <summary>
+    /// Registers the command bar's shortcut; false when another program already owns it. Alt+Space (the default)
+    /// also takes Ctrl+Alt+Space, as before 2.0.1, in case another launcher already owns Alt+Space.
+    /// </summary>
+    private bool _commandKeyBackupOnly;
+
+    private bool RegisterCommandHotkey()
+    {
+        if (_hwnd == IntPtr.Zero) return true;
+        Native.UnregisterHotKey(_hwnd, 5);
+        Native.UnregisterHotKey(_hwnd, 6);
+        var hk = CommandHotkeys.FirstOrDefault(h => h.Name == _settings.CommandHotkey);
+        if (hk.Name == null) return true;   // off
+        bool ok = Native.RegisterHotKey(_hwnd, 5, hk.Mods | Native.MOD_NOREPEAT, hk.Vk);
+        if (!ok) Log.Write($"{hk.Name} is taken by another program");
+        bool backup = hk.Name == "Alt+Space" && Native.RegisterHotKey(_hwnd, 6, Native.MOD_CONTROL | Native.MOD_ALT | Native.MOD_NOREPEAT, 0x20);
+        _commandKeyBackupOnly = !ok && backup;   // the settings say so instead of a general hint
+        return ok || backup;
+    }
+
 
     // ---------------------------------------------------------------- open / fold the island from the keyboard
 
@@ -2839,8 +3375,8 @@ public partial class MainWindow : Window
             {
                 case 1: ToggleHidden(); break;
                 case 2: ToggleTheme(); break;
-                case 3: RunAction("region"); break;
-                case 4: RunAction("record"); break;
+                case 3: _ = RunAction("region"); break;
+                case 4: _ = RunAction("record"); break;
                 case 5 or 6: ToggleCommandBar(); break;
                 case 7: ToggleOpenFromKeyboard(); break;
             }
@@ -2857,7 +3393,9 @@ public partial class MainWindow : Window
         _shutDown = true;
         for (int id = 1; id <= 7; id++) Native.UnregisterHotKey(_hwnd, id);
         Native.RemoveClipboardFormatListener(_hwnd);
+        _sideToast?.Close();
         ShutdownChat();
+        ShutdownMusicPlayer();
         _settings.Save();
         MagCapture.MarkClean();   // a normal exit: Windows did not take us down inside the magnifier
         StartupGuard.Done();
@@ -2912,8 +3450,13 @@ public partial class MainWindow : Window
 
     private void SavePosition()
     {
-        _settings.CenterX = Left + Width / 2;
-        _settings.Top = Top;
+        // moved while a program with its own place was in front (or floated to that place): it is that program's place
+        if (_placeOwner != null) _settings.AppPlaces[_placeOwner] = [Left + Width / 2, Top];
+        else
+        {
+            _settings.CenterX = Left + Width / 2;
+            _settings.Top = Top;
+        }
         _settings.Save();
     }
 
@@ -2923,6 +3466,7 @@ public partial class MainWindow : Window
     private void AlignIsland()
     {
         if (_hidden) ShowIsland();
+        if (_settings.PlacePerApp && ForgetAppPlace()) return;
         var screen = Forms.Screen.FromPoint(new System.Drawing.Point((int)(Left + Width / 2), (int)(Top + 20)));
         var dpi = VisualTreeHelper.GetDpi(this);
         double cx = (screen.Bounds.Left + screen.Bounds.Width / 2.0) / dpi.DpiScaleX;
@@ -2979,7 +3523,6 @@ public partial class MainWindow : Window
         {
             _windowFitted = true;
             ShrinkWindowToPill();
-            _frostSkips = 7;   // the next capture is not skipped, even when folded
             Dispatcher.InvokeAsync(CaptureFrost, System.Windows.Threading.DispatcherPriority.Background);
         }
 
@@ -2989,7 +3532,6 @@ public partial class MainWindow : Window
             _rendering = false;
             UpdateShape(false);
             ShrinkWindowToPill();
-            _frostSkips = 3;          // the next frost tick refreshes even when folded
             Dispatcher.InvokeAsync(CaptureFrost, System.Windows.Threading.DispatcherPriority.Background);
         }
     }
@@ -3025,7 +3567,97 @@ public partial class MainWindow : Window
 
     private bool _windowFitted;
 
+#if DEBUG
+    /// <summary>Tests: a window of coloured stripes under the island (in z-order), still or sliding like a video.</summary>
+    private Window TestBackdrop(bool moving)
+    {
+        var stripes = new LinearGradientBrush { StartPoint = new Point(0, 0), EndPoint = new Point(80, 30), MappingMode = BrushMappingMode.Absolute, SpreadMethod = GradientSpreadMethod.Repeat };
+        stripes.GradientStops.Add(new GradientStop(Color.FromRgb(0xFF, 0x5A, 0x5F), 0));
+        stripes.GradientStops.Add(new GradientStop(Color.FromRgb(0x2E, 0x9B, 0xFF), 0.5));
+        stripes.GradientStops.Add(new GradientStop(Color.FromRgb(0xFF, 0xB3, 0x40), 1));
+        var slide = new TranslateTransform();
+        stripes.Transform = slide;
+        var screen = System.Windows.Forms.Screen.FromHandle(_hwnd).Bounds;
+        var w = new Window
+        {
+            WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, ShowInTaskbar = false, ShowActivated = false, Topmost = true,
+            Left = screen.Left / Dpi + screen.Width / Dpi / 2 - 600, Top = screen.Top / Dpi, Width = 1200, Height = 560, Background = stripes,
+        };
+        w.Show();
+        Native.SetWindowPos(_hwnd, new IntPtr(-1), 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010);   // the island back on top
+        if (moving) slide.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(0, 160, TimeSpan.FromSeconds(2)) { RepeatBehavior = RepeatBehavior.Forever });
+        return w;
+    }
+#endif
+
     private static bool PerfNoResize;
+
+#if DEBUG
+    /// <summary>Tests: a made-up page under the island: dark, white, colourful or dense text.</summary>
+    private Window LookBackdrop(string what)
+    {
+        Brush bg = what switch
+        {
+            "dark" => new SolidColorBrush(Color.FromRgb(0x10, 0x12, 0x18)),
+            "colour" => new LinearGradientBrush(new GradientStopCollection([new(Color.FromRgb(0xFF, 0x5A, 0x5F), 0), new(Color.FromRgb(0xFF, 0xB3, 0x40), .25), new(Color.FromRgb(0x4C, 0xD9, 0x64), .5), new(Color.FromRgb(0x2E, 0x9B, 0xFF), .75), new(Color.FromRgb(0xAF, 0x52, 0xDE), 1)]), new Point(0, 0), new Point(1, .6)),
+            _ => Brushes.White,
+        };
+        var lines = string.Join(Environment.NewLine, Enumerable.Range(0, 40).Select(i => string.Concat(Enumerable.Repeat($"The quick brown fox jumps over the lazy dog, number {i}. ", 4))));
+        var screen = System.Windows.Forms.Screen.FromHandle(_hwnd).Bounds;
+        var w = new Window
+        {
+            WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, ShowInTaskbar = false, ShowActivated = false, Topmost = true, Background = bg,
+            Left = screen.Left / Dpi + screen.Width / Dpi / 2 - 620, Top = screen.Top / Dpi, Width = 1240, Height = 760,
+            Content = what == "text" ? new TextBlock { Text = lines, FontSize = 15, Foreground = Brushes.Black, LineHeight = 20 } : null,
+        };
+        w.Show();
+        Native.SetWindowPos(_hwnd, new IntPtr(-1), 0, 0, 0, 0, 0x13);
+        return w;
+    }
+
+    /// <summary>
+    /// Tests: the contrast of every text on the island against what is really behind it on the screen (the median pixel
+    /// of its box: glyphs cover well under half of it).
+    /// </summary>
+    private string LookContrast(byte[] px, System.Drawing.Rectangle rect)
+    {
+        var found = new List<(double C, TextBlock T)>();
+        var island = new Rect(Island.PointToScreen(new Point(0, 0)), Island.PointToScreen(new Point(Island.ActualWidth, Island.ActualHeight)));
+        static double Lin(double v) { v /= 255; return v <= 0.04045 ? v / 12.92 : Math.Pow((v + 0.055) / 1.055, 2.4); }
+        static double Lum(double cr, double cg, double cb) => 0.2126 * Lin(cr) + 0.7152 * Lin(cg) + 0.0722 * Lin(cb);
+        void Walk(DependencyObject d, double opacity)
+        {
+            if (d is UIElement { IsVisible: false }) return;
+            if (d is UIElement u) opacity *= u.Opacity;
+            if (opacity < 0.85) return;
+            if (d is TextBlock { Foreground: SolidColorBrush fg } t && t.Text.Length > 2 && t.ActualWidth > 8)
+            {
+                var box = new Rect(t.PointToScreen(new Point(0, 0)), t.PointToScreen(new Point(t.ActualWidth, t.ActualHeight)));
+                var lum = new List<double>();
+                if (island.Contains(box))
+                    for (int y = (int)box.Top - rect.Top; y < (int)box.Bottom - rect.Top; y++)
+                        for (int x = (int)box.Left - rect.Left; x < (int)box.Right - rect.Left; x++)
+                        {
+                            int i = (y * rect.Width + x) * 4;
+                            if (x >= 0 && y >= 0 && x < rect.Width && i + 2 < px.Length) lum.Add(Lum(px[i + 2], px[i + 1], px[i]));
+                        }
+                if (lum.Count > 20)
+                {
+                    lum.Sort();
+                    double b = lum[lum.Count / 2], f = Lum(fg.Color.R, fg.Color.G, fg.Color.B), a = fg.Color.A / 255.0;
+                    f = f * a + b * (1 - a);
+                    found.Add(((Math.Max(f, b) + 0.05) / (Math.Min(f, b) + 0.05), t));
+                }
+            }
+            for (int i = 0; i < VisualTreeHelper.GetChildrenCount(d); i++) Walk(VisualTreeHelper.GetChild(d, i), opacity);
+        }
+        Walk(Island, 1);
+        if (found.Count == 0) return "no text";
+        found.Sort((a, b) => a.C.CompareTo(b.C));
+        string Worst(TextBlock t) => $"{((SolidColorBrush)t.Foreground).Color} {t.FontSize:0.#}px";
+        return $"{found.Count} texts, lowest {found[0].C:0.0} ({Worst(found[0].T)}), median {found[found.Count / 2].C:0.0}, under 4.5: {found.Count(f => f.C < 4.5)}, under 3: {found.Count(f => f.C < 3)}";
+    }
+#endif
 
     // Resizing a see-through window mid-animation costs a frame or two, so: it grows to full size in one
     // step (best before anything moves: when the cursor reaches the island), and shrinks back only once
@@ -3265,12 +3897,25 @@ public partial class MainWindow : Window
         Release();
         _expandDelay.Stop();
         if (!_dragging) Unsquish(0);
-        if (_mode is Mode.Expanded) _collapseDelay.Start();
+        if (_mode is Mode.Expanded && !CursorOnIsland()) _collapseDelay.Start();
         if (_mode is Mode.Drop && _dropped.Length > 0) _collapseDelay.Start();
         if (_mode == Mode.Toast && !_toastTimer.IsEnabled) _toastTimer.Start();
     }
 
+    /// <summary>
+    /// The cursor really is over the island, by its screen position. WPF also reports leaving when the island
+    /// changes size under a still cursor (a notification card closed); that must not fold it.
+    /// </summary>
+    private bool CursorOnIsland()
+    {
+        if (PresentationSource.FromVisual(Island) == null) return false;
+        Native.GetCursorPos(out var p);
+        var at = Island.PointFromScreen(new Point(p.X, p.Y));
+        return at.X >= 0 && at.Y >= 0 && at.X < Island.ActualWidth && at.Y < Island.ActualHeight;
+    }
+
     private int _tabIndex;
+
 
     private void Tab_Checked(object sender, RoutedEventArgs e)
     {
@@ -3355,7 +4000,7 @@ public partial class MainWindow : Window
         while (d != null)
         {
             if (d is ButtonBase or TextBoxBase or Slider or ScrollBar or InkCanvas) return true;
-            if (d is FrameworkElement fe && fe.Name is "ChatHost" or "ShelfList" or "CommandResults") return true;
+            if (d is FrameworkElement fe && fe.Name is "ChatHost" or "MusicWebHost" or "MusicResults" or "ShelfList" or "CommandResults") return true;
             d = d is Visual or System.Windows.Media.Media3D.Visual3D ? VisualTreeHelper.GetParent(d) : LogicalTreeHelper.GetParent(d);
         }
         return false;
@@ -3410,6 +4055,7 @@ public partial class MainWindow : Window
         {
             if (Math.Abs(d.X) < 6 && Math.Abs(d.Y) < 6) return;
             _dragging = true;
+            OnDragStarted();
             _expandDelay.Stop();
             _collapseDelay.Stop();
             Island.CaptureMouse();
@@ -3505,11 +4151,15 @@ public partial class MainWindow : Window
         if (_hidden && animate) return;
         if (_mode != Mode.Compact && _mode != Mode.Claude) SetMode(Mode.Compact);
         _hidden = true;
+        if (_yield.Reset()) StopYield(reopen: false);   // the gaze loop rests while hidden: the handle would stay see-through
         UpdateAuraVisibility();
         _posActive = false;
         _settings.Hidden = true;
-        if (Top > SystemParameters.VirtualScreenTop + 1) _settings.Top = Top; // remember where it was
-        _settings.CenterX = Left + Width / 2;
+        if (_placeOwner == null)   // at a program's place: that one is kept already, the usual one stays
+        {
+            if (Top > SystemParameters.VirtualScreenTop + 1) _settings.Top = Top; // remember where it was
+            _settings.CenterX = Left + Width / 2;
+        }
         _settings.Save();
 
         void Finish()
@@ -3544,7 +4194,13 @@ public partial class MainWindow : Window
         _settings.Save();
 
         Handle.Visibility = Visibility.Collapsed;
-        MoveWindow(Left, _settings.Top ?? MonitorTop());
+        if (_settings.PlacePerApp)   // another program may have come to the front meanwhile
+        {
+            _placeOwner = _frontApp != null && _settings.AppPlaces.ContainsKey(_frontApp) ? _frontApp : null;
+            var (cx, top) = PlaceOf(_placeOwner);
+            MoveWindow(cx - Width / 2, top);
+        }
+        else MoveWindow(Left, _settings.Top ?? MonitorTop());
         ClampPosition();
         Island.Visibility = Visibility.Visible;
         _y.Snap(-(Island.ActualHeight + IslandTopMargin + 30));
@@ -3628,7 +4284,8 @@ public partial class MainWindow : Window
         // a game or a full-screen program is in front. Either switch needs to know it: "hide in full screen",
         // or "FPS and load in games" (the two exclude each other, so asking only when the first one is on
         // meant the game pill never appeared for anyone who chose FPS)
-        bool fullscreenApp = (_settings.HideInFullscreen || _settings.GameStats) && _hwnd != IntPtr.Zero && (_testFullscreen ?? Native.IsFullscreenAppActive(_hwnd));
+        _fullscreenFront = _hwnd != IntPtr.Zero && (_testFullscreen ?? Native.IsFullscreenAppActive(_hwnd));   // also: the island steps aside for the cursor
+        bool fullscreenApp = (_settings.HideInFullscreen || _settings.GameStats) && _fullscreenFront;
         // game mode: keep a tiny stats pill instead of hiding completely
         bool game = _demoGame || (fullscreenApp && _settings.GameStats && IsGameWindow(fg));
         // with the FPS switch on, a full-screen program that isn't a game (a browser video, a slideshow) gets "hide in full screen", which the FPS switch stands in for
@@ -3645,8 +4302,10 @@ public partial class MainWindow : Window
         {
             _fullscreenHidden = fs;
             UpdateAuraVisibility();
+            CaptureFrost();
             if (fs)
             {
+                if (_yield.Reset()) ClickThrough(false);
                 Root.IsHitTestVisible = false;
                 Fade(Root, 0, 180, 0, () => { if (_fullscreenHidden) Root.Visibility = Visibility.Hidden; });
             }
@@ -3660,6 +4319,7 @@ public partial class MainWindow : Window
         }
         // a menu of ours is open: pulling the island to the very top now would put it over that menu
         if (!fs && !_dragging && _menusOpen == 0) Native.KeepTopmost(_hwnd);
+        if (!fs) WatchFrontApp(fg);
     }
 
     // ================================================================ clock & eyes
@@ -3722,6 +4382,7 @@ public partial class MainWindow : Window
         Native.GetCursorPos(out var cursor);
         if (_fakeCursor is Native.POINT fake) cursor = fake;   // screenshots / tests
         CheckClickOutside(cursor);
+        UpdateYield(cursor);
         if (_mode == Mode.Compact && !_rendering && _gazeTicks % 3 != 0)
         {
             double dx = cursor.X - (Left + Width / 2) * Dpi, dy = cursor.Y - Top * Dpi;
@@ -3805,6 +4466,7 @@ public partial class MainWindow : Window
     private Action? _toastAction;
 
     private Views.NotificationStack.Item? _toastKept;
+    private Views.SideToast? _sideToast;
 
     /// <param name="keep">A notification (a message, Claude, a timer, a download…), not an answer to what the user just
     /// did: it also goes on the Home page's stack, shown or not.</param>
@@ -3817,6 +4479,23 @@ public partial class MainWindow : Window
             HomeMissed.Add(kept);
         }
         if (_mode == Mode.Claude || _hidden) return;
+        // the island is open: the notice goes beside it, the open island stays as it is (folding it for a notice
+        // threw away what the user was doing there)
+        if (_mode == Mode.Expanded && IsLoaded && PresentationSource.FromVisual(Island) != null)
+        {
+            _sideToast ??= new Views.SideToast { HideFromCapture = HideFromCapture };
+            var tl = Island.PointToScreen(new Point(0, 0));
+            var br = Island.PointToScreen(new Point(Island.ActualWidth, Island.ActualHeight));
+            var kept2 = kept;
+            _sideToast.Show(new Rect(tl, br), glyph, badge, title, text, onClick == null && kept2 == null ? null : () =>
+            {
+                if (kept2 != null) HomeMissed.Forget(kept2);   // seen and acted on: not missed
+                onClick?.Invoke();
+            }, ms);
+            Character.Cheer();
+            MenuBuddy.Cheer();
+            return;
+        }
         _toastKept = kept;
         ToastIcon.Text = glyph;
         ToastTitle.Text = title;
@@ -3848,7 +4527,11 @@ public partial class MainWindow : Window
 
     // ================================================================ theme
 
-    private void ApplyTheme() => Theme.Apply(_settings.DarkTheme, _settings.IslandColor, _settings.GlassOpacity, _settings.AccentColor);
+    private void ApplyTheme()
+    {
+        Theme.Apply(_settings.DarkTheme, _settings.IslandColor, _settings.GlassOpacity, _settings.AccentColor);
+        ApplyLiquidBrushes();
+    }
 
     private void ToggleTheme()
     {
@@ -3863,7 +4546,10 @@ public partial class MainWindow : Window
 
     private void ApplyThemeLocal()
     {
-        IslandShadow.Opacity = _settings.DarkTheme ? 0.38 : 0.18;
+        bool liquid = GlassScene;
+        IslandShadow.Opacity = _settings.DarkTheme && !liquid ? 0.38 : 0.18;
+        IslandShadow.BlurRadius = liquid ? 24 : 34;
+        IslandShadow.ShadowDepth = liquid ? 8 : 6;
     }
 
     private void ToggleTheme_Click(object sender, RoutedEventArgs e) => ToggleTheme();
@@ -3893,7 +4579,7 @@ public partial class MainWindow : Window
             ContextMenuStrip = new Forms.ContextMenuStrip(),
         };
         _tray.ContextMenuStrip.Items.Add(L.T("Показать / спрятать  (Ctrl+Alt+I)"), null, (_, _) => ToggleHidden());
-        _tray.ContextMenuStrip.Items.Add(L.T("Скриншот области  (Ctrl+Alt+S)"), null, (_, _) => RunAction("region"));
+        _tray.ContextMenuStrip.Items.Add(L.T("Скриншот области  (Ctrl+Alt+S)"), null, (_, _) => _ = RunAction("region"));
         _tray.ContextMenuStrip.Items.Add(L.T("Выровнять по центру"), null, (_, _) => AlignIsland());
         _tray.ContextMenuStrip.Items.Add(L.T("Сменить тему  (Ctrl+Alt+T)"), null, (_, _) => ToggleTheme());
         _tray.ContextMenuStrip.Items.Add(L.T("Изменить виджеты"), null, (_, _) => EditWidgets(true));

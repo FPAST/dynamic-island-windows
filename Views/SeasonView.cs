@@ -22,6 +22,8 @@ public sealed class SeasonView : FrameworkElement
 
     /// <summary>The island is folded: a quieter scene (no flowers or umbrella over the pill's text).</summary>
     public bool Compact { get; set; }
+    /// <summary>Light theme: liquid glass's edge is brighter there.</summary>
+    public bool Light { get; set; }
 
     /// <summary>The island's real outline right now (it bulges towards the cursor, grows ears when docked): the glass's rim light follows it.</summary>
     public Geometry? Outline { get; set; }
@@ -469,29 +471,27 @@ public sealed class SeasonView : FrameworkElement
     private void DrawLiquid(DrawingContext dc, double w, double h)
     {
         // the glass itself (the bending and the colour fringe) is done on the backdrop picture, see MainWindow.LiquidGlass;
-        // here only the light on it: a bright highlight along the top rim fading down the sides, a faint one at the bottom
+        // here only the light on it: a 1 px ring all round and a brighter specular line along the top, fading down the sides
         double radius = Math.Min(h / 2, 28);
+        byte ring = (byte)(Light ? 0x59 : 0x2E), line = (byte)(Light ? 0x8C : 0x4D);
+        var edge = new SolidColorBrush(Color.FromArgb(ring, 0xFF, 0xFF, 0xFF));
         var top = new LinearGradientBrush
         {
-            StartPoint = new Point(0.5, 0), EndPoint = new Point(0.5, 1),
-            GradientStops =
-            {
-                new GradientStop(Color.FromArgb(0xE0, 0xFF, 0xFF, 0xFF), 0),
-                new GradientStop(Color.FromArgb(0x30, 0xFF, 0xFF, 0xFF), Compact ? 0.5 : 0.22),
-                new GradientStop(Color.FromArgb(0x00, 0xFF, 0xFF, 0xFF), Compact ? 0.75 : 0.5),
-                new GradientStop(Color.FromArgb(0x50, 0xFF, 0xFF, 0xFF), 1),
-            },
+            StartPoint = new Point(0, 0), EndPoint = new Point(0, Math.Min(h * 0.6, 30)), MappingMode = BrushMappingMode.Absolute,
+            GradientStops = { new GradientStop(Color.FromArgb(line, 0xFF, 0xFF, 0xFF), 0), new GradientStop(Color.FromArgb(0x00, 0xFF, 0xFF, 0xFF), 1) },
         };
-        var sheen = new LinearGradientBrush(Color.FromArgb(0x1C, 0xFF, 0xFF, 0xFF), Color.FromArgb(0x00, 0xFF, 0xFF, 0xFF), 90);
+        var sheen = new LinearGradientBrush(Color.FromArgb(0x12, 0xFF, 0xFF, 0xFF), Color.FromArgb(0x00, 0xFF, 0xFF, 0xFF), 90);
         if (Outline != null)
         {
             // along the outline itself (the view is clipped to it, so the inner half of the line shows):
             // when the island stretches towards the cursor or its corners are made squarer, the rim goes with it
-            dc.DrawGeometry(Compact ? sheen : null, new Pen(top, 2.4), Outline);
+            dc.DrawGeometry(Compact ? sheen : null, new Pen(edge, 2), Outline);
+            dc.DrawGeometry(null, new Pen(top, 3), Outline);
             if (!Compact) dc.DrawRectangle(sheen, null, new Rect(0, 0, w, Math.Min(h, 60)));   // open: the sheen stays near the top
             return;
         }
-        dc.DrawRoundedRectangle(null, new Pen(top, 1.2), new Rect(0.8, 0.8, w - 1.6, h - 1.6), radius - 0.8, radius - 0.8);
+        dc.DrawRoundedRectangle(null, new Pen(edge, 1), new Rect(0.5, 0.5, w - 1, h - 1), radius - 0.5, radius - 0.5);
+        dc.DrawRoundedRectangle(null, new Pen(top, 1.4), new Rect(0.8, 0.8, w - 1.6, h - 1.6), radius - 0.8, radius - 0.8);
         // a soft sheen on the upper part of the glass
         dc.DrawRoundedRectangle(sheen, null, new Rect(0, 0, w, Math.Min(h, Compact ? h : 60)), radius, radius);
     }

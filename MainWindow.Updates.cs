@@ -45,7 +45,7 @@ public partial class MainWindow
             if (found != null && (manual || isNew))
                 ShowToast("", L.F("Доступна версия {0}", found.Version.ToString(3)),
                     Updater.CanSelfUpdate ? L.T("Нажмите, чтобы обновить") : L.T("Нажмите, чтобы скачать"),
-                    StartUpdate, (Brush)FindResource("AccentBlue"), ms: 9000, keep: true);
+                    () => _ = StartUpdate(), (Brush)FindResource("AccentBlue"), ms: 9000, keep: true);
         }
         catch (Exception ex)
         {
@@ -71,7 +71,7 @@ public partial class MainWindow
         UpdateButton.Visibility = Visibility.Visible;
     }
 
-    private async void StartUpdate()
+    private async Task StartUpdate()
     {
         if (_update == null || _updating) return;
         if (!Updater.CanSelfUpdate || _update.SetupUrl == null)
@@ -98,7 +98,7 @@ public partial class MainWindow
         }
     }
 
-    private void UpdateNow_Click(object sender, RoutedEventArgs e) => StartUpdate();
+    private void UpdateNow_Click(object sender, RoutedEventArgs e) => _ = StartUpdate();
 
     private async void CheckUpdates_Click(object sender, RoutedEventArgs e) => await CheckForUpdatesAsync(manual: true);
 

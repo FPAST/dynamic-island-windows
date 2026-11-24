@@ -31,7 +31,7 @@ public static class Uninstaller
     /// <summary>Undo everything the app registered outside its folder (safe to run more than once).</summary>
     public static void RemoveRegistrations()
     {
-        try { if (Settings.Current.CleanDesktop) CleanDesktop.Apply(false, Settings.Current.TaskbarWasAutoHide, Settings.Current.IconsWereVisible); } catch { }
+        try { if (Settings.Current.CleanDesktop) CleanDesktop.Apply(false, Settings.Current.TaskbarWasAutoHide, Settings.Current.IconsWereVisible); } catch (Exception ex) { Log.Write("uninstall: clean desktop: " + ex.GetType().Name + ": " + ex.Message); }
         try { if (ClaudeHooks.IsInstalled) ClaudeHooks.Uninstall(); } catch (Exception e) { Log.Write("uninstall hooks: " + e.Message); }
         try { if (CodexHooks.IsInstalled) CodexHooks.Uninstall(); } catch (Exception e) { Log.Write("uninstall codex hooks: " + e.Message); }
         // only our own autostart entry: another copy of the island may own it

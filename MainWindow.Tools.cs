@@ -147,11 +147,11 @@ public partial class MainWindow
                 }
             }
         }
-        catch { }
+        catch { /* clipboard busy: the copy is read (or skipped) as usual */ }
         return false;
     }
 
-    private async void OnClipboardChanged()
+    private async Task OnClipboardChanged()
     {
         UiStep("clipboard");
         if (IsPrivateClip()) return;
@@ -464,12 +464,12 @@ public partial class MainWindow
         AddDropAction("\uE7B8", L.T("На полку"), () => { AddToShelf(files); Done(L.T("На полке"), L.F("{0} файл(ов) ждут во вкладке «Буфер → Полка»", _settings.Shelf.Count)); });
         AddDropAction("", L.T("Поделиться"), () => FileDropActions.Share(_hwnd, files), keepOpen: true);
         AddDropAction("", L.T("Копировать для вставки"), () => { FileDropActions.CopyFiles(files); Done(L.T("Файлы в буфере"), L.T("Вставьте в Telegram, чат или папку: Ctrl+V")); });
-        AddDropAction("", L.T("В ZIP"), () => WorkOnDrop(files, L.T("Сжимаю в ZIP"), L.T("Архив готов"), p => FileDropActions.Zip(files, p)));
+        AddDropAction("", L.T("В ZIP"), () => _ = WorkOnDrop(files, L.T("Сжимаю в ZIP"), L.T("Архив готов"), p => FileDropActions.Zip(files, p)));
         if (images)
         {
-            AddDropAction("", L.T("В JPG"), () => WorkOnDrop(files, L.T("Перевожу в JPG"), L.T("Готово"), p => EachImage(files, p, f => FileDropActions.ConvertImage(f, "jpg"))));
-            AddDropAction("", L.T("В PNG"), () => WorkOnDrop(files, L.T("Перевожу в PNG"), L.T("Готово"), p => EachImage(files, p, f => FileDropActions.ConvertImage(f, "png"))));
-            AddDropAction("", L.T("Сжать фото"), () => WorkOnDrop(files, L.T("Сжимаю фото"), L.T("Фото сжато"), p => EachImage(files, p, f => FileDropActions.ConvertImage(f, "jpg", 72, 1920))));
+            AddDropAction("", L.T("В JPG"), () => _ = WorkOnDrop(files, L.T("Перевожу в JPG"), L.T("Готово"), p => EachImage(files, p, f => FileDropActions.ConvertImage(f, "jpg"))));
+            AddDropAction("", L.T("В PNG"), () => _ = WorkOnDrop(files, L.T("Перевожу в PNG"), L.T("Готово"), p => EachImage(files, p, f => FileDropActions.ConvertImage(f, "png"))));
+            AddDropAction("", L.T("Сжать фото"), () => _ = WorkOnDrop(files, L.T("Сжимаю фото"), L.T("Фото сжато"), p => EachImage(files, p, f => FileDropActions.ConvertImage(f, "jpg", 72, 1920))));
         }
         AddDropAction("", L.T("Копировать путь"), () => { Clipboard.SetText(string.Join(Environment.NewLine, files)); Done(L.T("Путь скопирован"), null); });
         AddDropAction("", L.T("Закрыть"), () => { _dropped = []; SetMode(Mode.Compact); }, keepOpen: true);
@@ -510,7 +510,7 @@ public partial class MainWindow
     /// and in the line under the name ("12 MB of 40 MB"); at the end the circle goes green and the lines roll over
     /// to the result, and a moment later the usual notice with the file to open.
     /// </summary>
-    private async void WorkOnDrop(string[] files, string working, string doneTitle, Func<IProgress<double>, string> work)
+    private async Task WorkOnDrop(string[] files, string working, string doneTitle, Func<IProgress<double>, string> work)
     {
         if (_dropWorking) return;
         _dropWorking = true;

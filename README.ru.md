@@ -218,7 +218,7 @@
 | `Ctrl` + `Alt` + `S` | скриншот области |
 | `Ctrl` + `Alt` + `R` | начать / остановить запись экрана |
 | `Ctrl` + `Alt` + `T` | тёмная ↔ светлая тема |
-| `Alt` + `Space` или `Ctrl` + `Alt` + `Space` | командная строка |
+| `Alt` + `Space` или `Ctrl` + `Alt` + `Space` | командная строка (другое сочетание или выкл.: Настройки → Поведение) |
 
 В редакторе скриншота: `Ctrl+Z` — отменить, `Ctrl+C` — копировать, `Ctrl+S` — сохранить, `Esc` — закрыть.
 
@@ -332,6 +332,8 @@ dotnet publish -c Release -r win-x64 --self-contained true -o publish/DynamicIsl
 ```bash
 DynamicIsland.exe --snapshot docs/screenshots
 ```
+
+Подпись кода: сборка в GitHub Actions подписывает exe, dll и установщик (Authenticode), если в секретах репозитория есть сертификат — `SIGN_CERT_PFX` (файл .pfx в base64), `SIGN_CERT_PASSWORD` и по желанию `SIGN_TIMESTAMP_URL`; без них собирается без подписи, как раньше. Подробно — в [английском README](README.md#code-signing).
 
 Устройство проекта и остальное — в [английском README](README.md#project-layout). Каждый push собирается в GitHub Actions — готовый архив во вкладке **Actions → артефакты**.
 

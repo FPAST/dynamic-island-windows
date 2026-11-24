@@ -47,12 +47,18 @@ public static class Updater
     /// <summary>The newer release, or null when this is the latest.</summary>
     public static async Task<UpdateInfo?> CheckAsync(CancellationToken ct = default)
     {
-        using var doc = JsonDocument.Parse(await Http.GetStringAsync($"https://api.github.com/repos/{Repo}/releases/latest", ct));
+        return Parse(await Http.GetStringAsync($"https://api.github.com/repos/{Repo}/releases/latest", ct), Current);
+    }
+
+    /// <summary>GitHub's answer about the latest release: the update, or null when it is not newer than <paramref name="current"/>.</summary>
+    internal static UpdateInfo? Parse(string json, Version current)
+    {
+        using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
         var tag = root.GetProperty("tag_name").GetString() ?? "";
         if (!Version.TryParse(tag.TrimStart('v', 'V'), out var latest)) return null;
         latest = new Version(latest.Major, latest.Minor, Math.Max(0, latest.Build));
-        if (latest <= Current) return null;
+        if (latest <= current) return null;
 
         string? url = null, sha = null;
         long size = 0;

@@ -42,7 +42,7 @@ public partial class MainWindow
             ChatHost.Children.Remove(chat);
             chat.Dispose();
         }
-        catch { }
+        catch (Exception ex) { Services.Log.Write("chat: dispose: " + ex.GetType().Name + ": " + ex.Message); }
         ChatPlaceholder.Visibility = Visibility.Visible;
         _chatIdleTimer.Stop();
     }
@@ -155,7 +155,7 @@ public partial class MainWindow
             core.WebMessageReceived += (_, e) =>
             {
                 string? m = null;
-                try { m = e.TryGetWebMessageAsString(); } catch { }
+                try { m = e.TryGetWebMessageAsString(); } catch { /* not a text message */ }
                 if (!Services.SafeShell.IsOnHost(e.Source, ChatHosts)) return;   // only from the chat sites
                 if (m == "enter") _chatSentAt = DateTime.Now;
                 else if (m == "key") _chatTypedAt = DateTime.Now;
@@ -272,7 +272,7 @@ public partial class MainWindow
             using var p = Process.GetProcessById(browserPid);
             p.WaitForExit(2500);
         }
-        catch { }
+        catch { /* the browser process has already exited */ }
     }
 
     private void ChatReload_Click(object sender, RoutedEventArgs e) => _chat?.CoreWebView2?.Reload();

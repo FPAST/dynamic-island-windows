@@ -21,6 +21,9 @@ public partial class MainWindow
     [
         // liquid glass: clear frosted glass that bends what's behind it at the edges (like iOS)
         new("liquid", "Жидкое стекло", true, "#0B0B14", "#B9A4FF", "none", "liquid"),
+        // what is behind shows through as it is / through strongly frosted glass
+        new("clear", "Полупрозрачная", true, "#0B0B14", "#7DD3FC", "none", "clear"),
+        new("matte", "Матовая", true, "#0B0B14", "#D1D1D6", "none", "matte"),
         // the seasons: animated scenes inside the island
         new("spring", "Весна", true, "#1B2A22", "#FF7EB6", "none", "spring"),
         new("summer", "Лето", true, "#0D2638", "#FFC94D", "none", "summer"),
@@ -58,6 +61,7 @@ public partial class MainWindow
         var island = Theme.Parse(t.Island) ?? Colors.Black;
         var accent = Theme.Parse(t.Accent) ?? Colors.LimeGreen;
         var bg = t.Dark ? island : Blend(island, Colors.White, island == Colors.Black ? 0.95 : 0.8);
+        if (t.Scene is "clear" or "matte") bg = Color.FromArgb((byte)(t.Scene == "clear" ? 0x60 : 0xB0), 0x8E, 0x8E, 0x96);
         var pill = new Border
         {
             Width = 46, Height = 14, CornerRadius = new CornerRadius(7), VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 8, 0, 0),
@@ -67,7 +71,7 @@ public partial class MainWindow
         };
         bool current = _settings.ThemeId == t.Id;
         FrameworkElement inside = pill;
-        if (t.Scene.Length > 0)
+        if (Array.IndexOf(Views.SeasonView.Kinds, t.Scene) >= 0)
         {
             var scene = new Views.SeasonView { Kind = t.Scene, Width = 92, Height = 54, IsHitTestVisible = false };
             for (int i = 0; i < 40; i++) scene.Step(0.05);   // a moment into the scene, not its empty first frame
@@ -102,7 +106,7 @@ public partial class MainWindow
         _settings.AccentColor = t.Accent;
         _settings.Aura = t.Aura;
         _settings.Scene = t.Scene;
-        if (t.Scene == "liquid") _settings.Glass = true;   // liquid glass is glass: it needs the frosted backdrop
+        if (IsGlassScene(t.Scene)) _settings.Glass = true;   // a glass theme is glass
         _settings.Save();
         ApplyScene();
         ApplyTheme();
@@ -202,7 +206,7 @@ public partial class MainWindow
     {
         _settings.IslandPhoto = false;
         _settings.Save();
-        try { File.Delete(PhotoPath); } catch { }
+        try { File.Delete(PhotoPath); } catch { /* no photo file */ }
         ApplyPhoto();
         BuildThemeGallery();
     }

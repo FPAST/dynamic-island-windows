@@ -418,9 +418,8 @@ public partial class MainWindow
         {
             _settings.WidgetGlassOf[id] = Math.Round(e.NewValue, 2);
             if (_widgets.TryGetValue(id, out var w)) w.ApplyTheme(WidgetThemeOf(id), GlassOf(id));
+            _settings.SaveSoon();
         };
-        slider.LostMouseCapture += (_, _) => _settings.Save();
-        slider.LostKeyboardFocus += (_, _) => _settings.Save();
         stack.Children.Add(slider);
 
         // accent: the colour of its title, rings and levels
@@ -455,7 +454,7 @@ public partial class MainWindow
 
         // remove, at the bottom, in red
         var remove = WKey(W(L.T("Убрать виджет"), 13.5, FontWeights.SemiBold, Solid(0xFF, 0x6B, 0x60)), Solid(0xFF, 0x45, 0x3A, 0x26), null,
-                          () => { self?.Close(); RemoveWidget(id); foreach (var u in _galleryUpdaters) try { u(); } catch { } }, double.NaN, 36, 18, evenWhenEditing: true);
+                          () => { self?.Close(); RemoveWidget(id); RefreshGallery(); }, double.NaN, 36, 18, evenWhenEditing: true);
         remove.Margin = new Thickness(0, 18, 0, 0);
         stack.Children.Add(remove);
 
@@ -756,7 +755,7 @@ public partial class MainWindow
             AddWidget(id, pop: false);
             if (_widgets.TryGetValue(id, out var w)) Materialize(w, 70 * i++);
         }
-        foreach (var u in _galleryUpdaters) try { u(); } catch { }
+        RefreshGallery();
     }
 
     private FrameworkElement WidgetSetCards(bool onIsland)

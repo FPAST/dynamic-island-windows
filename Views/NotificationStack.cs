@@ -68,10 +68,13 @@ public sealed class NotificationStack : StackPanel
     }
 
     private readonly List<Card> _cards = [];   // newest first
-    private readonly Grid _list = new() { ClipToBounds = false };
+    // a background, if only a see-through one: where a closed card was, the cursor must still be "on the stack"
+    // (without it the empty place was nothing, the stack thought the cursor had left and shrank under it)
+    private readonly Grid _list = new() { ClipToBounds = false, Background = Brushes.Transparent };
     private readonly TextBlock _title = new() { FontSize = 13, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
     private readonly System.Windows.Documents.Run _count = new();
     private readonly Button _toggle = new() { Padding = new Thickness(10, 3, 10, 3), FontSize = 12, Focusable = false };
+    private readonly Button _clear = new() { Padding = new Thickness(10, 3, 10, 3), FontSize = 12, Focusable = false, Margin = new Thickness(0, 0, 4, 0) };
     private bool _hovered, _pinned, _ticking;
     private TimeSpan _lastFrame;
     private double _clock;
@@ -95,14 +98,21 @@ public sealed class NotificationStack : StackPanel
         _title.Inlines.Add(_count);
         _toggle.SetResourceReference(StyleProperty, "GhostPill");
         _toggle.Click += (_, _) => { _pinned = !Expanded; if (!_pinned) _hovered = false; Relayout(); };
+        _clear.SetResourceReference(StyleProperty, "GhostPill");
+        _clear.Content = L.T("Очистить все");
+        _clear.Click += (_, _) => ClearAll();
         var head = new Grid { Height = 28, Margin = new Thickness(4, 0, 2, 8) };
         head.ColumnDefinitions.Add(new ColumnDefinition());
         head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         head.Children.Add(_title);
-        Grid.SetColumn(_toggle, 1);
+        Grid.SetColumn(_clear, 1);
+        head.Children.Add(_clear);
+        Grid.SetColumn(_toggle, 2);
         head.Children.Add(_toggle);
         Children.Add(head);
         Children.Add(_list);
+        Background = Brushes.Transparent;
         Visibility = Visibility.Collapsed;
         MouseEnter += (_, _) => { _hovered = true; Relayout(); };
         MouseLeave += (_, _) => { if (_drag != null) return; _hovered = false; Relayout(); };
@@ -140,6 +150,24 @@ public sealed class NotificationStack : StackPanel
         foreach (var c in _cards.ToList()) Remove(c, report: false);
         Relayout();
     }
+
+    /// <summary>"Clear all": every card goes as if dismissed one by one, the stack shrinks once.</summary>
+    public void ClearAll()
+    {
+        var gone = _cards.ToList();
+        _cards.Clear();
+        _list.Children.Clear();
+        _pinned = false;
+        foreach (var c in gone) Dismissed?.Invoke(c.Item);
+        Relayout();
+    }
+
+    /// <summary>
+    /// The cursor is on the stack: it does not get shorter now. Every shrink resized the island under the cursor,
+    /// which then found itself outside, and the island folded (closing cards one after another). It shrinks once
+    /// the cursor has left.
+    /// </summary>
+    private bool Held => _hovered || IsMouseOver || _drag != null;
 
     private static string Ago(DateTime at)
     {
@@ -212,8 +240,9 @@ public sealed class NotificationStack : StackPanel
     private void Paint(Card card)
     {
         var c = (TryFindResource("IslandBg") as SolidColorBrush)?.Color ?? Colors.Black;
-        card.Face.Background = new SolidColorBrush(Color.FromRgb(c.R, c.G, c.B));
-        card.Close.Background = card.Face.Background;
+        // liquid glass: a clear pane like the tiles (the cards behind show no text, see Muted)
+        card.Face.Background = TryFindResource("CardBg") as Brush ?? new SolidColorBrush(Color.FromRgb(c.R, c.G, c.B));
+        card.Close.Background = new SolidColorBrush(Color.FromRgb(c.R, c.G, c.B));
     }
 
     private static void Fade(UIElement e, double to) =>
@@ -256,10 +285,14 @@ public sealed class NotificationStack : StackPanel
         _count.Text = laid.Count.ToString();
         _toggle.Visibility = laid.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
         _toggle.Content = open ? L.T("Свернуть") : L.T("Показать все");
-        if (Math.Abs(_list.Height - height) > .5 || double.IsNaN(_list.Height))
+        _clear.Visibility = laid.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        bool held = Held && !double.IsNaN(_list.Height) && height < _list.Height - .5;
+        if (held) height = _list.Height;
+        bool gone = _cards.Count == 0 && !held && Visibility == Visibility.Visible;
+        if (gone) Visibility = Visibility.Collapsed;
+        if (Math.Abs(_list.Height - height) > .5 || double.IsNaN(_list.Height) || gone)
         {
             _list.Height = height;
-            if (laid.Count == 0 && _cards.Count == 0) Visibility = Visibility.Collapsed;
             Resized?.Invoke();
         }
         Apply();
@@ -278,6 +311,18 @@ public sealed class NotificationStack : StackPanel
             double fadeOut = c.FadeLeft >= 0 ? Math.Clamp(c.FadeLeft / ExitSeconds, 0, 1) : 1;
             c.Root.Opacity = c.O.Now * swipe * fadeOut;
             c.Content.Opacity = 1 - c.Muted.Now;
+            c.Root.Clip = null;
+        }
+        if (TryFindResource("CardBg") == null) return;
+        // cards of glass: what a folded card covers of the one behind would show through it
+        var laid = _cards.Where(c => !c.Leaving).ToList();
+        for (int i = 1; i < laid.Count; i++)
+        {
+            var (c, over) = (laid[i], laid[i - 1]);
+            if (c.Muted.Now < 0.02 || c.S.Now <= 0) continue;
+            double w = c.Root.ActualWidth, ow = over.Root.ActualWidth * over.S.Now / c.S.Now;
+            var front = new RectangleGeometry(new Rect((w - ow) / 2, (over.Y.Now - c.Y.Now) / c.S.Now, ow, HeightOf(over) * over.S.Now / c.S.Now), 20, 20);
+            c.Root.Clip = new CombinedGeometry(GeometryCombineMode.Exclude, new RectangleGeometry(new Rect(-20, -400, w + 40, 1000)), front);
         }
     }
 
@@ -335,7 +380,7 @@ public sealed class NotificationStack : StackPanel
         _cards.Remove(c);
         _list.Children.Remove(c.Root);
         if (report) Dismissed?.Invoke(c.Item);
-        if (_cards.Count == 0) { _pinned = false; Visibility = Visibility.Collapsed; }
+        if (_cards.Count == 0) _pinned = false;
         Relayout();
     }
 
@@ -429,6 +474,14 @@ public sealed class NotificationStack : StackPanel
         (_list.Height, Expanded, _cards.Select(c => (c.Y.Now, c.S.Now, c.Root.Opacity, c.X, c.Leaving)).ToArray());
 
     internal void TestHover(bool on) { _hovered = on; Relayout(); }
+
+    /// <summary>Tests: a card's close button (to click it with the real mouse) and its face.</summary>
+    internal (FrameworkElement Close, FrameworkElement Face)? TestCard(int index) =>
+        _cards.Where(k => !k.Leaving).ElementAtOrDefault(index) is { } c ? (c.Close, c.Face) : null;
+
+    /// <summary>Tests: the close button of a card, as if clicked.</summary>
+    internal void TestClose(int index) => Dismiss(_cards.Where(k => !k.Leaving).ElementAt(index), 1, 0);
+
 
     internal void TestSwipe(int index, double dx, double velocityPxPerMs)
     {

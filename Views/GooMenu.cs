@@ -264,10 +264,10 @@ public sealed class GooMenu : FrameworkElement
             Start();
             return;
         }
-        Pick(Array.IndexOf(_bubbles, b));
+        _ = Pick(Array.IndexOf(_bubbles, b));
     }
 
-    private async void Pick(int i)
+    private async Task Pick(int i)
     {
         var b = _bubbles[i];
         b.Scale.T = 1; b.Scale.V += 4;
@@ -279,7 +279,7 @@ public sealed class GooMenu : FrameworkElement
     }
 
     /// <summary>Tests (no mouse is moved): open, pick, and where everything is.</summary>
-    internal void TestPick(int i) => Pick(i);
+    internal void TestPick(int i) => _ = Pick(i);
     internal (bool Open, double Turn, double Width, double FarthestBubble, bool Moving) TestState =>
         (_open, _turn.X, _width.X, _bubbles.Max(b => Math.Sqrt(b.X.X * b.X.X + b.Y.X * b.Y.X)), _ticking);
 

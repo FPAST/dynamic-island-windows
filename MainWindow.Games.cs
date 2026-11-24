@@ -98,6 +98,8 @@ public partial class MainWindow
     [DllImport("user32.dll")] private static extern IntPtr WindowFromPoint(Native.POINT p);
 
     private bool _mouseWasDown;
+    /// <summary>Test runs that hold the island open while you keep using the mouse (--run glassbench).</summary>
+    private static bool NoClickOutside;
 
     /// <summary>~30 times a second: a click anywhere outside the open island folds it back.</summary>
     private void CheckClickOutside(Native.POINT cursor)
@@ -105,7 +107,7 @@ public partial class MainWindow
         bool down = (GetAsyncKeyState(0x01) & 0x8000) != 0 || (GetAsyncKeyState(0x02) & 0x8000) != 0;
         bool pressed = down && !_mouseWasDown;
         _mouseWasDown = down;
-        if (!pressed || _mode != Mode.Expanded || _dragging || _fakeCursor != null || !IsLoaded) return;
+        if (!pressed || NoClickOutside || _mode != Mode.Expanded || _dragging || _fakeCursor != null || !IsLoaded) return;
 
         Point tl, br;
         try

@@ -790,7 +790,7 @@ public partial class MainWindow
             var list = new Dictionary<string, long>();
             foreach (var p in Process.GetProcesses())
             {
-                try { list[p.ProcessName] = list.GetValueOrDefault(p.ProcessName) + p.WorkingSet64; } catch { }
+                try { list[p.ProcessName] = list.GetValueOrDefault(p.ProcessName) + p.WorkingSet64; } catch { /* exited meanwhile or protected */ }
                 finally { p.Dispose(); }
             }
             _topProcs = list.Where(kv => kv.Key is not "Idle" and not "System" and not "Memory Compression" and not "Registry")
@@ -851,6 +851,7 @@ public partial class MainWindow
         body.Children.Add(flower); body.Children.Add(text);
         body.Background = Brushes.Transparent;
         DateTime? started = null;
+        bool ticking = false;
         void Pose(double s)
         {
             double r = 4 + 20 * s, scale = 0.55 + 0.45 * s;
@@ -866,7 +867,11 @@ public partial class MainWindow
         }
         void Frame(object? sender, EventArgs e)
         {
-            if (started is not { } t0 || PresentationSource.FromVisual(body) == null) { CompositionTarget.Rendering -= Frame; started = null; Pose(0.55); text.Text = L.T("Нажмите, чтобы начать"); return; }
+            // stopped, closed or hidden under windows: no more frames
+            if (started is not { } t0 || PresentationSource.FromVisual(body) == null || !body.IsVisible)
+            {
+                CompositionTarget.Rendering -= Frame; ticking = false; started = null; Pose(0.55); text.Text = L.T("Нажмите, чтобы начать"); return;
+            }
             double t = (DateTime.Now - t0).TotalSeconds;
             if (t > 64) { started = null; return; }
             double phase = t % 8;   // 4 s in, 4 s out
@@ -879,7 +884,7 @@ public partial class MainWindow
             e.Handled = true;
             if (started != null) { started = null; return; }
             started = DateTime.Now;
-            CompositionTarget.Rendering += Frame;
+            if (!ticking) { ticking = true; CompositionTarget.Rendering += Frame; }   // a quick second tap must not add a second handler
         };
         Pose(0.55);
         return () => { };

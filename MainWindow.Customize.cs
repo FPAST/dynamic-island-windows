@@ -205,7 +205,10 @@ public partial class MainWindow
         if (PageTabs.All(t => t.IsChecked != true) && TabSettings.IsChecked != true) TabHome.IsChecked = true;
         DotsRow.Children.Clear();
         UpdatePageDots();
+        // new dots come up visible: put them (and the tabs shown again) in the state the strip is in
+        ShowTabIcons(_iconsShown || _settings.TabIcons == "always", animate: false);
     }
+
 
     // ================================================================ a strip of chips you drag into order
 
@@ -334,7 +337,7 @@ public partial class MainWindow
         UIElement SliderRow(string label, int min, int max, int step, Func<int> get, Action<int> set, Func<int, string> show)
         {
             var slider = new Views.Scrubber { Label = label, Format = v => show((int)Math.Round(v)), Minimum = min, Maximum = max, Step = step, Value = Math.Clamp(get(), min, max), Margin = new Thickness(0, 0, 0, 8) };
-            slider.ValueChanged += (_, e) => { set((int)Math.Round(e.NewValue)); _settings.Save(); ApplyLook(); };
+            slider.ValueChanged += (_, e) => { set((int)Math.Round(e.NewValue)); _settings.SaveSoon(); ApplyLook(); };
             return slider;
         }
         CheckBox SwitchRow(string text, Func<bool> get, Action<bool> set)

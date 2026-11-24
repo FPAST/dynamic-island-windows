@@ -165,8 +165,8 @@ public partial class MainWindow
         var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
         fx.BeginAnimation(DropShadowEffect.ColorProperty, new ColorAnimation(color, Colors.Black, dur) { EasingFunction = ease, FillBehavior = FillBehavior.Stop });
         fx.BeginAnimation(DropShadowEffect.OpacityProperty, new DoubleAnimation(1, fx.Opacity, dur) { EasingFunction = ease, FillBehavior = FillBehavior.Stop });
-        fx.BeginAnimation(DropShadowEffect.BlurRadiusProperty, new DoubleAnimation(52, 34, dur) { EasingFunction = ease, FillBehavior = FillBehavior.Stop });
-        fx.BeginAnimation(DropShadowEffect.ShadowDepthProperty, new DoubleAnimation(0, 6, dur) { EasingFunction = ease, FillBehavior = FillBehavior.Stop });
+        fx.BeginAnimation(DropShadowEffect.BlurRadiusProperty, new DoubleAnimation(52, fx.BlurRadius, dur) { EasingFunction = ease, FillBehavior = FillBehavior.Stop });
+        fx.BeginAnimation(DropShadowEffect.ShadowDepthProperty, new DoubleAnimation(0, fx.ShadowDepth, dur) { EasingFunction = ease, FillBehavior = FillBehavior.Stop });
     }
 
     /// <summary>The vivid colour of an album cover (for the equaliser, glow and character accents).</summary>
@@ -302,9 +302,11 @@ public partial class MainWindow
             if (_hwnd != IntPtr.Zero)
             {
                 var dpi = VisualTreeHelper.GetDpi(this);
-                Native.MoveTo(_hwnd, (int)Math.Round(_px.Value * dpi.DpiScaleX), (int)Math.Round(_py.Value * dpi.DpiScaleY));
+                int x = (int)Math.Round(_px.Value * dpi.DpiScaleX), y = (int)Math.Round(_py.Value * dpi.DpiScaleY);
+                Native.MoveTo(_hwnd, x, y);
             }
             else { Left = _px.Value; Top = _py.Value; }
+            if (FrostHost.IsVisible) { PlaceFrost(Island.ActualWidth, Island.ActualHeight); CaptureFrost(); }   // the glass's picture stays where it was taken
             if (!_dragging && _px.IsSettled && _py.IsSettled)
             {
                 _posActive = false;
@@ -313,7 +315,7 @@ public partial class MainWindow
             }
         }
 
-        bool playing = _lastMedia?.IsPlaying == true && !_hidden && !_fullscreenHidden;
+        bool playing = _lastMedia?.IsPlaying == true && !_hidden && !_fullscreenHidden && _settings.MusicWaves;
         double peak = playing ? _audio.Peak : 0;
         _audioLevel += (peak - _audioLevel) * (peak > _audioLevel ? 0.45 : 0.08);
         if (!playing && _audioLevel < 0.005) _audioLevel = 0;
@@ -462,8 +464,9 @@ public partial class MainWindow
         var pts = new List<Point>(260);
         double L = 2 * (W - 2 * R) + 2 * (H - 2 * R) + 2 * Math.PI * R;
         int waves = Math.Max(3, (int)Math.Round(L / 150));
-        bool playing = _lastMedia?.IsPlaying == true;
+        bool playing = _lastMedia?.IsPlaying == true && _settings.MusicWaves;
         double drip = (playing ? 1.2 + _audioLevel * 9 : _audioLevel * 9) * LiquidK;
+
         double s = 0;
 
         void Add(double x, double y, double nx, double ny, double ds, double bottomT = -1)

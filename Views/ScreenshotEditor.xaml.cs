@@ -116,7 +116,8 @@ public partial class ScreenshotEditor : Window
     {
         var path = CaptureService.SavePng(Render());
         Flash(L.T("Сохранено"));
-        try { Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{path}\"") { UseShellExecute = true }); } catch { }
+        if (Settings.Current.ScreenshotReveal) CaptureService.Reveal(path);
+
     }
 
     private void Close_Click(object sender, RoutedEventArgs e) => Close();
@@ -165,7 +166,7 @@ public partial class ScreenshotEditor : Window
 
     private void CopyText_Click(object sender, RoutedEventArgs e)
     {
-        try { Clipboard.SetText(ResultText.Text); Flash(L.T("Скопировано")); } catch { }
+        try { Clipboard.SetText(ResultText.Text); Flash(L.T("Скопировано")); } catch (Exception ex) { Log.Write("screenshot editor: copy text: " + ex.GetType().Name + ": " + ex.Message); }
     }
 
     private void OpenLink_Click(object sender, RoutedEventArgs e)
