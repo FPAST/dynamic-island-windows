@@ -2981,6 +2981,21 @@ public partial class MainWindow : Window
                         string Frost(string n) => _costs.TryGetValue(n, out var c) ? $"{n} {c.Ticks * 1000.0 / System.Diagnostics.Stopwatch.Frequency / (wall / 1000):0.00} ms/s, avg {c.Ticks * 1000.0 / System.Diagnostics.Stopwatch.Frequency / c.Calls:0.00} ms, max {c.Max * 1000.0 / System.Diagnostics.Stopwatch.Frequency:0.0} ms" : n + " -";
                         Log.Write($"glassbench: {name}: UI thread: {Frost("frost")}; {Frost("frost grab")}; {Frost("frost show")}");
                     }
+                    if (args.Contains("game"))   // glassbench liquid mag game: moving frames under the pill, without and with a game in front
+                    {
+                        await Task.Delay(5000);
+                        SetMode(Mode.Compact);
+                        var frames = TestBackdrop(moving: true);
+                        var under = new System.Windows.Interop.WindowInteropHelper(frames).Handle;
+                        await Phase("no game", 10);
+                        Log.Write($"glassbench: above the window under it: {Native.IsAbove(_hwnd, under)}, the other way round: {Native.IsAbove(under, _hwnd)}");
+                        _demoGame = true; await Task.Delay(1500);
+                        await Phase("game in front", 10);
+                        _demoGame = false; await Task.Delay(1500);
+                        await Phase("game left", 6);
+                        Application.Current.Shutdown();
+                        return;
+                    }
                     await Task.Delay(dragOnly ? 5000 : 8000);
                     if (!dragOnly)
                     {
@@ -4298,6 +4313,7 @@ public partial class MainWindow : Window
         }
         // also hide in front of the programs chosen in Settings (exe names)
         bool fs = (fullscreen && !game) || IsHiddenApp(fg) || _demoHide;
+        SetGameFront(game || _fullscreenFront && !Native.IsZoomed(fg) && IsGameWindow(fg, onlyListed: false));   // (a maximized window over a hidden taskbar is no game)
         if (fs != _fullscreenHidden)
         {
             _fullscreenHidden = fs;
@@ -4318,7 +4334,7 @@ public partial class MainWindow : Window
             }
         }
         // a menu of ours is open: pulling the island to the very top now would put it over that menu
-        if (!fs && !_dragging && _menusOpen == 0) Native.KeepTopmost(_hwnd);
+        if (!fs && !_dragging && _menusOpen == 0 && !(_gameFront && Native.IsAbove(_hwnd, fg))) Native.KeepTopmost(_hwnd);
         if (!fs) WatchFrontApp(fg);
     }
 

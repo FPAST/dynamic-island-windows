@@ -86,7 +86,7 @@ public partial class MainWindow
     private void UpdateReach(Native.POINT cursor)
     {
         double bump = 0, vx = 0, vy = 0;
-        if (_settings.Reactive && _mode == Mode.Compact && !_dragging && !_hidden && !_editMode && Island.IsVisible)
+        if (_settings.Reactive && !_gameFront && _mode == Mode.Compact && !_dragging && !_hidden && !_editMode && Island.IsVisible)
         {
             Point tl;
             try { tl = Island.PointToScreen(new Point(0, 0)); }
@@ -315,7 +315,7 @@ public partial class MainWindow
             }
         }
 
-        bool playing = _lastMedia?.IsPlaying == true && !_hidden && !_fullscreenHidden && _settings.MusicWaves;
+        bool playing = _lastMedia?.IsPlaying == true && !_hidden && !_fullscreenHidden && !_gameFront && _settings.MusicWaves;
         double peak = playing ? _audio.Peak : 0;
         _audioLevel += (peak - _audioLevel) * (peak > _audioLevel ? 0.45 : 0.08);
         if (!playing && _audioLevel < 0.005) _audioLevel = 0;
