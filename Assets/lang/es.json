@@ -337,7 +337,6 @@
  "Тон стекла": "Tono del vidrio",
  "Прозрачный низ": "Parte inferior transparente",
  "Плотность стекла": "Densidad del cristal",
- "Живое стекло — плавно, без преломления по краю": "Cristal vivo: fluido, sin refracción en el borde",
  "ПЕРЕЛИВАНИЕ В ПОКОЕ": "BRILLO EN REPOSO",
  "Пружинка": "Rebote",
  "Скорость анимации": "Velocidad de animación",
@@ -1141,5 +1140,7 @@
  "Песня, исполнитель или станция": "Canción, artista o emisora",
  "Открываю…": "Abriendo…",
  "Нажмите ♥ у станции, и она появится здесь": "Pulse ♥ junto a una emisora y aparecerá aquí",
- "Вся папка": "Toda la carpeta"
+ "Вся папка": "Toda la carpeta",
+ "Полупрозрачная": "Translúcido",
+ "Матовая": "Mate"
 }

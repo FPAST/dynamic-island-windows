@@ -337,7 +337,6 @@
  "Тон стекла": "Glass tint",
  "Прозрачный низ": "See-through bottom",
  "Плотность стекла": "Glass density",
- "Живое стекло — плавно, без преломления по краю": "Live glass: smooth, no bending at the rim",
  "ПЕРЕЛИВАНИЕ В ПОКОЕ": "IDLE GLOW",
  "Пружинка": "Spring bounce",
  "Скорость анимации": "Animation speed",
@@ -1141,5 +1140,7 @@
  "Песня, исполнитель или станция": "Song, artist or station",
  "Открываю…": "Opening…",
  "Нажмите ♥ у станции, и она появится здесь": "Press ♥ next to a station and it will appear here",
- "Вся папка": "Whole folder"
+ "Вся папка": "Whole folder",
+ "Полупрозрачная": "See-through",
+ "Матовая": "Matte"
 }

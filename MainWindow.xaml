@@ -1093,7 +1093,6 @@
                     </DockPanel>
                     <v:Scrubber x:Name="LiquidTintSlider" Minimum="0" Maximum="100" Step="5" Margin="0,4,0,8" ValueChanged="LiquidTint_ValueChanged"/>
                     <CheckBox x:Name="FadeSwitch" Style="{StaticResource Switch}" Click="Fade_Click" Content="Прозрачный низ"/>
-                    <CheckBox x:Name="LiveGlassSwitch" Style="{StaticResource Switch}" Click="LiveGlass_Click" Content="Живое стекло — плавно, без преломления по краю"/>
                   </StackPanel>
                 </Border>
 

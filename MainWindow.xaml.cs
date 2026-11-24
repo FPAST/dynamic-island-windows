@@ -200,29 +200,27 @@ public partial class MainWindow : Window
             {
                 await Task.Delay(1500);
                 if (action.StartsWith("lang:")) { SwitchLanguage(action[5..]); return; }   // test the language switch
-                if (action == "livetoggle")   // test: live glass switched on and off while the island moves: one backdrop window, gone when off, following the island
+                if (action == "themeswitch")   // test (2.1): glass themes switched over a page that stands still: the picture shown where the theme has one, gone where it has none
                 {
                     Settings.ReadOnly = true;
-                    _settings.Glass = true; _settings.LiveGlass = false; _settings.Scene = "liquid"; _settings.LiteGraphics = false; _settings.ExpandOnHover = false;
-                    string Backs()
-                    {
-                        int shown = 0, all = 0;
-                        foreach (Window w in Application.Current.Windows)
-                            if (w.Title == "Atoll glass backdrop") { all++; if (IsWindowVisible(new WindowInteropHelper(w).Handle)) shown++; }
-                        return $"{all} backdrop window(s), {shown} visible";
-                    }
+                    Island.IsHitTestVisible = false; _settings.ExpandOnHover = false; _settings.LiteGraphics = false; NoClickOutside = true;
                     await Task.Delay(2500);
-                    _pinnedOpen = true; Expand(); await Task.Delay(120);   // still opening
-                    for (int n = 1; n <= 3; n++)
+                    var cover = LookBackdrop("colour");
+                    foreach (var id in new[] { "liquid", "clear", "liquid", "matte", "clear", "matte", "graphite", "clear", "graphite" })
                     {
-                        _settings.LiveGlass = true; ApplyGlass(); CaptureFrost(); await Task.Delay(900);
-                        Log.Write($"livetoggle: on #{n}, open: {Backs()}; " + LiveBackdropCheck());
-                        _pinnedOpen = false; SetMode(Mode.Compact); await Task.Delay(1500);
-                        Log.Write($"livetoggle: on #{n}, folded: {Backs()}; " + LiveBackdropCheck());
-                        _settings.LiveGlass = false; ApplyGlass(); CaptureFrost(); await Task.Delay(400);
-                        Log.Write($"livetoggle: off #{n}: {Backs()}");
-                        _pinnedOpen = true; Expand(); await Task.Delay(120);
+                        ApplyThemePreset(BuiltInThemes.First(t => t.Id == id));
+                        foreach (bool open in new[] { true, false })
+                        {
+                            _pinnedOpen = open;
+                            if (open) Expand(); else SetMode(Mode.Compact);
+                            await Task.Delay(2200);
+                            bool picture = FrostHost.Opacity > 0.5 && _frostCovers;
+                            double fill = IslandShape.Fill is LinearGradientBrush g ? g.GradientStops[2].Color.A / 255.0 : 1;
+                            bool ok = id == "clear" ? !picture && fill is > 0.1 and < 0.97 : picture;
+                            Log.Write($"themeswitch: {id} {(open ? "open" : "folded")}: picture={picture}, fill {fill:0.00}, lens={FrostLens.Effect != null} -> {(ok ? "ok" : "FAIL")}");
+                        }
                     }
+                    cover.Close();
                     Application.Current.Shutdown();
                     return;
                 }
@@ -2671,7 +2669,7 @@ public partial class MainWindow : Window
                     // the lens is a ps_3_0 shader, which RenderTargetBitmap (software) leaves out: the pictures are taken
                     // from the screen, the island visible to capture, over a window of test stripes ("cpu": Refract's look)
                     if (args.ElementAtOrDefault(r + 3) == "cpu") { _lensTried = true; _lens = null; ApplyLiquidBlur(); }
-                    _settings.CaptureHidden = false; _settings.LiveGlass = args.Contains("live"); ApplyCaptureExclusion(); ApplyGlass();
+                    _settings.CaptureHidden = false; ApplyCaptureExclusion(); ApplyGlass();
                     var stripes = TestBackdrop(moving: false);
                     void Shot(string name)
                     {
@@ -2687,7 +2685,6 @@ public partial class MainWindow : Window
                     if (_liquidPixels != null && _frostBmp != null)
                         CaptureService.SavePng(BitmapSource.Create(_frostBmp.PixelWidth, _frostBmp.PixelHeight, 96, 96, PixelFormats.Bgr32, null, _liquidPixels, _frostBmp.PixelWidth * 4),
                                                System.IO.Path.Combine(dir, "liquid-bent-backdrop.png"));
-                    if (_liveBackHwnd != IntPtr.Zero) Log.Write("liquidtest: " + LiveBackdropCheck());
                     Log.Write($"liquidtest: liquid={LiquidGlass} frost covers={_frostCovers} blur={(FrostBlur.Effect as System.Windows.Media.Effects.BlurEffect)?.Radius}, lens on the GPU={FrostLens.Effect != null}");
                     stripes.Close();
                     Application.Current.Shutdown();
@@ -2854,7 +2851,7 @@ public partial class MainWindow : Window
                     bool dragOnly = args.Contains("drag");   // only the drag phase (glassbench liquid drag)
                     ApplyThemePreset(BuiltInThemes.First(t => t.Id == (liquid ? "liquid" : "midnight")));
                     _settings.Glass = true; _settings.LiteGraphics = false;
-                    _settings.CaptureHidden = !mag; _settings.LiveGlass = args.Contains("live"); ApplyCaptureExclusion(); ApplyGlass();
+                    _settings.CaptureHidden = !mag; ApplyCaptureExclusion(); ApplyGlass();
                     var me = System.Diagnostics.Process.GetCurrentProcess();
                     async Task Phase(string name, int secs)
                     {
@@ -2870,7 +2867,6 @@ public partial class MainWindow : Window
                         Log.Write($"glassbench: {name}: " + TopCosts(_costs, (long)(wall / 1000 * System.Diagnostics.Stopwatch.Frequency), cpu / wall * 100 / Environment.ProcessorCount).Replace(Environment.NewLine, " | "));
                         string Frost(string n) => _costs.TryGetValue(n, out var c) ? $"{n} {c.Ticks * 1000.0 / System.Diagnostics.Stopwatch.Frequency / (wall / 1000):0.00} ms/s, avg {c.Ticks * 1000.0 / System.Diagnostics.Stopwatch.Frequency / c.Calls:0.00} ms, max {c.Max * 1000.0 / System.Diagnostics.Stopwatch.Frequency:0.0} ms" : n + " -";
                         Log.Write($"glassbench: {name}: UI thread: {Frost("frost")}; {Frost("frost grab")}; {Frost("frost show")}");
-                        if (_liveBackHwnd != IntPtr.Zero) Log.Write($"glassbench: {name}: " + LiveBackdropCheck());
                     }
                     await Task.Delay(dragOnly ? 5000 : 8000);
                     if (!dragOnly)
@@ -2908,13 +2904,10 @@ public partial class MainWindow : Window
                     {
                         var home = new Point(Left, Top);
                         int frames = 0, covered = 0;
-                        int apart = 0;   // live glass: how far the backdrop is from where it belongs under the island, at worst
                         EventHandler count = (_, _) =>
                         {
                             frames++;
-                            if (_frostCovers && (FrostHost.Opacity > 0.5 || _liveShown)) covered++;
-                            if (_liveShown && Native.GetWindowRect(_hwnd, out var a) && Native.GetWindowRect(_liveBackHwnd, out var b))
-                                apart = Math.Max(apart, Math.Max(Math.Abs(b.Left - a.Left - _liveBox.X), Math.Abs(b.Top - a.Top - _liveBox.Y)));
+                            if (_frostCovers && FrostHost.Opacity > 0.5) covered++;
                         };
                         ResetCosts(); _frostShownCount = 0; _frostGrabCount = 0; _frostGrabTicks = 0;
                         me.Refresh(); var c0 = me.TotalProcessorTime; var t0 = DateTime.Now;
@@ -2934,8 +2927,7 @@ public partial class MainWindow : Window
                         me.Refresh();
                         double wall = (DateTime.Now - t0).TotalMilliseconds, cpu = (me.TotalProcessorTime - c0).TotalMilliseconds;
                         Log.Write($"glassbench: {(liquid ? "liquid" : "plain")} drag at {speed} DIP/s: CPU {cpu / wall * 100 / Environment.ProcessorCount:0.00}% of the PC, grabs {_frostGrabCount / (wall / 1000):0.0}/s, " +
-                                  $"new pictures {_frostShownCount / (wall / 1000):0.0}/s, glass on in {covered * 100.0 / Math.Max(1, frames):0}% of {frames} frames" +
-                                  (_liveShown ? $", backdrop apart from the island by {apart} px at worst" : ""));
+                                  $"new pictures {_frostShownCount / (wall / 1000):0.0}/s, glass on in {covered * 100.0 / Math.Max(1, frames):0}% of {frames} frames");
                         _testCursor = null; _pressed = false; _dragging = false;
                         _px.Stiffness = _py.Stiffness = 560; _px.Damping = _py.Damping = 38;
                         MoveWindow(home.X, home.Y);
@@ -2953,9 +2945,9 @@ public partial class MainWindow : Window
                     Island.IsHitTestVisible = false; _settings.ExpandOnHover = false; NoClickOutside = true;
                     ApplyThemePreset(BuiltInThemes.First(t => t.Id == (args.FirstOrDefault(a => a.StartsWith("theme:"))?[6..] ?? "liquid")));
                     if (args.Contains("light")) { _settings.DarkTheme = false; ApplyTheme(); ApplyScene(); ApplyThemeLocal(); }
-                    _settings.LiteGraphics = false; _settings.LiveGlass = false; _settings.CaptureHidden = false;
+                    _settings.LiteGraphics = false; _settings.CaptureHidden = false;
                     if (args.Contains("solid")) _settings.Glass = false;   // what Transparency effects off leaves
-                    if (args.FirstOrDefault(a => a.StartsWith("tint:")) is { } lt) _settings.LiquidTint = int.Parse(lt[5..]);
+                    if (args.FirstOrDefault(a => a.StartsWith("tint:")) is { } lt) SceneTint = int.Parse(lt[5..]);
                     ApplyCaptureExclusion(); ApplyGlass();
                     async Task Look(string what)
                     {
@@ -4194,7 +4186,7 @@ public partial class MainWindow : Window
             }
         }
         // a menu of ours is open: pulling the island to the very top now would put it over that menu
-        if (!fs && !_dragging && _menusOpen == 0) { Native.KeepTopmost(_hwnd); PlaceLiveBackdrop(); }
+        if (!fs && !_dragging && _menusOpen == 0) { Native.KeepTopmost(_hwnd); }
     }
 
     // ================================================================ clock & eyes
@@ -4420,7 +4412,7 @@ public partial class MainWindow : Window
 
     private void ApplyThemeLocal()
     {
-        bool liquid = _settings.Scene == "liquid";
+        bool liquid = GlassScene;
         IslandShadow.Opacity = _settings.DarkTheme && !liquid ? 0.38 : 0.18;
         IslandShadow.BlurRadius = liquid ? 24 : 34;
         IslandShadow.ShadowDepth = liquid ? 8 : 6;

@@ -52,7 +52,7 @@ public partial class MainWindow
 
             // the scene inside the island
             var scenes = new WrapPanel { Margin = new Thickness(0, 0, 0, 8) };
-            foreach (var (id, name) in new[] { ("", L.T("Без сцены")), ("liquid", L.T("Жидкое стекло")), ("spring", L.T("Весна")), ("summer", L.T("Лето")), ("autumn", L.T("Осень")), ("winter", L.T("Зима")) })
+            foreach (var (id, name) in new[] { ("", L.T("Без сцены")), ("liquid", L.T("Жидкое стекло")), ("clear", L.T("Полупрозрачная")), ("matte", L.T("Матовая")), ("spring", L.T("Весна")), ("summer", L.T("Лето")), ("autumn", L.T("Осень")), ("winter", L.T("Зима")) })
             {
                 var chip = new RadioButton { Style = (Style)FindResource("Segment"), GroupName = "ThemeScene", Content = name, Tag = id, Margin = new Thickness(0, 0, 4, 4) };
                 chip.Checked += (_, _) => { if (!_themeEditorLoading) PreviewOwnTheme(); };
@@ -101,7 +101,7 @@ public partial class MainWindow
         _settings.IslandColor = island;
         _settings.AccentColor = accent;
         _settings.Scene = EditorScene;
-        if (_settings.Scene == "liquid") _settings.Glass = true;
+        if (GlassScene) _settings.Glass = true;
         _settings.ThemeId = "";
         _settings.Save();
         ApplyScene();
@@ -147,7 +147,7 @@ public partial class MainWindow
         name = new string(name.Where(c => !char.IsControl(c)).ToArray());
         if (name.Length is 0 or > 30 || !IsHex(p[2]) || !IsHex(p[3]) || p[1] is not ("0" or "1")) return null;
         var aura = Auras.Any(a => a.Id == p[4]) ? p[4] : "none";
-        var scene = Array.IndexOf(Views.SeasonView.Kinds, p[5]) >= 0 ? p[5] : "";
+        var scene = Array.IndexOf(Views.SeasonView.Kinds, p[5]) >= 0 || IsGlassScene(p[5]) ? p[5] : "";
         return new CustomTheme { Id = Guid.NewGuid().ToString("N")[..8], Name = name, Dark = p[1] == "1", Island = p[2], Accent = p[3], Aura = aura, Scene = scene };
     }
 

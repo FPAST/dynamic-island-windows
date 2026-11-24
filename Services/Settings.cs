@@ -77,8 +77,6 @@ public sealed class Settings
     public bool HandDrawn { get; set; }
     /// <summary>Frosted glass: the desktop behind the island, blurred, under a tint.</summary>
     public bool Glass { get; set; } = true;
-    /// <summary>Live glass (experiment): the compositor blurs a window under the island instead of screen grabs.</summary>
-    public bool LiveGlass { get; set; }
     public bool ShowCapsLock { get; set; } = true;
     /// <summary>Volume and screen brightness: a level beside the island while they change.</summary>
     public bool ShowLevels { get; set; } = true;
@@ -161,6 +159,9 @@ public sealed class Settings
     public int GlassTint { get; set; } = 72;
     /// <summary>Liquid glass: from clear (0) to nearly opaque (100). Its own value: GlassTint belongs to the other themes.</summary>
     public int LiquidTint { get; set; } = 50;
+    /// <summary>The same for the "Полупрозрачная" and "Матовая" themes.</summary>
+    public int ClearTint { get; set; } = 70;
+    public int MatteTint { get; set; } = 50;
     /// <summary>Lower half of the island fades to see-through.</summary>
     public bool BottomFade { get; set; } = true;
     /// <summary>Shimmering colour along the lower edge when idle: none, aurora, sunset, ocean, neon, mono.</summary>

@@ -48,7 +48,6 @@ public partial class MainWindow
 
     private void InitGlass()
     {
-        LocationChanged += (_, _) => PlaceLiveBackdrop();
         foreach (var _ in new int[3]) _frostFree.Enqueue(new FrostFrame());
         _showFrostFrame = ShowFrostFrame;
         _frostLoop = new Thread(FrostLoop) { IsBackground = true, Name = "Atoll glass loop", Priority = ThreadPriority.BelowNormal };
@@ -101,10 +100,14 @@ public partial class MainWindow
         if (photo) body = expanded ? 0.5 : 0.62;
         double bottom = _settings.BottomFade && overPicture ? body * (expanded ? 0.55 : 0.45) : body;
 
+        // your photo, where there is one, keeps its own tint
+        if (!photo && ClearGlass) { c = LiquidTintColor(c); body = bottom = ClearAlpha(); }
+        if (overPicture && !photo && MatteGlass) { c = LiquidTintColor(c); body = bottom = LiquidAlpha(); }
+        bool pane = !photo && (ClearGlass || overPicture && MatteGlass);
         // liquid glass: one even pane (only a docked one meets the screen edge solid), folded or open
         bool liquid = overPicture && !photo && LiquidGlass;
         if (liquid) { c = LiquidTintColor(c); body = bottom = LiquidAlpha(); }
-        if (liquid && !LiveGlassOn && FrostLens.Effect is Views.GlassEffect lens)
+        if (liquid && FrostLens.Effect is Views.GlassEffect lens)
         {
             // the lens tints its own picture, thinner along the rim so the bending shows; the fill only takes the mouse
             var to = Color.FromArgb((byte)Math.Round(body * 255), c.R, c.G, c.B);
@@ -114,7 +117,7 @@ public partial class MainWindow
 
         Color A(double a) => Color.FromArgb((byte)Math.Round(Math.Clamp(a, 0, 1) * 255), c.R, c.G, c.B);
         var fill = new LinearGradientBrush { StartPoint = new Point(0.5, 0), EndPoint = new Point(0.5, 1) };
-        fill.GradientStops.Add(new GradientStop(A(liquid && !_settings.Docked ? body : 1), 0));          // the top meets the screen edge: solid
+        fill.GradientStops.Add(new GradientStop(A((liquid || pane) && !_settings.Docked ? body : 1), 0));          // the top meets the screen edge: solid
         fill.GradientStops.Add(new GradientStop(A(body), 0.14));
         fill.GradientStops.Add(new GradientStop(A(body), 0.5));
         fill.GradientStops.Add(new GradientStop(A(bottom), 1));
@@ -180,7 +183,6 @@ public partial class MainWindow
         _excluded = hide;
         if (!Native.SetWindowDisplayAffinity(_hwnd, _excluded == true ? Native.WDA_EXCLUDEFROMCAPTURE : 0))
             Log.Write("display affinity: not supported");
-        if (_liveBackHwnd != IntPtr.Zero) Native.SetWindowDisplayAffinity(_liveBackHwnd, _excluded == true ? Native.WDA_EXCLUDEFROMCAPTURE : 0);
     }
 
     /// <summary>Snapshot of the screen behind the island (our own window isn't in it), blurred by the Image's effect.</summary>
@@ -203,16 +205,14 @@ public partial class MainWindow
     /// </summary>
     private void CaptureFrost()
     {
-        if (LiveGlassOn)   // the compositor's glass under the island: no grabs at all
+        if (ClearGlass)   // no picture: what is behind shows through the island itself
         {
-            bool show = !_hidden && !_fullscreenHidden && IsLoaded && Island.IsVisible;
             PauseFrost();
+            FrostHost.BeginAnimation(OpacityProperty, null);
             FrostHost.Opacity = 0;
-            ShowLiveBackdrop(show);
-            SetFrostCovers(show);
+            SetFrostCovers(false);
             return;
         }
-        ShowLiveBackdrop(false);
         if (!IslandGlass || Lite || !FrostCanGrab || _hidden || _fullscreenHidden || !IsLoaded || !Island.IsVisible) { PauseFrost(); if (Lite || !FrostCanGrab) FrostHost.Opacity = 0; SetFrostCovers(false); return; }
         // grabbing the screen makes Windows finish composing first: never while the size is changing
         if (_rendering && !(_w.IsSettled && _h.IsSettled)) { PauseFrost(); return; }
@@ -362,7 +362,7 @@ public partial class MainWindow
     /// </summary>
     private bool PrecaptureFrost(Size coming)
     {
-        if (LiveGlassOn) return _liveShown;
+        if (ClearGlass) return true;   // nothing to take: what is behind shows by itself
         if (!IslandGlass || Lite || !FrostCanGrab || _hidden || _fullscreenHidden || !IsLoaded || !Island.IsVisible || _dragging || _posActive) return false;
         double iw = Math.Max(coming.Width, Island.ActualWidth), ih = Math.Max(coming.Height, Island.ActualHeight);
         if (_frostCovers && iw / 2 + FrostMargin <= _frostHalf + 0.5 && ih + FrostMargin + DripRoom <= _frostHeight + 0.5) return true;   // already big enough
@@ -450,9 +450,9 @@ public partial class MainWindow
             for (int i = 0; i < px.Length; i += 16) sig = sig * 31 + px[i] + (px[i + 1] << 8) + (px[i + 2] << 16);
         }
         bool sizeChanged = _frostBmp == null || _frostBmp.PixelWidth != w || _frostBmp.PixelHeight != h;
-        if (!sizeChanged && sig == _frostSig && Math.Abs(half - _frostHalf) < 0.5 && Math.Abs(height - _frostHeight) < 0.5 && at == _layerAt[_frostFront])
+        if (!sizeChanged && sig == _frostSig && Math.Abs(half - _frostHalf) < 0.5 && Math.Abs(height - _frostHeight) < 0.5 && at == _layerAt[_frostFront] && FrostHost.Opacity > 0.5)
         {
-            if (FrostHost.Opacity > 0.5) SetFrostCovers(true);
+            SetFrostCovers(true);
             return true;   // nothing changed behind
         }
         _frostSig = sig;
@@ -558,7 +558,6 @@ public partial class MainWindow
         PhotoImage.Height = Math.Max(1, Island.Height);
         PlaceFrost(width, Island.Height);
         CaptureFrost();
-        LiveOutline(g);
         AuraHost.Clip = g;
         AuraFill.Width = width;
         AuraFill.Height = Island.Height + 12;
@@ -820,15 +819,13 @@ public partial class MainWindow
             else card.BorderBrush = Brushes.Transparent;
         }
         GlassSwitch.IsChecked = _settings.Glass;
-        LiveGlassSwitch.IsChecked = _settings.LiveGlass;
-        LiveGlassSwitch.Visibility = _settings.Glass ? Visibility.Visible : Visibility.Collapsed;
         TintRow.Visibility = _settings.Glass ? Visibility.Visible : Visibility.Collapsed;
-        bool liquid = _settings.Scene == "liquid";
+        bool liquid = GlassScene;
         if (liquid) TintRow.Visibility = Visibility.Collapsed;   // liquid glass has its own slider, and one even pane
         LiquidTintSlider.Visibility = liquid && _settings.Glass ? Visibility.Visible : Visibility.Collapsed;
         LiquidTintSlider.Label = L.T("Плотность стекла");
         LiquidTintSlider.Format = v => $"{v:0}%";
-        LiquidTintSlider.Value = _settings.LiquidTint;
+        LiquidTintSlider.Value = SceneTint;
         FadeSwitch.Visibility = liquid ? Visibility.Collapsed : Visibility.Visible;
         TintLabel.Text = $"{_settings.GlassTint}%";
         FadeSwitch.IsChecked = _settings.BottomFade;
@@ -857,21 +854,14 @@ public partial class MainWindow
         Remeasure();
     }
 
-    private void LiveGlass_Click(object sender, RoutedEventArgs e)
-    {
-        _settings.LiveGlass = LiveGlassSwitch.IsChecked == true;
-        _settings.Save();
-        ApplyGlass();
-    }
-
     private void TintMinus_Click(object sender, RoutedEventArgs e) => ChangeTint(-5);
     private void TintPlus_Click(object sender, RoutedEventArgs e) => ChangeTint(5);
 
     private void LiquidTint_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         int v = (int)Math.Round(e.NewValue);
-        if (_settingsLoading || !IsLoaded || v == _settings.LiquidTint) return;
-        _settings.LiquidTint = v;
+        if (_settingsLoading || !IsLoaded || v == SceneTint) return;
+        SceneTint = v;
         _settings.SaveSoon();
         UpdateGlassFill();
     }

@@ -17,6 +17,22 @@ namespace DynamicIsland;
 public partial class MainWindow
 {
     private bool LiquidGlass => _settings.Scene == "liquid" && _settings.Glass && !Lite;
+    /// <summary>"Полупрозрачная": no picture and no blur, the island itself is see-through (costs nothing, so with light graphics too).</summary>
+    private bool ClearGlass => _settings.Scene == "clear" && IslandGlass;
+    /// <summary>"Матовая": the strongly blurred picture under an even tint, no lens at the rim.</summary>
+    private bool MatteGlass => _settings.Scene == "matte" && IslandGlass && !Lite;
+    /// <summary>A theme whose island is one pane of glass, with panes inside and its own density slider.</summary>
+    private bool GlassScene => IsGlassScene(_settings.Scene);
+    private static bool IsGlassScene(string? scene) => scene is "liquid" or "clear" or "matte";
+
+    private int SceneTint
+    {
+        get => _settings.Scene switch { "clear" => _settings.ClearTint, "matte" => _settings.MatteTint, _ => _settings.LiquidTint };
+        set { if (_settings.Scene == "clear") _settings.ClearTint = value; else if (_settings.Scene == "matte") _settings.MatteTint = value; else _settings.LiquidTint = value; }
+    }
+
+    /// <summary>The see-through island's density: 0.15…0.95. There is no picture to measure, so it doesn't follow the backdrop.</summary>
+    private double ClearAlpha() => 0.15 + 0.8 * Math.Clamp(_settings.ClearTint, 0, 100) / 100.0;
 
     private byte[]? _liquidPixels;
 
@@ -47,7 +63,7 @@ public partial class MainWindow
     /// <summary>How bright the picture behind is (its 85th and 15th percentiles, 0…255). The tint follows it, in steps.</summary>
     private void MeasureBackdrop(byte[] px)
     {
-        if (!LiquidGlass) return;
+        if (!LiquidGlass && !MatteGlass) return;
         Span<int> bins = stackalloc int[32];
         int n = 0;
         for (int i = 0; i + 2 < px.Length; i += 64, n++) bins[(px[i + 2] * 54 + px[i + 1] * 183 + px[i] * 19) >> 11]++;
@@ -64,9 +80,8 @@ public partial class MainWindow
     /// </summary>
     private double LiquidNeed()
     {
-        bool live = LiveGlassOn;   // the compositor's glass: there is no picture to measure, so the worst is assumed
-        double easier = Math.Max(0, 50 - _settings.LiquidTint) / 50.0;   // the clear half of the slider asks for a little less
-        double v = _settings.DarkTheme ? (live ? 255 : _backdropHi) : live ? 0 : _backdropLo;
+        double easier = Math.Max(0, 50 - SceneTint) / 50.0;   // the clear half of the slider asks for a little less
+        double v = _settings.DarkTheme ? _backdropHi : _backdropLo;
         double limit = _settings.DarkTheme ? 84 + 24 * easier : 178 - 24 * easier;
         double need = _settings.DarkTheme ? (v - limit) / Math.Max(1, v - 22) : (limit - v) / Math.Max(1, 255 - v);
         return Math.Clamp(need, 0, 0.92);
@@ -75,8 +90,8 @@ public partial class MainWindow
     /// <summary>Clear to nearly opaque; the middle is white 0.14 (light) or near-black 0.32 (dark).</summary>
     private double LiquidAlpha()
     {
-        double s = Math.Clamp(_settings.LiquidTint, 0, 100) / 100.0;
-        double mid = _settings.DarkTheme ? 0.32 : 0.14, clear = _settings.DarkTheme ? 0.10 : 0.04;
+        double s = Math.Clamp(SceneTint, 0, 100) / 100.0;
+        double mid = MatteGlass ? 0.5 : _settings.DarkTheme ? 0.32 : 0.14, clear = _settings.DarkTheme ? 0.10 : 0.04;
         double own = s <= 0.5 ? clear + (mid - clear) * s * 2 : mid + (0.92 - mid) * (s - 0.5) * 2;
         _liquidNeed = LiquidNeed();
         return Math.Max(own, _liquidNeed);
@@ -94,7 +109,7 @@ public partial class MainWindow
         var r = System.Windows.Application.Current.Resources;
         r.Remove("CardBg");
         Season.Light = !_settings.DarkTheme;
-        if (_settings.Scene != "liquid") return;
+        if (!GlassScene) return;
         bool dark = _settings.DarkTheme;
         static SolidColorBrush Pane(double a, byte v = 255) { var b = new SolidColorBrush(Color.FromArgb((byte)(a * 255), v, v, v)); b.Freeze(); return b; }
         r["TileBg"] = dark ? Glass(0x18, 0x0C) : Glass(0x66, 0x40);

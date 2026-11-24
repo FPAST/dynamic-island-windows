@@ -337,7 +337,6 @@
  "Тон стекла": "Glastönung",
  "Прозрачный низ": "Transparenter unterer Teil",
  "Плотность стекла": "Glasdichte",
- "Живое стекло — плавно, без преломления по краю": "Lebendiges Glas: flüssig, ohne Lichtbrechung am Rand",
  "ПЕРЕЛИВАНИЕ В ПОКОЕ": "LEUCHTEN IM RUHEZUSTAND",
  "Пружинка": "Federeffekt",
  "Скорость анимации": "Animationstempo",
@@ -1141,5 +1140,7 @@
  "Песня, исполнитель или станция": "Titel, Künstler oder Sender",
  "Открываю…": "Wird geöffnet…",
  "Нажмите ♥ у станции, и она появится здесь": "Drücken Sie ♥ neben einem Sender, dann erscheint er hier",
- "Вся папка": "Ganzer Ordner"
+ "Вся папка": "Ganzer Ordner",
+ "Полупрозрачная": "Durchscheinend",
+ "Матовая": "Matt"
 }
