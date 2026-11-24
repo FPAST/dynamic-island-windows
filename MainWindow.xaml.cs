@@ -2919,6 +2919,45 @@ public partial class MainWindow : Window
                     Application.Current.Shutdown();
                     return;
                 }
+                if (action == "liquidlook")   // test (2.1): liquid glass over dark / white / colourful / text backdrops, pictures and the contrast of its text: liquidlook <dir> [light] [theme:id]
+                {
+                    Settings.ReadOnly = true;
+                    var dir = args.ElementAtOrDefault(r + 2) ?? System.IO.Path.GetTempPath();
+                    System.IO.Directory.CreateDirectory(dir);
+                    Island.IsHitTestVisible = false; _settings.ExpandOnHover = false; NoClickOutside = true;
+                    ApplyThemePreset(BuiltInThemes.First(t => t.Id == (args.FirstOrDefault(a => a.StartsWith("theme:"))?[6..] ?? "liquid")));
+                    if (args.Contains("light")) { _settings.DarkTheme = false; ApplyTheme(); ApplyScene(); ApplyThemeLocal(); }
+                    _settings.LiteGraphics = false; _settings.LiveGlass = false; _settings.CaptureHidden = false;
+                    ApplyCaptureExclusion(); ApplyGlass();
+                    async Task Look(string what)
+                    {
+                        var cover = LookBackdrop(what);
+                        foreach (var page in new[] { "folded", "timer", "home", "settings" })
+                        {
+                            if (page == "folded") { _pinnedOpen = false; SetMode(Mode.Compact); }
+                            else
+                            {
+                                if (page == "home") { HomeMissed.Clear(); for (int i = 0; i < 3; i++) HomeMissed.Add(new("", null, "Card " + i, "a message with some text in it", DateTime.Now, null)); }
+                                (page == "timer" ? TabTimer : page == "home" ? TabHome : TabSettings).IsChecked = true;
+                                _pinnedOpen = true; Expand();
+                            }
+                            await Task.Delay(1800);
+                            Native.SetWindowPos(_hwnd, new IntPtr(-1), 0, 0, 0, 0, 0x13);
+                            await Task.Delay(400);
+                            var tl = Island.PointToScreen(new Point(-16, 0));
+                            var br = Island.PointToScreen(new Point(Island.ActualWidth + 16, Island.ActualHeight + 16));
+                            var rect = new System.Drawing.Rectangle((int)tl.X, Math.Max(0, (int)tl.Y - 8), (int)(br.X - tl.X), (int)(br.Y - tl.Y) + 8);
+                            var px = CaptureService.CaptureSmall(rect, rect.Width, rect.Height, null)!;
+                            CaptureService.SavePng(BitmapSource.Create(rect.Width, rect.Height, 96, 96, PixelFormats.Bgr32, null, px, rect.Width * 4), System.IO.Path.Combine(dir, $"{what}-{page}.png"));
+                            Log.Write($"liquidlook: {what} {page}: {LookContrast(px, rect)}");
+                        }
+                        cover.Close();
+                    }
+                    await Task.Delay(3000);
+                    foreach (var what in new[] { "dark", "white", "colour", "text" }) await Look(what);
+                    Application.Current.Shutdown();
+                    return;
+                }
                 if (action == "perfreport")   // test: the smoothness report after a few openings
                 {
                     Settings.ReadOnly = true;
@@ -3406,6 +3445,73 @@ public partial class MainWindow : Window
 #endif
 
     private static bool PerfNoResize;
+
+#if DEBUG
+    /// <summary>Tests: a made-up page under the island: dark, white, colourful or dense text.</summary>
+    private Window LookBackdrop(string what)
+    {
+        Brush bg = what switch
+        {
+            "dark" => new SolidColorBrush(Color.FromRgb(0x10, 0x12, 0x18)),
+            "colour" => new LinearGradientBrush(new GradientStopCollection([new(Color.FromRgb(0xFF, 0x5A, 0x5F), 0), new(Color.FromRgb(0xFF, 0xB3, 0x40), .25), new(Color.FromRgb(0x4C, 0xD9, 0x64), .5), new(Color.FromRgb(0x2E, 0x9B, 0xFF), .75), new(Color.FromRgb(0xAF, 0x52, 0xDE), 1)]), new Point(0, 0), new Point(1, .6)),
+            _ => Brushes.White,
+        };
+        var lines = string.Join(Environment.NewLine, Enumerable.Range(0, 40).Select(i => string.Concat(Enumerable.Repeat($"The quick brown fox jumps over the lazy dog, number {i}. ", 4))));
+        var screen = System.Windows.Forms.Screen.FromHandle(_hwnd).Bounds;
+        var w = new Window
+        {
+            WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, ShowInTaskbar = false, ShowActivated = false, Topmost = true, Background = bg,
+            Left = screen.Left / Dpi + screen.Width / Dpi / 2 - 620, Top = screen.Top / Dpi, Width = 1240, Height = 760,
+            Content = what == "text" ? new TextBlock { Text = lines, FontSize = 15, Foreground = Brushes.Black, LineHeight = 20 } : null,
+        };
+        w.Show();
+        Native.SetWindowPos(_hwnd, new IntPtr(-1), 0, 0, 0, 0, 0x13);
+        return w;
+    }
+
+    /// <summary>
+    /// Tests: the contrast of every text on the island against what is really behind it on the screen (the median pixel
+    /// of its box: glyphs cover well under half of it).
+    /// </summary>
+    private string LookContrast(byte[] px, System.Drawing.Rectangle rect)
+    {
+        var found = new List<(double C, TextBlock T)>();
+        var island = new Rect(Island.PointToScreen(new Point(0, 0)), Island.PointToScreen(new Point(Island.ActualWidth, Island.ActualHeight)));
+        static double Lin(double v) { v /= 255; return v <= 0.04045 ? v / 12.92 : Math.Pow((v + 0.055) / 1.055, 2.4); }
+        static double Lum(double cr, double cg, double cb) => 0.2126 * Lin(cr) + 0.7152 * Lin(cg) + 0.0722 * Lin(cb);
+        void Walk(DependencyObject d, double opacity)
+        {
+            if (d is UIElement { IsVisible: false }) return;
+            if (d is UIElement u) opacity *= u.Opacity;
+            if (opacity < 0.85) return;
+            if (d is TextBlock { Foreground: SolidColorBrush fg } t && t.Text.Length > 2 && t.ActualWidth > 8)
+            {
+                var box = new Rect(t.PointToScreen(new Point(0, 0)), t.PointToScreen(new Point(t.ActualWidth, t.ActualHeight)));
+                var lum = new List<double>();
+                if (island.Contains(box))
+                    for (int y = (int)box.Top - rect.Top; y < (int)box.Bottom - rect.Top; y++)
+                        for (int x = (int)box.Left - rect.Left; x < (int)box.Right - rect.Left; x++)
+                        {
+                            int i = (y * rect.Width + x) * 4;
+                            if (x >= 0 && y >= 0 && x < rect.Width && i + 2 < px.Length) lum.Add(Lum(px[i + 2], px[i + 1], px[i]));
+                        }
+                if (lum.Count > 20)
+                {
+                    lum.Sort();
+                    double b = lum[lum.Count / 2], f = Lum(fg.Color.R, fg.Color.G, fg.Color.B), a = fg.Color.A / 255.0;
+                    f = f * a + b * (1 - a);
+                    found.Add(((Math.Max(f, b) + 0.05) / (Math.Min(f, b) + 0.05), t));
+                }
+            }
+            for (int i = 0; i < VisualTreeHelper.GetChildrenCount(d); i++) Walk(VisualTreeHelper.GetChild(d, i), opacity);
+        }
+        Walk(Island, 1);
+        if (found.Count == 0) return "no text";
+        found.Sort((a, b) => a.C.CompareTo(b.C));
+        string Worst(TextBlock t) => $"{((SolidColorBrush)t.Foreground).Color} {t.FontSize:0.#}px";
+        return $"{found.Count} texts, lowest {found[0].C:0.0} ({Worst(found[0].T)}), median {found[found.Count / 2].C:0.0}, under 4.5: {found.Count(f => f.C < 4.5)}, under 3: {found.Count(f => f.C < 3)}";
+    }
+#endif
 
     // Resizing a see-through window mid-animation costs a frame or two, so: it grows to full size in one
     // step (best before anything moves: when the cursor reaches the island), and shrinks back only once
