@@ -15,7 +15,7 @@ public static class MusicSources
     [
         (["spotify"], new("Spotify", "spotify:search:{0}")),
         (["cinhimbnkkghhklpknlkffjgod", "youtube music"], new("YouTube Music", "https://music.youtube.com/search?q={0}")),
-        (["yandex.music", "yandexmusic", "яндекс музыка", "yandex music"], new("Яндекс Музыка", "https://music.yandex.ru/search?text={0}")),
+        (["yandex.desktop.music", "yandex.music", "yandexmusic", "яндекс музыка", "yandex music"], new("Яндекс Музыка", "https://music.yandex.ru/search?text={0}")),
         (["applemusic", "apple music"], new("Apple Music", "https://music.apple.com/search?term={0}")),
         (["deezer"], new("Deezer", "https://www.deezer.com/search/{0}")),
         (["soundcloud"], new("SoundCloud", "https://soundcloud.com/search?q={0}")),

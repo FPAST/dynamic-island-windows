@@ -13,6 +13,7 @@ public class MusicSourcesTests
     [InlineData("Chrome", "Time is Running Out - YouTube - Google Chrome", "YouTube")]
     [InlineData("MSEdge", "Кукушка — Яндекс Музыка", "Яндекс Музыка")]
     [InlineData("Yandex.Music_abc!App", null, "Яндекс Музыка")]
+    [InlineData("ru.yandex.desktop.music", null, "Яндекс Музыка")]
     [InlineData("AppleInc.AppleMusicWin_nzyj5cx40ttqa!App", null, "Apple Music")]
     public void TheServiceIsFoundFromThePlayerOrThePageTitle(string appId, string? title, string service) =>
         Assert.Equal(service, MusicSources.Find(appId, title)?.Name);
