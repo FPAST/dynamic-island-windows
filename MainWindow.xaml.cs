@@ -2786,7 +2786,23 @@ public partial class MainWindow : Window
                     }
                     long WebMb() => (_musicWeb?.CoreWebView2?.Environment.GetProcessInfos().Sum(i => { try { using var p = System.Diagnostics.Process.GetProcessById(i.ProcessId); return p.PrivateMemorySize64; } catch { return 0L; } }) ?? 0) / 1048576;
                     void Say(string what) => Log.Write($"musicplayer: {what}: shown [{_lastMedia?.SourceApp}|{_lastMedia?.AppId}|{_lastMedia?.Title}|{_lastMedia?.Artist}|art {_lastMedia?.Art != null}] playing {_lastMedia?.IsPlaying} pos {_lastMedia?.CurrentPosition.TotalSeconds:0.0} of {_lastMedia?.Duration.TotalSeconds:0.0}, own player {_player.Playing} at {_player.Position.TotalSeconds:0.0}, web audio {_musicWeb?.CoreWebView2?.IsDocumentPlayingAudio}, lyrics {_currentLyrics?.Lines.Count ?? 0}, {Environment.WorkingSet / 1048576} MB + web {WebMb()} MB");
-                    await Task.Delay(_musicWeb != null ? 20000 : 9000); Say("started");
+                    await Task.Delay(_musicWeb != null ? 12000 : 9000); Say("started");
+                    if (_musicWeb?.CoreWebView2 is { } site)
+                    {
+                        if (!site.IsDocumentPlayingAudio)   // a key press in the page, as the user would: space plays
+                            foreach (var type in new[] { "keyDown", "keyUp" })
+                                await site.CallDevToolsProtocolMethodAsync("Input.dispatchKeyEvent", $$"""{"type":"{{type}}","key":" ","code":"Space","windowsVirtualKeyCode":32,"text":" "}""");
+                        await Task.Delay(7000); Say("space pressed");
+                        _media.Choose("msedgewebview2.exe"); await Task.Delay(1500); Say("followed");
+                        if (_media.Current?.AppId == "msedgewebview2.exe")
+                        {
+                            await _media.Seek(TimeSpan.FromSeconds(60)); await Task.Delay(2500); Say("seek to 60 s");
+                            RefreshVolume(); Log.Write("musicplayer: volume " + VolumeLabel.Text);
+                            await _media.TogglePlayPause(); await Task.Delay(1500); Say("paused");
+                            await _media.TogglePlayPause(); await Task.Delay(1500); Say("resumed");
+                            await _media.Next(); await Task.Delay(5000); Say("next");
+                        }
+                    }
                     _media.Choose("DynamicIsland.exe"); await Task.Delay(500);   // only Atoll's own player: the user's is left alone
                     if (_player.Open && Services.MediaService.IsOwn(_media.Current?.AppId ?? ""))
                     {
