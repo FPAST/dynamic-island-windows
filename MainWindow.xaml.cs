@@ -2756,6 +2756,36 @@ public partial class MainWindow : Window
                     Application.Current.Shutdown();
                     return;
                 }
+                if (action == "musicplayer")   // test: musicplayer <source> <query> [folder]: plays the first result / opens the site, logs what Windows sees
+                {
+                    Settings.ReadOnly = true;
+                    var id = args.ElementAtOrDefault(r + 2) ?? "radio";
+                    _settings.MusicPlayers = [id]; _settings.MusicSource = id; _settings.MusicFolder = args.ElementAtOrDefault(r + 4) ?? "";
+                    RefreshMusicSources();
+                    TabMusic.IsChecked = true; _pinnedOpen = true; Expand();
+                    MusicQuery.Text = args.ElementAtOrDefault(r + 3) ?? "";
+                    await SearchMusicAsync();
+                    Log.Write($"musicplayer: {id}: {MusicResults.Children.Count} results");
+                    if (MusicResults.Children.OfType<System.Windows.Controls.Button>().FirstOrDefault() is { } hit)
+                        hit.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+                    long WebMb() => (_musicWeb?.CoreWebView2?.Environment.GetProcessInfos().Sum(i => { try { using var p = System.Diagnostics.Process.GetProcessById(i.ProcessId); return p.PrivateMemorySize64; } catch { return 0L; } }) ?? 0) / 1048576;
+                    void Say(string what) => Log.Write($"musicplayer: {what}: shown [{_lastMedia?.SourceApp}|{_lastMedia?.AppId}|{_lastMedia?.Title}|{_lastMedia?.Artist}|art {_lastMedia?.Art != null}] playing {_lastMedia?.IsPlaying} pos {_lastMedia?.CurrentPosition.TotalSeconds:0.0} of {_lastMedia?.Duration.TotalSeconds:0.0}, own player {_player.Playing}, web audio {_musicWeb?.CoreWebView2?.IsDocumentPlayingAudio}, lyrics {_currentLyrics?.Lines.Count ?? 0}, {Environment.WorkingSet / 1048576} MB + web {WebMb()} MB");
+                    await Task.Delay(9000); Say("after 9 s");
+                    if (_player.Open)
+                    {
+                        RefreshVolume(); Log.Write("musicplayer: volume " + VolumeLabel.Text);
+                        await _media.TogglePlayPause(); await Task.Delay(1500); Say("paused");
+                        await _media.TogglePlayPause(); await Task.Delay(1500); Say("resumed");
+                        await _media.Next(); await Task.Delay(2500); Say("next");
+                        await _media.Seek(TimeSpan.FromSeconds(20)); await Task.Delay(1500); Say("seek to 20 s");
+                    }
+                    if (_musicWindow != null) { _musicWindow.WindowState = WindowState.Minimized; await Task.Delay(6000); Say("minimised"); }
+                    _player.Pause(); await Task.Delay(1500);
+                    _musicPlayedAt = DateTime.Now - TimeSpan.FromHours(1);
+                    ReleaseIdleMusic(); await Task.Delay(3000); Say($"released (window {_musicWindow != null}, player {_player.Open})");
+                    Application.Current.Shutdown();
+                    return;
+                }
                 if (action == "glassbench")   // test (2.1): what the glass costs and how often its picture changes: glassbench liquid|plain [mag]
                 {
                     Settings.ReadOnly = true;
@@ -3153,6 +3183,7 @@ public partial class MainWindow : Window
         Native.RemoveClipboardFormatListener(_hwnd);
         _sideToast?.Close();
         ShutdownChat();
+        ShutdownMusicPlayer();
         _settings.Save();
         MagCapture.MarkClean();   // a normal exit: Windows did not take us down inside the magnifier
         StartupGuard.Done();

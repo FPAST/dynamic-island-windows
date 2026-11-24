@@ -1125,5 +1125,19 @@
  "Это сочетание уже открывает командную строку — выберите другое.": "Este atajo ya abre la barra de comandos: elija otro.",
  "Это сочетание уже открывает остров — выберите другое.": "Este atajo ya abre la isla: elija otro.",
  "Alt+Space занят другой программой — работает Ctrl+Alt+Space.": "Otro programa usa Alt+Espacio: funciona Ctrl+Alt+Espacio.",
- "Снимок сохранён, но не скопирован: буфер обмена занят": "Captura guardada pero no copiada: el portapapeles está ocupado"
+ "Снимок сохранён, но не скопирован: буфер обмена занят": "Captura guardada pero no copiada: el portapapeles está ocupado",
+ "Радио": "Radio",
+ "Свои файлы": "Mis archivos",
+ "Не удалось включить": "No se pudo reproducir",
+ "Попробуйте другую станцию или файл": "Pruebe otra emisora u otro archivo",
+ "Ищу станции…": "Buscando emisoras…",
+ "Выберите папку с музыкой": "Elija la carpeta de música",
+ "Поиск не удался": "La búsqueda ha fallado",
+ "Радио: слов нет": "Radio: sin letra",
+ "Слушать прямо в Atoll…": "Escuchar en Atoll…",
+ "Выбрать сервисы, радио или свои файлы": "Elija servicios, radio o sus archivos",
+ "Остановить и закрыть плеер": "Detener y cerrar el reproductor",
+ "Найти или открыть": "Buscar o abrir",
+ "СЛУШАТЬ ПРЯМО В ATOLL": "ESCUCHAR EN ATOLL",
+ "Сервисы открываются своими сайтами в отдельном окне: войдите в нём сами, окно можно свернуть. Браузеру нужно 350–800 МБ памяти; через 5 минут без музыки он закрывается.": "Los servicios se abren como sus propios sitios en una ventana aparte: inicie sesión allí usted mismo; la ventana se puede minimizar. El navegador necesita 350–800 MB de memoria; tras 5 minutos sin música se cierra."
 }

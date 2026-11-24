@@ -355,9 +355,25 @@ public sealed class MediaService
         try { if (_session != null) await _session.TryChangePlaybackPositionAsync(position.Ticks); } catch (Exception ex) { Log.Write("media: seek: " + ex.GetType().Name + ": " + ex.Message); }
     }
 
+    /// <summary>The service open in Atoll's own player window: Windows only sees "msedgewebview2.exe".</summary>
+    public static string WebPlayerName { get; set; } = "";
+
+    /// <summary>Pause this app's session, whichever one the island shows.</summary>
+    public async Task Pause(string appId)
+    {
+        try
+        {
+            foreach (var s in _manager?.GetSessions() ?? [])
+                if (s.SourceAppUserModelId == appId) await s.TryPauseAsync();
+        }
+        catch (Exception ex) { Log.Write("media: pause: " + ex.GetType().Name + ": " + ex.Message); }
+    }
+
     private static string PrettyAppName(string aumid)
     {
         if (string.IsNullOrEmpty(aumid)) return "";
+        if (aumid.StartsWith("msedgewebview2", StringComparison.OrdinalIgnoreCase) && WebPlayerName.Length > 0) return WebPlayerName;
+        if (aumid.Contains("DynamicIsland", StringComparison.OrdinalIgnoreCase)) return "Atoll";
         // installed web apps: "Chrome._crx_<id>", "MSEdge._crx_<id>"
         var crx = aumid.IndexOf("._crx_", StringComparison.OrdinalIgnoreCase);
         if (crx > 0) return (aumid[..crx].Equals("MSEdge", StringComparison.OrdinalIgnoreCase) ? "Edge" : aumid[..crx]) + L.T(" · веб-приложение");

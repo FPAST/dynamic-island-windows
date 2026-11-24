@@ -249,6 +249,11 @@ public sealed class Settings
     public bool RecordSystemAudio { get; set; } = true;
     public bool RecordMicrophone { get; set; } = true;
 
+    /// <summary>Music sources that are on (see MusicPlayers): none until the user picks.</summary>
+    public List<string> MusicPlayers { get; set; } = [];
+    public string MusicSource { get; set; } = "";
+    public string MusicFolder { get; set; } = "";
+
     // chat
     public string ChatProvider { get; set; } = "gemini";
     /// <summary>When a real event last came from Claude Code's / Codex's hook (null = never since the hooks were set up).</summary>

@@ -126,7 +126,7 @@ public partial class MainWindow
         {
             _settings.LikedTracks.Insert(0, key);
             // where it plays, to open it there again (a browser: the page title names the site)
-            var source = MusicSources.Find(m.AppId) ?? (PlaybackClock.SourceLeadMs(m.AppId) > 0 ? MusicSources.Find("", MusicSources.BrowserTitleWith(m.Title)) : null);
+            var source = MusicSources.Find(m.AppId) ?? MusicSources.Named(m.SourceApp) ?? (PlaybackClock.SourceLeadMs(m.AppId) > 0 ? MusicSources.Find("", MusicSources.BrowserTitleWith(m.Title)) : null);
             if (source != null) _settings.LikedFrom[key] = source.Name;
             if (_settings.LikedTracks.Count > 500) { _settings.LikedFrom.Remove(_settings.LikedTracks[^1]); _settings.LikedTracks.RemoveAt(_settings.LikedTracks.Count - 1); }
             ShowToast("", L.T("Добавлено в избранное"), key, null, new SolidColorBrush(Color.FromRgb(0xFF, 0x5C, 0x8A)));

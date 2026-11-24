@@ -1125,5 +1125,19 @@
  "Это сочетание уже открывает командную строку — выберите другое.": "This shortcut already opens the command bar — pick another one.",
  "Это сочетание уже открывает остров — выберите другое.": "This shortcut already opens the island — pick another one.",
  "Alt+Space занят другой программой — работает Ctrl+Alt+Space.": "Another program holds Alt+Space — Ctrl+Alt+Space works.",
- "Снимок сохранён, но не скопирован: буфер обмена занят": "Screenshot saved but not copied: the clipboard is busy"
+ "Снимок сохранён, но не скопирован: буфер обмена занят": "Screenshot saved but not copied: the clipboard is busy",
+ "Радио": "Radio",
+ "Свои файлы": "My files",
+ "Не удалось включить": "Couldn't play",
+ "Попробуйте другую станцию или файл": "Try another station or file",
+ "Ищу станции…": "Looking for stations…",
+ "Выберите папку с музыкой": "Choose your music folder",
+ "Поиск не удался": "Search failed",
+ "Радио: слов нет": "Radio: no lyrics",
+ "Слушать прямо в Atoll…": "Listen right in Atoll…",
+ "Выбрать сервисы, радио или свои файлы": "Choose services, radio or your own files",
+ "Остановить и закрыть плеер": "Stop and close the player",
+ "Найти или открыть": "Find or open",
+ "СЛУШАТЬ ПРЯМО В ATOLL": "LISTEN RIGHT IN ATOLL",
+ "Сервисы открываются своими сайтами в отдельном окне: войдите в нём сами, окно можно свернуть. Браузеру нужно 350–800 МБ памяти; через 5 минут без музыки он закрывается.": "Services open as their own sites in a separate window: sign in there yourself; the window can be minimised. The browser needs 350–800 MB of memory; after 5 minutes without music it closes."
 }

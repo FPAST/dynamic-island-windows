@@ -375,6 +375,10 @@
 
             <!-- ======== MUSIC ======== -->
             <Grid x:Name="MusicPage" Width="640" Visibility="Collapsed">
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+              </Grid.RowDefinitions>
               <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="214"/>
@@ -475,6 +479,27 @@
                   </StackPanel>
                 </Grid>
               </Border>
+
+              <!-- music played by Atoll itself -->
+              <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Margin="0,10,0,0">
+                <Button x:Name="MusicPlayerHint" Style="{StaticResource GhostPill}" Content="Слушать прямо в Atoll…" HorizontalAlignment="Left"
+                        ToolTip="Выбрать сервисы, радио или свои файлы" Click="MusicHint_Click"/>
+                <StackPanel x:Name="MusicPlayerRow" Visibility="Collapsed">
+                  <DockPanel>
+                    <ComboBox x:Name="MusicSourceBox" Style="{StaticResource SoftCombo}" Width="170" SelectionChanged="MusicSource_Changed"/>
+                    <Button x:Name="MusicStopButton" DockPanel.Dock="Right" Style="{StaticResource IconButton}" Content="&#xE71A;" FontSize="13" Width="30" Height="30"
+                            Margin="6,0,0,0" ToolTip="Остановить и закрыть плеер" Click="MusicStop_Click" Visibility="Collapsed"/>
+                    <Button x:Name="MusicFolderButton" DockPanel.Dock="Right" Style="{StaticResource IconButton}" Content="&#xE8B7;" FontSize="13" Width="30" Height="30"
+                            Margin="6,0,0,0" ToolTip="Выберите папку с музыкой" Click="MusicFolder_Click" Visibility="Collapsed"/>
+                    <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}" Content="&#xE721;" FontSize="13" Width="30" Height="30"
+                            Margin="6,0,0,0" ToolTip="Найти или открыть" Click="MusicSearch_Click"/>
+                    <TextBox x:Name="MusicQuery" Style="{StaticResource SoftBox}" Height="30" Margin="8,0,0,0" KeyDown="MusicQuery_KeyDown"/>
+                  </DockPanel>
+                  <ScrollViewer x:Name="MusicResultsScroll" VerticalScrollBarVisibility="Auto" MaxHeight="150" Margin="0,8,0,0" Visibility="Collapsed">
+                    <StackPanel x:Name="MusicResults"/>
+                  </ScrollViewer>
+                </StackPanel>
+              </StackPanel>
             </Grid>
 
             <!-- ======== WEATHER ======== -->
@@ -1333,6 +1358,16 @@
                       <Border/>
                     </DockPanel>
                     <TextBlock x:Name="CodexHooksStatus" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,8,0,0"/>
+                  </StackPanel>
+                </Border>
+                  </StackPanel>
+                  <StackPanel x:Name="MusicSettingsSection" Tag="Музыка|&#xE8D6;" Visibility="Collapsed">
+                <Border Style="{StaticResource Tile}">
+                  <StackPanel>
+                    <TextBlock Style="{StaticResource Caption}" Text="СЛУШАТЬ ПРЯМО В ATOLL"/>
+                    <StackPanel x:Name="MusicPlayersPanel" Margin="0,8,0,0"/>
+                    <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" FontSize="11" Margin="0,8,0,0"
+                               Text="Сервисы открываются своими сайтами в отдельном окне: войдите в нём сами, окно можно свернуть. Браузеру нужно 350–800 МБ памяти; через 5 минут без музыки он закрывается."/>
                   </StackPanel>
                 </Border>
                   </StackPanel>
