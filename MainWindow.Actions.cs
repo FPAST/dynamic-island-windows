@@ -183,12 +183,18 @@ public partial class MainWindow
         if (img != null) ShotTaken(img);
     }
 
+    private async Task HideForShot()
+    {
+        if (_mode != Mode.Compact) SetMode(Mode.Compact);
+        Root.BeginAnimation(OpacityProperty, null);   // a fade that has ended would hold it visible
+        Root.Opacity = 0;
+        await Task.Delay(160);
+    }
+
     private async Task FullScreenshotAsync()
     {
         bool game = FullscreenInFront;
-        if (_mode != Mode.Compact) SetMode(Mode.Compact);
-        Root.Opacity = 0;
-        await Task.Delay(160);
+        await HideForShot();
         BitmapSource img;
         try { img = CaptureService.CaptureMonitorUnderCursor(); }
         finally { if (!_fullscreenHidden) Root.Opacity = 1; }

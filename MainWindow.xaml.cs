@@ -675,6 +675,65 @@ public partial class MainWindow : Window
                     Log.Write("yieldtest: over the desktop, flew in: " + St());
                     _fakeCursor = new Native.POINT { X = -20000, Y = -20000 }; await Task.Delay(400);
 
+                    // put away, opened or a notice shown while it makes way: never left see-through or letting clicks through
+                    _testWindowUnder = true;
+                    string Clear(string what) => $"yieldtest: {what}: {St()}, mode {_mode} -> {(!Through() && Root.Opacity > 0.95 && !_yield.Yielding ? "ok" : "FAIL")}";
+                    async Task MakeWay()
+                    {
+                        _fakeCursor = new Native.POINT { X = (int)far.X, Y = (int)far.Y }; await Task.Delay(400);
+                        await Fly(far, c, 4); await Task.Delay(220);
+                        if (!_yield.Yielding) Log.Write("yieldtest: FAIL: it did not make way before this step");
+                    }
+                    await MakeWay(); HideIsland(animate: true); await Task.Delay(1500);
+                    Log.Write(Clear("hidden while making way"));
+                    _fakeCursor = new Native.POINT { X = (int)far.X, Y = (int)far.Y };
+                    ShowIsland(); await Task.Delay(1500);
+                    Log.Write(Clear("shown again"));
+                    await MakeWay(); Expand(); await Task.Delay(900);
+                    Log.Write(Clear("opened while making way"));
+                    SetMode(Mode.Compact); await Task.Delay(1200);
+                    await MakeWay(); ShowToast("\uE916", "Test", "test", null, ms: 1500); await Task.Delay(700);
+                    Log.Write(Clear("a notice while making way"));
+                    await Task.Delay(1800); if (_mode != Mode.Compact) SetMode(Mode.Compact); await Task.Delay(1200);
+                    await MakeWay(); _settings.YieldToCursor = false; await Task.Delay(500);
+                    Log.Write(Clear("switched off while making way"));
+                    _settings.YieldToCursor = true;
+                    _fakeCursor = new Native.POINT { X = (int)far.X, Y = (int)far.Y }; await Task.Delay(500);
+                    // a screenshot hides it by Root's opacity: an animation that ended must not hold it visible
+                    await HideForShot(); Log.Write($"yieldtest: hidden for a full screenshot after making way once: opacity {Root.Opacity:0.00} -> {(Root.Opacity < 0.05 ? "ok" : "FAIL")}"); Root.BeginAnimation(OpacityProperty, null); Root.Opacity = 1;
+
+                    // every size of the island: its own edge counts
+                    int size = _settings.IslandScale;
+                    foreach (int pc in new[] { 80, 100, 130 })
+                    {
+                        _settings.IslandScale = pc; ApplyIslandScale(); await Task.Delay(1500);
+                        var br = Island.PointToScreen(new Point(Island.ActualWidth, Island.ActualHeight / 2));
+                        foreach (int off in new[] { -5, 15 })
+                        {
+                            var q = new Point(br.X + off, br.Y);
+                            var away = new Point(q.X, q.Y + 500);
+                            _fakeCursor = new Native.POINT { X = (int)away.X, Y = (int)away.Y }; await Task.Delay(400);
+                            await Fly(away, q, 4); await Task.Delay(200);
+                            Log.Write($"yieldtest: size {pc}%, {Math.Abs(off)} px {(off < 0 ? "inside" : "outside")} the right edge: yielding={_yield.Yielding} -> {(_yield.Yielding == off < 0 ? "ok" : "FAIL")}");
+                        }
+                    }
+                    _fakeCursor = new Native.POINT { X = -20000, Y = -20000 };
+                    _settings.IslandScale = size; ApplyIslandScale(); await Task.Delay(1500);
+                    _testWindowUnder = false;
+
+                    // put away at a program's place: the usual place stays the usual one; back at the place of whoever is in front
+                    _settings.PlacePerApp = true; _testFrontApps = true;
+                    double home0 = Left + Width / 2;
+                    _settings.CenterX = home0; _settings.Top = Top;
+                    _settings.AppPlaces["telegram"] = [home0 - 300, Top];
+                    OnFrontApp("telegram"); await Task.Delay(1500);
+                    HideIsland(animate: true); await Task.Delay(1200);
+                    Log.Write($"yieldtest: hidden at a program's place: the usual place moved by {_settings.CenterX - home0:+0;-0;0} px -> {(Math.Abs(_settings.CenterX!.Value - home0) < 2 ? "ok" : "FAIL")}");
+                    OnFrontApp("chrome"); ShowIsland(); await Task.Delay(1800);
+                    Log.Write($"yieldtest: shown with another program in front: centre {Left + Width / 2 - home0:+0;-0;0} px from usual -> {(Math.Abs(Left + Width / 2 - home0) < 3 ? "ok" : "FAIL")}");
+                    _settings.AppPlaces.Remove("telegram");
+                    OnFrontApp(null); await Task.Delay(1500);
+
                     // a place for each program
                     _settings.PlacePerApp = true; _testFrontApps = true;
                     double usual = Left + Width / 2;
@@ -3764,11 +3823,15 @@ public partial class MainWindow : Window
         if (_hidden && animate) return;
         if (_mode != Mode.Compact && _mode != Mode.Claude) SetMode(Mode.Compact);
         _hidden = true;
+        if (_yield.Reset()) StopYield(reopen: false);   // the gaze loop rests while hidden: the handle would stay see-through
         UpdateAuraVisibility();
         _posActive = false;
         _settings.Hidden = true;
-        if (Top > SystemParameters.VirtualScreenTop + 1) _settings.Top = Top; // remember where it was
-        _settings.CenterX = Left + Width / 2;
+        if (_placeOwner == null)   // at a program's place: that one is kept already, the usual one stays
+        {
+            if (Top > SystemParameters.VirtualScreenTop + 1) _settings.Top = Top; // remember where it was
+            _settings.CenterX = Left + Width / 2;
+        }
         _settings.Save();
 
         void Finish()
@@ -3803,7 +3866,13 @@ public partial class MainWindow : Window
         _settings.Save();
 
         Handle.Visibility = Visibility.Collapsed;
-        MoveWindow(Left, _settings.Top ?? MonitorTop());
+        if (_settings.PlacePerApp)   // another program may have come to the front meanwhile
+        {
+            _placeOwner = _frontApp != null && _settings.AppPlaces.ContainsKey(_frontApp) ? _frontApp : null;
+            var (cx, top) = PlaceOf(_placeOwner);
+            MoveWindow(cx - Width / 2, top);
+        }
+        else MoveWindow(Left, _settings.Top ?? MonitorTop());
         ClampPosition();
         Island.Visibility = Visibility.Visible;
         _y.Snap(-(Island.ActualHeight + IslandTopMargin + 30));

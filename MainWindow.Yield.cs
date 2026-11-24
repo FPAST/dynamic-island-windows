@@ -39,7 +39,8 @@ public partial class MainWindow
         try
         {
             var tl = Island.PointToScreen(new Point(0, 0));
-            island = new Rect(tl.X, tl.Y, Island.ActualWidth * Dpi, Island.ActualHeight * Dpi);
+            // both corners from the screen: the island's own size setting (80–130 %) counts too
+            island = new Rect(tl, Island.PointToScreen(new Point(Island.ActualWidth, Island.ActualHeight)));
             island.Inflate(4, 4);
         }
         catch (InvalidOperationException) { return; }
