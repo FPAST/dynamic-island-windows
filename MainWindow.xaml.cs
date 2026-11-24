@@ -200,6 +200,32 @@ public partial class MainWindow : Window
             {
                 await Task.Delay(1500);
                 if (action.StartsWith("lang:")) { SwitchLanguage(action[5..]); return; }   // test the language switch
+                if (action == "livetoggle")   // test: live glass switched on and off while the island moves: one backdrop window, gone when off, following the island
+                {
+                    Settings.ReadOnly = true;
+                    _settings.Glass = true; _settings.LiveGlass = false; _settings.Scene = "liquid"; _settings.LiteGraphics = false; _settings.ExpandOnHover = false;
+                    string Backs()
+                    {
+                        int shown = 0, all = 0;
+                        foreach (Window w in Application.Current.Windows)
+                            if (w.Title == "Atoll glass backdrop") { all++; if (IsWindowVisible(new WindowInteropHelper(w).Handle)) shown++; }
+                        return $"{all} backdrop window(s), {shown} visible";
+                    }
+                    await Task.Delay(2500);
+                    _pinnedOpen = true; Expand(); await Task.Delay(120);   // still opening
+                    for (int n = 1; n <= 3; n++)
+                    {
+                        _settings.LiveGlass = true; ApplyGlass(); CaptureFrost(); await Task.Delay(900);
+                        Log.Write($"livetoggle: on #{n}, open: {Backs()}; " + LiveBackdropCheck());
+                        _pinnedOpen = false; SetMode(Mode.Compact); await Task.Delay(1500);
+                        Log.Write($"livetoggle: on #{n}, folded: {Backs()}; " + LiveBackdropCheck());
+                        _settings.LiveGlass = false; ApplyGlass(); CaptureFrost(); await Task.Delay(400);
+                        Log.Write($"livetoggle: off #{n}: {Backs()}");
+                        _pinnedOpen = true; Expand(); await Task.Delay(120);
+                    }
+                    Application.Current.Shutdown();
+                    return;
+                }
                 if (action == "glass")   // test: is the island opaque while the frosted picture doesn't fit it?
                 {
                     Settings.ReadOnly = true;

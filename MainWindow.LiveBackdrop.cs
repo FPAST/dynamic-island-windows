@@ -64,8 +64,10 @@ public partial class MainWindow
             if (!HostBackdrop(h)) LiveGlass.Blur(h, true);
             Native.SetWindowDisplayAffinity(h, _excluded == true ? Native.WDA_EXCLUDEFROMCAPTURE : 0);
         };
-        w.Show();   // off screen until the outline places it
+        // remembered before it is shown: Show and the compositor's start let messages through, and an island in motion
+        // asked for a backdrop again on each of them (33 windows from one switch-on, 25 left on the screen after off)
         _liveBack = w;
+        w.Show();   // off screen until the outline places it
         _liveBackHwnd = new WindowInteropHelper(w).Handle;
         ShowWindow(_liveBackHwnd, 0);
     }
@@ -113,10 +115,12 @@ public partial class MainWindow
         for (int i = 0; !changed && i < rgn.Length; i++) changed = rgn[i].X != _liveRgn[i].X || rgn[i].Y != _liveRgn[i].Y;
         bool moved = !box.Equals(_liveBox);
         _liveBox = box;
+        if (changed)   // the shape first: never shown as a whole rectangle
+        {
+            _liveRgn = rgn;
+            SetWindowRgn(_liveBackHwnd, CreatePolygonRgn(rgn, rgn.Length, 2), true);   // WINDING; the system owns the region from here
+        }
         if (moved || changed) PlaceLiveBackdrop();
-        if (!changed) return;
-        _liveRgn = rgn;
-        SetWindowRgn(_liveBackHwnd, CreatePolygonRgn(rgn, rgn.Length, 2), true);   // WINDING; the system owns the region from here
     }
 
     [DllImport("user32.dll")] private static extern int GetWindowRgnBox(IntPtr h, out Native.RECT r);
