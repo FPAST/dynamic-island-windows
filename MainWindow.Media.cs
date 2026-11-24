@@ -127,7 +127,7 @@ public partial class MainWindow
             _lyricIndex = int.MinValue;
             ShowLyrics(false, hasTrack ? L.T("Ищу слова…") : L.T("Здесь появятся слова песни"));
             if (_demoMedia != null) { _currentLyrics = DemoLyrics; _lyricsLoaded = key; ShowLyrics(true, ""); }
-            else if (hasTrack && _player.Radio && m!.SourceApp == "Atoll") ShowLyrics(false, L.T("Радио: слов нет"));
+            else if (hasTrack && _player.Radio && MediaService.IsOwn(m!.AppId)) ShowLyrics(false, L.T("Радио: слов нет"));
             else if (hasTrack) _ = LoadLyricsAsync(m!, key);
             if (_mode == Mode.Expanded && TabMusic.IsChecked == true) RefreshVolume();
         }

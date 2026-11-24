@@ -32,6 +32,7 @@ public partial class MainWindow
     private void InitMusicPlayer()
     {
         _player.Failed += () => Dispatcher.BeginInvoke(MusicFailed);
+        _media.OwnSeek = _player.Seek;
         _musicIdleTimer.Tick += (_, _) => ReleaseIdleMusic();
         foreach (var p in MusicPlayers.All)
         {
@@ -290,7 +291,7 @@ public partial class MainWindow
     /// <summary>Nothing has played for five minutes: free the memory. A site the user is looking at stays.</summary>
     private void ReleaseIdleMusic()
     {
-        if (_player.Playing || _musicWeb?.CoreWebView2?.IsDocumentPlayingAudio == true || _musicWindow is { IsActive: true })
+        if (_player.Playing || _musicWeb?.CoreWebView2?.IsDocumentPlayingAudio == true || _musicWindow is { IsActive: true, WindowState: not WindowState.Minimized })
         {
             _musicPlayedAt = DateTime.Now;
             return;

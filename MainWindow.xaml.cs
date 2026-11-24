@@ -2764,14 +2764,31 @@ public partial class MainWindow : Window
                     RefreshMusicSources();
                     TabMusic.IsChecked = true; _pinnedOpen = true; Expand();
                     MusicQuery.Text = args.ElementAtOrDefault(r + 3) ?? "";
-                    await SearchMusicAsync();
+                    if (MusicQuery.Text.StartsWith("https://") && ChosenMusicSource is { } site) await OpenMusicSiteAsync(site, MusicQuery.Text); else await SearchMusicAsync();
                     Log.Write($"musicplayer: {id}: {MusicResults.Children.Count} results");
-                    if (MusicResults.Children.OfType<System.Windows.Controls.Button>().FirstOrDefault() is { } hit)
+                    if (!args.Contains("picture") && MusicResults.Children.OfType<System.Windows.Controls.Button>().FirstOrDefault() is { } hit)
                         hit.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+                    if (args.Contains("picture"))   // only the Music page and its settings section, never a whole window
+                    {
+                        void Shot(FrameworkElement el, string name)
+                        {
+                            var bmp = new RenderTargetBitmap((int)el.ActualWidth + 1, (int)el.ActualHeight + 1, 96, 96, PixelFormats.Pbgra32);
+                            var dv = new DrawingVisual();
+                            using (var dc = dv.RenderOpen()) { var rc = new Rect(0, 0, el.ActualWidth, el.ActualHeight); dc.DrawRectangle(Brushes.Black, null, rc); dc.DrawRectangle(new VisualBrush(el), null, rc); }
+                            bmp.Render(dv);
+                            var png = new PngBitmapEncoder(); png.Frames.Add(BitmapFrame.Create(bmp));
+                            using var fs = System.IO.File.Create(System.IO.Path.Combine(System.IO.Path.GetTempPath(), name)); png.Save(fs);
+                        }
+                        await Task.Delay(2500); Shot(MusicPage, "atoll-music.png");
+                        MusicHint_Click(this, new RoutedEventArgs()); await Task.Delay(1500); Shot(MusicSettingsSection, "atoll-music-settings.png");
+                        Application.Current.Shutdown();
+                        return;
+                    }
                     long WebMb() => (_musicWeb?.CoreWebView2?.Environment.GetProcessInfos().Sum(i => { try { using var p = System.Diagnostics.Process.GetProcessById(i.ProcessId); return p.PrivateMemorySize64; } catch { return 0L; } }) ?? 0) / 1048576;
-                    void Say(string what) => Log.Write($"musicplayer: {what}: shown [{_lastMedia?.SourceApp}|{_lastMedia?.AppId}|{_lastMedia?.Title}|{_lastMedia?.Artist}|art {_lastMedia?.Art != null}] playing {_lastMedia?.IsPlaying} pos {_lastMedia?.CurrentPosition.TotalSeconds:0.0} of {_lastMedia?.Duration.TotalSeconds:0.0}, own player {_player.Playing}, web audio {_musicWeb?.CoreWebView2?.IsDocumentPlayingAudio}, lyrics {_currentLyrics?.Lines.Count ?? 0}, {Environment.WorkingSet / 1048576} MB + web {WebMb()} MB");
-                    await Task.Delay(9000); Say("after 9 s");
-                    if (_player.Open)
+                    void Say(string what) => Log.Write($"musicplayer: {what}: shown [{_lastMedia?.SourceApp}|{_lastMedia?.AppId}|{_lastMedia?.Title}|{_lastMedia?.Artist}|art {_lastMedia?.Art != null}] playing {_lastMedia?.IsPlaying} pos {_lastMedia?.CurrentPosition.TotalSeconds:0.0} of {_lastMedia?.Duration.TotalSeconds:0.0}, own player {_player.Playing} at {_player.Position.TotalSeconds:0.0}, web audio {_musicWeb?.CoreWebView2?.IsDocumentPlayingAudio}, lyrics {_currentLyrics?.Lines.Count ?? 0}, {Environment.WorkingSet / 1048576} MB + web {WebMb()} MB");
+                    await Task.Delay(_musicWindow != null ? 28000 : 9000); Say("started");
+                    _media.Choose("DynamicIsland.exe"); await Task.Delay(500);   // only Atoll's own player: the user's is left alone
+                    if (_player.Open && Services.MediaService.IsOwn(_media.Current?.AppId ?? ""))
                     {
                         RefreshVolume(); Log.Write("musicplayer: volume " + VolumeLabel.Text);
                         await _media.TogglePlayPause(); await Task.Delay(1500); Say("paused");

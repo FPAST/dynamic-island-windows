@@ -161,6 +161,16 @@ public sealed class AtollPlayer
         Start(list);
     }
 
+    /// <summary>False when there is nothing to move in (radio).</summary>
+    public bool Seek(TimeSpan to)
+    {
+        if (Radio || _player?.PlaybackSession is not { CanSeek: true } s) return false;
+        s.Position = to;
+        return true;
+    }
+
+    public TimeSpan Position => _player?.PlaybackSession.Position ?? TimeSpan.Zero;
+
     public void Pause() => _player?.Pause();
 
     /// <summary>Stops and frees the player.</summary>

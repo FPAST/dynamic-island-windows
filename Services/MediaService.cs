@@ -350,8 +350,18 @@ public sealed class MediaService
         catch (Exception ex) { Log.Write("media: previous: " + ex.GetType().Name + ": " + ex.Message); }
     }
 
+    /// <summary>Atoll's own player: Windows media controls can't move it, so a seek goes to it directly.</summary>
+    public Func<TimeSpan, bool>? OwnSeek { get; set; }
+
     public async Task Seek(TimeSpan position)
     {
+        if (_session != null && IsOwn(_appId)) 
+        {
+            if (OwnSeek?.Invoke(position) != true) return;
+            lock (_lock) { _position = position; _positionAt = DateTimeOffset.Now; }   // Windows hears of it seconds later
+            Changed?.Invoke();
+            return;
+        }
         try { if (_session != null) await _session.TryChangePlaybackPositionAsync(position.Ticks); } catch (Exception ex) { Log.Write("media: seek: " + ex.GetType().Name + ": " + ex.Message); }
     }
 
@@ -369,11 +379,14 @@ public sealed class MediaService
         catch (Exception ex) { Log.Write("media: pause: " + ex.GetType().Name + ": " + ex.Message); }
     }
 
+    /// <summary>The session of Atoll's own player (radio, files).</summary>
+    public static bool IsOwn(string aumid) => aumid.Contains("DynamicIsland", StringComparison.OrdinalIgnoreCase);
+
     private static string PrettyAppName(string aumid)
     {
         if (string.IsNullOrEmpty(aumid)) return "";
         if (aumid.StartsWith("msedgewebview2", StringComparison.OrdinalIgnoreCase) && WebPlayerName.Length > 0) return WebPlayerName;
-        if (aumid.Contains("DynamicIsland", StringComparison.OrdinalIgnoreCase)) return "Atoll";
+        if (IsOwn(aumid)) return "Atoll";
         // installed web apps: "Chrome._crx_<id>", "MSEdge._crx_<id>"
         var crx = aumid.IndexOf("._crx_", StringComparison.OrdinalIgnoreCase);
         if (crx > 0) return (aumid[..crx].Equals("MSEdge", StringComparison.OrdinalIgnoreCase) ? "Edge" : aumid[..crx]) + L.T(" · веб-приложение");
