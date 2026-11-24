@@ -2,7 +2,7 @@
 
 All notable changes to Atoll (formerly "Dynamic Island for Windows"). Русская версия каждого пункта — ниже английской.
 
-## 2.1.0 — unreleased
+## 2.1.0 — 2026-11-24
 
 - **Smooth glass.** The glass's picture of what's behind the island used to change about once a second (and every six seconds folded), and dropped out while you dragged the island. Now it is taken on a thread of its own up to 20 times a second while the island is open, 4–5 times folded, and under twice a second when nothing behind moves; a new picture fades in over the old one instead of jumping. Measured (liquid glass, Ryzen 7 2700): open over a moving picture 2–3 % CPU, folded about 1 %, the UI thread spends 0.2 ms per picture instead of 1.7 ms.
 - **Liquid glass bends on the graphics card**: the lens at the rim was worked out pixel by pixel on the processor for every picture; now a shader does it, with the same look.
